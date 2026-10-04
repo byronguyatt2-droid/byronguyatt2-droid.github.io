@@ -6602,7 +6602,33 @@ async function forgotPassword() {
 }
 
 // ── SIGN OUT ─────────────────────────────────────────────────────────────
+// Client details, signatures and photos leave the phone with the account, so
+// a shared or lost phone doesn't hold them. Everything is backed up to the
+// account first; signing back in restores the reports from there (see
+// supabaseSyncOnOpen) and photos download again as they're viewed. If the
+// backup can't finish (no signal), the inspector chooses whether to wait.
 async function signOut() {
+  if (authSession) {
+    const reports = getSavedReports();
+    let failed = 0;
+    if (reports.length) showToast('Backing up your reports before signing out…', 'info');
+    for (const entry of reports) {
+      const ok = await supabaseSave(entry, true);
+      if (!ok || allReportPhotos(entry.reportData).some(p => !p.path)) failed++;
+    }
+    const unsaved = !currentReportId && hasReportContent(reportData);
+    if (failed || unsaved) {
+      const lost = [
+        failed ? `${failed} saved report${failed === 1 ? '' : 's'} couldn't be backed up (no signal?)` : '',
+        unsaved ? 'The open report hasn\'t been saved' : '',
+      ].filter(Boolean).join('. ');
+      if (!confirm(`${lost}.\n\nSigning out removes reports from this phone. Sign out anyway and lose them?`)) {
+        showToast('Still signed in. Your reports are safe on this phone', 'info');
+        return;
+      }
+    }
+  }
+  const reportsKey = reportsStorageKey(), quotesKey = quotesStorageKey();
   try {
     await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
       method: 'POST',
@@ -6612,11 +6638,15 @@ async function signOut() {
   stopAuthAutoRefresh();
   clearSession();
   localStorage.removeItem('korva_last_user_id');
-  // Saved reports are scoped per-account now (reportsStorageKey()) and stay
-  // put under their own key when you sign out - exactly like company
-  // details already did - so they're instantly there again next time you
-  // sign back in, with no dependency on a fresh cloud pull landing in time.
-  localStorage.removeItem(DRAFT_KEY);
+  [reportsKey, quotesKey, DRAFT_KEY].forEach(k => localStorage.removeItem(k));
+  try { await photoStoreRequest('readwrite', st => st.clear()); } catch (e) {}
+  currentReportId = null;
+  if (appInitialised) {
+    resetReportState();
+    ['jobAddress','jobSuburb','jobState','jobPostcode','jobClient','jobInspector'].forEach(id => { document.getElementById(id).value = ''; });
+    updateJob();
+    renderSavedList();
+  }
   document.getElementById('mainMenu').style.display  = 'none';
   document.getElementById('app').style.display       = 'none';
   document.getElementById('authScreen').style.display = 'flex';
@@ -6969,8 +6999,9 @@ function getDeviceId() {
 }
 
 // ── SUPABASE REPORT SYNC (now auth-aware) ────────────────────────────────
-async function supabaseSave(entry) {
-  if (!authSession) return; // only sync when authenticated
+// Returns true once the report is in the account. quiet: no error toast.
+async function supabaseSave(entry, quiet) {
+  if (!authSession) return false; // only sync when authenticated
   // Photos go to Storage, not into the row. Record their cloud paths on
   // the saved copy (and the open draft, which shares the photo objects).
   if (await uploadPendingPhotos(entry.reportData)) {
@@ -7014,6 +7045,7 @@ async function supabaseSave(entry) {
     if (!res.ok) {
       const detail = await res.text();
       console.warn('Supabase save failed:', detail);
+      if (quiet) return false;
       // FIX: this used to fail completely silently - "Report saved" already
       // showed from the local save, so a rejected cloud sync (e.g. RLS
       // blocking a write to a report row that doesn't belong to the current
@@ -7022,11 +7054,15 @@ async function supabaseSave(entry) {
       // "saved on this device only, and the server said no."
       showToast('Saved on this device, but could not sync to your account', 'error');
       updateSyncStatus('cloud_error');
+      return false;
     }
+    return true;
   } catch(e) {
     console.warn('Supabase sync error:', e.message);
+    if (quiet) return false;
     showToast('Saved on this device, but could not sync to your account', 'error');
     updateSyncStatus('cloud_error');
+    return false;
   }
 }
 
