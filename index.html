@@ -409,6 +409,86 @@
   </div>
 </div>
 
+<div class="page-sheet-overlay" id="treatmentOverlay">
+  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="treatmentTitle">
+    <div class="page-sheet-header">
+      <span class="page-sheet-title" id="treatmentTitle">Record the treatment</span>
+      <button class="voice-popover-close" onclick="closeTreatmentRecord()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+    </div>
+    <div class="page-sheet-body">
+      <p class="quote-hint" style="margin:0">What you record here goes on the client's treatment certificate.</p>
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Date treated</div>
+          <input class="job-input" id="trDate" type="date">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Next inspection by</div>
+          <input class="job-input" id="trNext" type="date">
+        </div>
+      </div>
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Technician</div>
+          <input class="job-input" id="trTech">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Licence No.</div>
+          <input class="job-input" id="trLicence">
+        </div>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">What was done</div>
+        <div class="treat-methods" id="trMethods"></div>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Products used</div>
+        <div id="trProducts"></div>
+        <datalist id="trProductList"><option value="Termidor"><option value="Termidor Foam"><option value="Premise"><option value="Premise Foam"><option value="Altriset"><option value="Biflex"><option value="Exterra"><option value="Sentricon"><option value="Trelona"><option value="Kordon"></datalist>
+        <button class="quote-link-btn treat-add-product" onclick="addTreatmentProduct()">Add another product</button>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Areas treated</div>
+        <textarea class="job-input" id="trAreas" rows="2" placeholder="e.g. Laundry east wall; perimeter of the building"></textarea>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Areas not treated, and why</div>
+        <textarea class="job-input" id="trNotTreated" rows="2" placeholder="e.g. Under the rear deck, no access"></textarea>
+      </div>
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Durable notice</div>
+          <select class="job-input" id="trNotice" onchange="onTreatmentNoticeChange()">
+            <option value="new">New notice placed</option>
+            <option value="updated">Existing notice updated</option>
+            <option value="none">No notice placed</option>
+          </select>
+        </div>
+        <div class="job-field" id="trNoticeWhereWrap">
+          <div class="job-field-label">Where</div>
+          <input class="job-input" id="trNoticeWhere" placeholder="e.g. Meter box">
+        </div>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Notes for the client</div>
+        <textarea class="job-input" id="trNotes" rows="2"></textarea>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Technician signature</div>
+        <div class="signature-pad-wrap agreement-sig-wrap">
+          <canvas class="signature-canvas" id="trSigCanvas" width="640" height="220"></canvas>
+          <div class="signature-placeholder" id="trSigPlaceholder">Sign here</div>
+        </div>
+        <div class="agreement-sig-actions">
+          <button class="signature-clear-btn" onclick="treatmentPad.clear();updateTreatmentSaveBtn()">Clear signature</button>
+        </div>
+      </div>
+      <button class="extract-btn" id="trSaveBtn" onclick="saveTreatmentRecord()">Save treatment record</button>
+      <button class="link-btn send-review-cancel" onclick="closeTreatmentRecord()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="page-sheet-overlay" id="quotePriceOverlay">
   <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="quotePriceTitle">
     <div class="page-sheet-header">
@@ -1724,6 +1804,7 @@
 <script src="js/app.js"></script>
 <!-- Quote builder: uses js/app.js globals (reportData, getSavedReports, jsPDF…) -->
 <script src="js/quote.js"></script>
+<script src="js/treatment.js"></script>
 <!-- Activity picker bottom sheet — rendered once, reused for all finding cards -->
 <div class="activity-sheet-overlay" id="activitySheetOverlay" onclick="closeActivitySheet()">
   <div class="activity-sheet" onclick="event.stopPropagation()">
