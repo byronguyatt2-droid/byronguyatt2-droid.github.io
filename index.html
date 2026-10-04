@@ -315,6 +315,8 @@
           <textarea class="quote-input quote-textarea" id="qNotes" rows="4" oninput="onQuoteFieldInput()"></textarea>
         </div>
 
+        <div class="quote-card quote-answer" id="quoteAnswer" style="display:none"></div>
+
         <div class="quote-actions">
           <button class="quote-btn" id="quoteEmailBtn" onclick="emailQuoteToClient()">
             <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>Email to client
@@ -324,6 +326,52 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-sheet-overlay" id="quoteAnswerOverlay">
+  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="quoteAnswerTitle">
+    <div class="page-sheet-header">
+      <span class="page-sheet-title" id="quoteAnswerTitle">Quote accepted</span>
+      <button class="voice-popover-close" onclick="closeQuoteAnswer()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+    </div>
+    <div class="page-sheet-body">
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Client Name</div>
+          <input class="job-input" id="qaBy" oninput="updateQuoteAnswerBtn()">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Date</div>
+          <input class="job-input" id="qaDate" type="date">
+        </div>
+      </div>
+      <div class="job-field" id="qaMethodWrap">
+        <div class="job-field-label">How</div>
+        <select class="job-input" id="qaMethod" onchange="onQuoteAnswerMethod()">
+          <option value="signed">Signed on this phone</option>
+          <option value="email">By email</option>
+          <option value="phone">By phone</option>
+          <option value="paper">Signed on paper</option>
+        </select>
+      </div>
+      <div id="qaSignWrap">
+        <div class="agreement-text" id="qaAcceptText"></div>
+        <div class="signature-pad-wrap agreement-sig-wrap">
+          <canvas class="signature-canvas" id="qaSigCanvas" width="640" height="220"></canvas>
+          <div class="signature-placeholder" id="qaSigPlaceholder">Client signs here</div>
+        </div>
+        <div class="agreement-sig-actions">
+          <button class="signature-clear-btn" onclick="quoteAnswerPad.clear();updateQuoteAnswerBtn()">Clear signature</button>
+        </div>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Note</div>
+        <input class="job-input" id="qaNote">
+      </div>
+      <button class="extract-btn" id="qaSaveBtn" onclick="saveQuoteAnswer()">Save</button>
+      <button class="link-btn send-review-cancel" onclick="closeQuoteAnswer()">Cancel</button>
     </div>
   </div>
 </div>

@@ -127,6 +127,7 @@ function persistQuote() {
     localStorage.setItem(quotesStorageKey(), JSON.stringify(all));
     storeQuoteOnReport(quoteState, false);
     setQuoteSaveState('Saved');
+    if (quoteState.answer) renderQuoteAnswer();
   } catch (e) {
     setQuoteSaveState('Not saved');
     showToast('Could not save the quote — device storage may be full', 'error');
@@ -428,6 +429,7 @@ function renderQuoteEditor() {
   document.getElementById('qNotes').value = q.notes || '';
   renderQuoteItems();
   renderQuoteCompanyGaps();
+  renderQuoteAnswer();
 }
 
 // What's missing from Company details, which every quote's header shows.
@@ -562,6 +564,153 @@ function rebuildQuoteFromReport() {
   showToast('Line items rebuilt from the report', 'success');
 }
 
+// ── CLIENT'S ANSWER ─────────────────────────────────────────────────────────
+// The inspector records whether the client accepted or declined the quote,
+// how, and when. q.answer = { status: 'accepted'|'declined', by, date,
+// method, signature?, note, at, hash }. hash is the quote's content when the
+// client answered, so a later change to the quote shows the answer is for an
+// older version. Recording an answer doesn't change the quote itself, so it
+// works on a completed (locked) job.
+const QUOTE_ANSWER_METHODS = {
+  signed: 'signed on the phone',
+  email: 'by email',
+  phone: 'by phone',
+  paper: 'on paper',
+};
+
+function quoteAnswerState(q) {
+  const a = q && q.answer;
+  if (!a) return null;
+  return Object.assign({}, a, { stale: !!a.hash && a.hash !== quoteContentHash(q) });
+}
+
+function formatAnswerDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  return isNaN(d) ? iso : d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// One line for the job banner and the saved reports list, or null when the
+// job has no quote. tone: 'good' | 'bad' | 'wait' | 'warn'.
+function quoteAnswerSummary(q) {
+  if (!quoteHasItems(q)) return null;
+  const a = quoteAnswerState(q);
+  if (!a) return q.sentAt ? { short: 'Quote sent', text: 'Waiting on the client\'s answer to the quote', tone: 'wait' } : null;
+  if (a.stale) return { short: 'Quote changed', text: 'The quote changed after the client answered. Get their answer on the new version', tone: 'warn' };
+  if (a.status === 'accepted') return { short: 'Quote accepted', text: `Quote accepted by ${a.by} on ${formatAnswerDate(a.date)}`, tone: 'good' };
+  return { short: 'Quote declined', text: `Quote declined on ${formatAnswerDate(a.date)}${a.note ? ` · ${a.note}` : ''}`, tone: 'bad' };
+}
+
+function renderQuoteAnswer() {
+  const el = document.getElementById('quoteAnswer');
+  const q = quoteState;
+  if (!q || !quoteHasItems(q)) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  const a = quoteAnswerState(q);
+  const esc = escapeHtml;
+  let body;
+  if (!a) {
+    body = `<div class="quote-answer-status wait">${q.sentAt ? `Sent ${formatAnswerDate(new Date(q.sentAt).toISOString().slice(0, 10))}. Waiting on the client.` : 'Not sent yet. Record the client\'s answer here once you have it.'}</div>
+      <div class="quote-answer-btns">
+        <button class="quote-btn primary" onclick="openQuoteAnswer('accepted')">Accepted</button>
+        <button class="quote-btn" onclick="openQuoteAnswer('declined')">Declined</button>
+      </div>`;
+  } else {
+    const how = a.status === 'accepted' ? (QUOTE_ANSWER_METHODS[a.method] || '') : '';
+    body = `<div class="quote-answer-status ${a.status === 'accepted' ? 'good' : 'bad'}">
+        <strong>${a.status === 'accepted' ? 'Accepted' : 'Declined'}</strong> by ${esc(a.by)} on ${esc(formatAnswerDate(a.date))}${how ? ` · ${esc(how)}` : ''}
+      </div>
+      ${a.note ? `<div class="quote-answer-note">${esc(a.note)}</div>` : ''}
+      ${a.signature ? `<img class="quote-answer-sig" src="${a.signature}" alt="Client signature">` : ''}
+      ${a.stale ? '<div class="quote-answer-warn">The quote has changed since then. Send the new version and record the client\'s answer again.</div>' : ''}
+      <button class="quote-link-btn" onclick="clearQuoteAnswer()">${a.stale ? 'Record a new answer' : 'Change answer'}</button>`;
+  }
+  el.innerHTML = `<div class="quote-card-title">Client's answer</div>${body}`;
+}
+
+let quoteAnswerPad = null;
+let quoteAnswerMode = 'accepted';
+
+function openQuoteAnswer(mode) {
+  if (!quoteState) return;
+  quoteAnswerMode = mode;
+  const accepted = mode === 'accepted';
+  document.getElementById('quoteAnswerTitle').textContent = accepted ? 'Quote accepted' : 'Quote declined';
+  document.getElementById('qaBy').value = quoteState.client || '';
+  document.getElementById('qaDate').value = todayIsoDate();
+  document.getElementById('qaNote').value = '';
+  document.getElementById('qaNote').placeholder = accepted ? 'e.g. Treatment booked for 12 Oct' : 'e.g. Going with another company';
+  document.getElementById('qaMethodWrap').style.display = accepted ? '' : 'none';
+  document.getElementById('qaMethod').value = 'signed';
+  document.getElementById('qaAcceptText').textContent =
+    `I accept quote ${quoteState.number || ''} for ${formatAUD(quoteTotals(quoteState).total)}${quoteState.gst !== false ? ' (inc GST)' : ''} and authorise the work described in it.`;
+  document.getElementById('quoteAnswerOverlay').classList.add('open');
+  if (!quoteAnswerPad) {
+    quoteAnswerPad = createSignaturePad(document.getElementById('qaSigCanvas'), document.getElementById('qaSigPlaceholder'), updateQuoteAnswerBtn);
+  }
+  quoteAnswerPad.clear();
+  onQuoteAnswerMethod();
+}
+
+function onQuoteAnswerMethod() {
+  const signing = quoteAnswerMode === 'accepted' && document.getElementById('qaMethod').value === 'signed';
+  document.getElementById('qaSignWrap').style.display = signing ? '' : 'none';
+  updateQuoteAnswerBtn();
+}
+
+function updateQuoteAnswerBtn() {
+  const signing = quoteAnswerMode === 'accepted' && document.getElementById('qaMethod').value === 'signed';
+  document.getElementById('qaSaveBtn').disabled = !document.getElementById('qaBy').value.trim()
+    || (signing && (!quoteAnswerPad || quoteAnswerPad.empty));
+}
+
+function closeQuoteAnswer() {
+  document.getElementById('quoteAnswerOverlay').classList.remove('open');
+}
+
+function saveQuoteAnswer() {
+  const q = quoteState;
+  if (!q) return;
+  const accepted = quoteAnswerMode === 'accepted';
+  const method = accepted ? document.getElementById('qaMethod').value : '';
+  const answer = {
+    status: quoteAnswerMode,
+    by: document.getElementById('qaBy').value.trim(),
+    date: document.getElementById('qaDate').value || todayIsoDate(),
+    method,
+    note: document.getElementById('qaNote').value.trim(),
+    at: Date.now(),
+    hash: quoteContentHash(q),
+  };
+  if (!answer.by) { showToast('Enter the client\'s name', 'error'); return; }
+  if (accepted && method === 'signed') {
+    if (!quoteAnswerPad || quoteAnswerPad.empty) return;
+    answer.signature = quoteAnswerPad.canvas.toDataURL('image/png');
+  }
+  q.answer = answer;
+  clearTimeout(quoteSaveTimer);
+  persistQuote();
+  storeQuoteOnReport(q, true);
+  closeQuoteAnswer();
+  renderQuoteAnswer();
+  if (typeof renderIssueState === 'function') renderIssueState();
+  if (typeof renderSavedList === 'function') renderSavedList();
+  showToast(accepted ? 'Quote accepted' : 'Quote marked as declined', 'success');
+}
+
+function clearQuoteAnswer() {
+  const q = quoteState;
+  if (!q || !q.answer) return;
+  if (!confirm('Clear the client\'s recorded answer to this quote?')) return;
+  delete q.answer;
+  clearTimeout(quoteSaveTimer);
+  persistQuote();
+  storeQuoteOnReport(q, true);
+  renderQuoteAnswer();
+  if (typeof renderIssueState === 'function') renderIssueState();
+  if (typeof renderSavedList === 'function') renderSavedList();
+}
+
 // ── PDF EXPORT ──────────────────────────────────────────────────────────────
 function exportQuotePDF() {
   if (!quoteState) return;
@@ -629,7 +778,7 @@ function closeQuotePriceList() {
 function quoteHasItems(q) { return !!(q && q.items && q.items.length); }
 function quoteContentHash(q) {
   const content = Object.assign({}, q);
-  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey'].forEach(k => delete content[k]);
+  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey', 'answer'].forEach(k => delete content[k]);
   return sha256Hex(stableJson(content));
 }
 function markQuoteSent(q) {
@@ -657,7 +806,7 @@ function installQuoteLockGuard() {
   quoteLockGuardInstalled = true;
   const editor = document.getElementById('quoteEditor');
   const stop = e => {
-    if (!isQuoteLocked() || e.target.closest('#quotePdfBtn, #quoteEmailBtn')) return;
+    if (!isQuoteLocked() || e.target.closest('#quotePdfBtn, #quoteEmailBtn, #quoteAnswer')) return;
     if (e.type === 'touchstart') return;
     e.preventDefault();
     e.stopPropagation();
@@ -909,10 +1058,25 @@ function buildQuotePDF(q) {
   doc.setTextColor(...C.ink); doc.setFontSize(9);
   doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
   const half = (CW - 10) / 2;
+  // A current acceptance fills the block in; otherwise it's left blank to sign.
+  const ans = quoteAnswerState(q);
+  const accepted = ans && ans.status === 'accepted' && !ans.stale ? ans : null;
   doc.text('Client name:', M, y); doc.line(M + 22, y + 1, M + half, y + 1);
   doc.text('Date:', M + half + 10, y); doc.line(M + half + 20, y + 1, M + CW, y + 1);
+  if (accepted) {
+    doc.setFont('helvetica', 'bold');
+    doc.text(accepted.by, M + 24, y - 0.5);
+    doc.text(formatAnswerDate(accepted.date), M + half + 22, y - 0.5);
+    doc.setFont('helvetica', 'normal');
+  }
   y += 11;
   doc.text('Client signature:', M, y); doc.line(M + 29, y + 1, M + CW, y + 1);
+  if (accepted && accepted.signature) {
+    try { doc.addImage(accepted.signature, 'PNG', M + 32, y - 9, 30, 10.3); } catch (e) {}
+  } else if (accepted) {
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
+    doc.text(`Accepted ${QUOTE_ANSWER_METHODS[accepted.method] || ''}`.trim(), M + 32, y - 0.5);
+  }
   y += 6;
 
   // ── PAGE FOOTERS ──
