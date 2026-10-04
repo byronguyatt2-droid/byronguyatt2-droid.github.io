@@ -32,6 +32,7 @@ function takeInvoiceNumber(number) {
   const seq = parseInt(readJSON(invoiceSeqKey(), 1000), 10);
   if (isFinite(n) && n > seq) {
     try { localStorage.setItem(invoiceSeqKey(), JSON.stringify(n)); } catch (e) {}
+    scheduleBusinessSync();
   }
 }
 
@@ -159,8 +160,10 @@ function saveInvoice() {
   if (!prev.number) takeInvoiceNumber(number);
   // How to pay is the business's, so it's remembered for the next invoice.
   const company = getCompanyDetails();
-  company.paymentDetails = v('invPayment');
-  try { localStorage.setItem(companyStorageKey(), JSON.stringify(company)); } catch (e) {}
+  if (company.paymentDetails !== v('invPayment')) {
+    company.paymentDetails = v('invPayment');
+    storeCompanyDetails(company);
+  }
   const field = document.getElementById('companyPayment');
   if (field) field.value = company.paymentDetails;
   saveInvoiceState(q);

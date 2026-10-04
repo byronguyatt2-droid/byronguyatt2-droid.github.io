@@ -5975,7 +5975,18 @@ function saveCompanyDetails() {
   // improvements to the default wording until they've customised it.
   const agreementText = document.getElementById('companyAgreementText').value;
   details.agreementText = agreementText.trim() === DEFAULT_AGREEMENT_TEXT.trim() ? '' : agreementText;
-  try { localStorage.setItem(companyStorageKey(), JSON.stringify(details)); } catch(e) {}
+  storeCompanyDetails(details);
+}
+
+// Every change to the company details goes through here, so the account
+// copy knows which is newer (see js/business-sync.js). False if the phone
+// couldn't store it.
+function storeCompanyDetails(details) {
+  details.updatedAt = Date.now();
+  try { localStorage.setItem(companyStorageKey(), JSON.stringify(details)); }
+  catch (e) { return false; }
+  scheduleBusinessSync();
+  return true;
 }
 
 function loadCompanyDetails() {
@@ -6052,15 +6063,14 @@ function handleCompanyLogoUpload(input) {
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
       const dataUrl = canvas.toDataURL('image/png');
-      try {
-        const details = getCompanyDetails();
-        details.logo = dataUrl;
-        details.logoWidth = w;
-        details.logoHeight = h;
-        localStorage.setItem(companyStorageKey(), JSON.stringify(details));
+      const details = getCompanyDetails();
+      details.logo = dataUrl;
+      details.logoWidth = w;
+      details.logoHeight = h;
+      if (storeCompanyDetails(details)) {
         renderCompanyLogoPreview(dataUrl);
         showToast('Logo saved', 'success');
-      } catch (e) {
+      } else {
         showToast('Could not save logo — try a smaller image', 'error');
       }
     };
@@ -6075,7 +6085,7 @@ function removeCompanyLogo() {
   delete details.logo;
   delete details.logoWidth;
   delete details.logoHeight;
-  try { localStorage.setItem(companyStorageKey(), JSON.stringify(details)); } catch(e) {}
+  storeCompanyDetails(details);
   renderCompanyLogoPreview(null);
 }
 
@@ -6828,8 +6838,9 @@ function enterApp() {
     // PREVIOUS business's still-filled-in company inputs into this business's
     // first save.
     migrateLegacyCompanyDetails();
+    applyCloudBusinessSettings();
     loadCompanyDetails();
-    if (!document.getElementById('companyName').value) {
+    if (!document.getElementById('companyName').value && isBusinessOwner()) {
       document.getElementById('companyName').value = authBusiness.name || '';
       saveCompanyDetails();
     }
