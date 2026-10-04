@@ -2311,17 +2311,14 @@ function buildTranscriptionVocabHint() {
 // pattern as AI cleanup above, for the same reason: this has never run in
 // real field conditions, and silently swapping out a transcript the
 // technician can already see and trust is a bigger risk than a wording fix.
-// On ANY failure (network error, non-2xx, endpoint not deployed yet, bad
+// On ANY failure (network error, non-2xx, Worker AI error, bad
 // response shape) this fails completely silently — console.warn only — so
 // the Web Speech transcript already in the box remains exactly as if this
 // feature didn't exist.
 //
-// NOTE: the /transcribe route below does not exist on the Worker yet (see
-// this session's note on the stale korva-worker-CLEAN-v3.js file — the
-// currently-deployed Worker source is still needed before that route can be
-// added safely). Calls will 404 until then; that is expected and handled
-// here exactly like any other failure, which is also why this is safe to
-// ship ahead of the Worker change.
+// Served by the Worker's /transcribe route (worker/worker.js, v7+), which
+// expects multipart `audio` + optional `initial_prompt` and returns
+// { transcript }.
 async function tryServerSideTranscription(blob) {
   if (!blob) return;
   try {
@@ -2339,7 +2336,7 @@ async function tryServerSideTranscription(blob) {
     if (!data || typeof data.transcript !== 'string' || !data.transcript.trim()) throw new Error('Unexpected response shape');
     showServerTranscriptionSuggestion(data.transcript.trim());
   } catch (err) {
-    console.warn('Server-side transcription unavailable this recording (expected until the Worker /transcribe endpoint is deployed) — keeping the on-device transcript:', err && err.message);
+    console.warn('Server-side transcription unavailable this recording — keeping the on-device transcript:', err && err.message);
   }
 }
 
