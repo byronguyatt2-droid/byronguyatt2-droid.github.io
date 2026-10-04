@@ -408,13 +408,13 @@
 
       <div class="drawer-scroll">
 
-      <div class="drawer-group-label">This Job</div>
+      <div class="drawer-group-label">This job</div>
 
       <!-- Job details -->
-      <div class="job-panel">
+      <div class="job-panel" id="jobPanel">
         <button class="panel-label panel-label-toggle" onclick="toggleJobPanel()" id="jobPanelToggle">
-          <span class="panel-icon"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span>
-          <span>Job Details</span>
+          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span>
+          <span class="panel-title">Job details</span>
           <span class="job-panel-summary" id="jobPanelSummary"></span>
           <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
@@ -461,7 +461,7 @@
           </div>
 
 
-          <div class="job-panel-divider"></div>
+          <div class="drawer-subhead">Booking &amp; payment</div>
 
           <!-- Job tracking -->
           <div class="job-row">
@@ -535,6 +535,7 @@
             <textarea class="job-input" id="jobNotes" placeholder="Gate codes, access instructions, agent contact, special requirements…" rows="3" style="resize:none;line-height:1.5" oninput="saveJobInfo()"></textarea>
           </div>
 
+        </div><!-- /jobPanelBody -->
           <div class="job-actions">
             <button class="job-action-btn save" onclick="saveCurrentReport()">
               <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
@@ -553,15 +554,33 @@
             <span class="sync-status-dot" id="syncStatusDot"></span>
             <span id="syncStatusText">Not saved yet</span>
           </div>
+      </div>
 
-      <div class="drawer-group-divider"></div>
-      <div class="drawer-group-label">Account &amp; Company</div>
+      <div class="drawer-group-label">Reports</div>
+
+      <!-- Saved Reports -->
+      <div class="saved-panel" id="savedPanel">
+        <button class="panel-label panel-label-toggle" onclick="togglePanel('savedPanel','korva_savedpanel_collapsed')" id="savedPanelToggle">
+          <span class="panel-icon"><svg class="icon " width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg></span>
+          <span class="panel-title">Saved reports</span>
+          <span class="job-panel-summary" id="savedPanelSummary"></span>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="job-panel-body" id="savedPanelBody">
+        <input class="job-input saved-search-input" id="savedSearchInput" type="text" placeholder="Search by address or client" autocomplete="off" oninput="renderSavedList()">
+        <div class="saved-list" id="savedList">
+          <div class="saved-empty">No saved reports yet — fill in a job and tap "Save Report"</div>
+        </div>
+        </div>
+      </div>
+
+      <div class="drawer-group-label">Business</div>
 
       <!-- Company Details -->
-      <div class="job-panel">
+      <div class="job-panel collapsed" id="companyPanelWrap">
         <button class="panel-label panel-label-toggle" onclick="togglePanel('companyPanel','korva_companypanel_collapsed')" id="companyPanelToggle">
-          <span class="panel-icon"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></span>
-          <span>Company Details</span>
+          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></span>
+          <span class="panel-title">Company details</span>
           <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="job-panel-body" id="companyPanel">
@@ -577,7 +596,7 @@
               </div>
               <input type="file" id="companyLogoInput" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="handleCompanyLogoUpload(this)">
             </div>
-            <p style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.4">Used on your PDF report cover.</p>
+            <p class="drawer-hint">Used on your PDF report cover.</p>
           </div>
           <div class="job-field">
             <div class="job-field-label">Company Name</div>
@@ -600,19 +619,21 @@
           <div class="job-field">
             <div class="job-field-label">Pre-Inspection Agreement Wording</div>
             <textarea class="job-input agreement-template-input" id="companyAgreementText" rows="8" oninput="saveCompanyDetails()"></textarea>
-            <p style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.5">What clients sign before each inspection. {company}, {client}, {address}, {date}, {standard}, {inspectionType}, {fee} and {notes} are filled in for each job. This is a starting template: have your lawyer or industry body check it for your state. <button type="button" class="link-btn" onclick="resetAgreementTemplate()">Reset to the default wording</button></p>
+            <p class="drawer-hint">What clients sign before each inspection. {company}, {client}, {address}, {date}, {standard}, {inspectionType}, {fee} and {notes} are filled in for each job. This is a starting template: have your lawyer or industry body check it for your state. <button type="button" class="link-btn" onclick="resetAgreementTemplate()">Reset to the default wording</button></p>
           </div>
-          <p style="font-size:10px;color:var(--text3);padding:0 2px 6px;line-height:1.5">These details appear on every PDF report. Fill them in once — they're saved to this device.</p>
+          <p class="drawer-hint">These details appear on every PDF report. Fill them in once — they're saved to this device.</p>
         </div>
+      </div>
+
       <!-- Team Management -->
-      <div class="job-panel" id="teamPanel">
+      <div class="job-panel collapsed" id="teamPanel">
         <button class="panel-label panel-label-toggle" onclick="togglePanel('teamPanelBody','korva_teampanel_collapsed')" id="teamPanelToggle">
-          <span class="panel-icon"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-          <span>Team</span>
+          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          <span class="panel-title">Team</span>
           <span class="job-panel-summary" id="teamPanelSummary"></span>
           <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
-        <div class="job-panel-body" id="teamPanelBody" style="display:none">
+        <div class="job-panel-body" id="teamPanelBody">
 
           <!-- Invite form -->
           <div class="team-invite-wrap">
@@ -659,33 +680,15 @@
           </div>
 
         </div>
+      </div>
 
-      <div class="drawer-group-divider"></div>
-      <div class="drawer-group-label">Reports</div>
-
-      <!-- Saved Reports -->
-      <div class="saved-panel" id="savedPanel">
-        <button class="panel-label panel-label-toggle" onclick="togglePanel('savedPanel','korva_savedpanel_collapsed')" id="savedPanelToggle">
-          <span class="panel-icon"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg></span>
-          <span>Saved Reports</span>
-          <span class="job-panel-summary" id="savedPanelSummary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="job-panel-body" id="savedPanelBody">
-        <input class="job-input saved-search-input" id="savedSearchInput" type="text" placeholder="Search by address or client" autocomplete="off" oninput="renderSavedList()">
-        <div class="saved-list" id="savedList">
-          <div class="saved-empty">No saved reports yet — fill in a job and tap "Save Report"</div>
-        </div>
-        </div>
-
-      <div class="drawer-group-divider"></div>
-      <div class="drawer-group-label">App Settings</div>
+      <div class="drawer-group-label">App</div>
 
       <!-- Accessibility -->
       <div class="saved-panel settings-panel collapsed" id="accessibilityPanel">
         <button class="panel-label panel-label-toggle" onclick="togglePanel('accessibilityPanel','korva_a11ypanel_collapsed')" id="accessibilityPanelToggle">
-          <span class="panel-icon"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8" r="1"/><path d="M12 12v7"/><path d="M9 15h6"/></svg></span>
-          <span>Accessibility</span>
+          <span class="panel-icon"><svg class="icon " width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8" r="1"/><path d="M12 12v7"/><path d="M9 15h6"/></svg></span>
+          <span class="panel-title">Accessibility</span>
           <span class="job-panel-summary"></span>
           <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
@@ -736,11 +739,37 @@
           </div>
         </div>
       </div>
-      <!-- Settings -->
+
+      <!-- Voice & AI -->
+      <div class="saved-panel settings-panel collapsed" id="aiPanel">
+        <button class="panel-label panel-label-toggle" onclick="togglePanel('aiPanel','korva_aipanel_collapsed')" id="aiPanelToggle">
+          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg></span>
+          <span class="panel-title">Voice &amp; AI</span>
+          <span class="job-panel-summary"></span>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="job-panel-body">
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title">AI Extraction</div>
+              <div class="settings-row-desc">Active — voice transcripts are processed by Korvus's server-side AI service. No key or setup needed on this device. See the Privacy Policy for details.</div>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title">Experimental: AI Audio Transcription</div>
+              <div class="settings-row-desc">Beta — also sends your recording's raw audio to a higher-accuracy transcription service and offers it as an alternative to review (never applied automatically). Off by default: this runs a second microphone session alongside dictation, which hasn't been proven safe on every device yet.</div>
+            </div>
+            <button type="button" class="toggle-switch" id="toggleAudioCapture" onclick="toggleAudioCaptureSetting()" aria-label="Toggle experimental AI audio transcription"></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data & backups -->
       <div class="saved-panel settings-panel collapsed" id="settingsPanel">
         <button class="panel-label panel-label-toggle" onclick="togglePanel('settingsPanel','korva_settingspanel_collapsed')" id="settingsPanelToggle">
-          <span class="panel-icon"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
-          <span>Settings</span>
+          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg></span>
+          <span class="panel-title">Data &amp; backups</span>
           <span class="job-panel-summary"></span>
           <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
@@ -766,19 +795,6 @@
           </div>
           <div class="settings-row">
             <div class="settings-row-text">
-              <div class="settings-row-title">AI Extraction</div>
-              <div class="settings-row-desc">Active — voice transcripts are processed by Korvus's server-side AI service. No key or setup needed on this device. See the Privacy Policy for details.</div>
-            </div>
-          </div>
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <div class="settings-row-title">Experimental: AI Audio Transcription</div>
-              <div class="settings-row-desc">Beta — also sends your recording's raw audio to a higher-accuracy transcription service and offers it as an alternative to review (never applied automatically). Off by default: this runs a second microphone session alongside dictation, which hasn't been proven safe on every device yet.</div>
-            </div>
-            <button type="button" class="toggle-switch" id="toggleAudioCapture" onclick="toggleAudioCaptureSetting()" aria-label="Toggle experimental AI audio transcription"></button>
-          </div>
-          <div class="settings-row">
-            <div class="settings-row-text">
               <div class="settings-row-title">Clear All Saved Reports</div>
               <div class="settings-row-desc">Permanently deletes every saved report from this device. Cannot be undone.</div>
             </div>
@@ -786,22 +802,14 @@
               <svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Clear
             </button>
           </div>
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <div class="settings-row-title">Clear Current Draft</div>
-              <div class="settings-row-desc">Discards unsaved progress on the current report and starts fresh.</div>
-            </div>
-            <button class="job-action-btn settings-danger-btn" onclick="newReport()">
-              <svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Clear
-            </button>
-          </div>
         </div>
       </div>
+
       <!-- Billing -->
       <div class="saved-panel settings-panel collapsed" id="billingPanel">
         <button class="panel-label panel-label-toggle" onclick="togglePanel('billingPanel','korva_billingpanel_collapsed')" id="billingPanelToggle">
-          <span class="panel-icon"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
-          <span>Billing</span>
+          <span class="panel-icon"><svg class="icon " width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
+          <span class="panel-title">Billing</span>
           <span class="job-panel-summary" id="billingPanelSummary"></span>
           <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
@@ -841,11 +849,9 @@
           </div>
         </div>
       </div>
-      </div><!-- /savedPanel -->
-      </div><!-- /teamPanel -->
-      </div><!-- /company details job-panel -->
-      </div><!-- /jobPanelBody -->
-      </div><!-- /job-panel wrapper -->
+
+      <div class="drawer-legal"><a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a></div>
+
       </div><!-- /drawer-scroll -->
 
       <div class="drawer-footer">
