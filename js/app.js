@@ -8208,6 +8208,8 @@ function renderSavedList() {
     const issue = r.reportData.issue;
     const issueTag = issue
       ? `<span class="saved-item-issued">${r.reportData.amending ? 'Amending' : 'Complete'} v${issue.version}</span>` : '';
+    const answer = quoteAnswerSummary(getSavedQuotes()[r.id] || r.quote);
+    const answerTag = answer ? `<span class="saved-item-quote ${answer.tone}">${answer.short}</span>` : '';
     return `
       <div class="saved-item" onclick="loadReport('${r.id}')">
         <div class="saved-item-info">
@@ -8217,6 +8219,7 @@ function renderSavedList() {
             <span class="saved-item-risk ${risk}">${risk === 'none' ? 'N/A' : risk}</span>
             <span class="saved-item-pct">${r.completion}%</span>
             ${issueTag}
+            ${answerTag}
             ${pending ? `<span class="saved-item-pending">${pending} note${pending !== 1 ? 's' : ''} to fill in</span>` : ''}
           </div>
         </div>
@@ -8533,6 +8536,9 @@ function renderIssueState() {
           <button class="agreement-banner-btn issue-primary" onclick="startAmendment()">Unlock for version ${issue.version + 1}</button>
         </div>
       </div>`;
+    const answer = quoteAnswerSummary(currentJobQuote());
+    if (answer) html += `<div class="issue-quote-answer ${answer.tone}"><span>${escapeHtml(answer.text)}</span>
+      <button class="link-btn" onclick="openQuoteFromReport()">${answer.tone === 'good' ? 'View quote' : 'Record answer'}</button></div>`;
   } else if (sent || amending) {
     const items = reportAttentionItems();
     const head = amending

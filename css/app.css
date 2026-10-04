@@ -2420,6 +2420,13 @@ header {
 body.report-locked #reportBody .report-section,
 body.report-locked #jobPanelBody { opacity: 0.78; }
 body.report-locked #micDock { opacity: 0.4; }
+.saved-item-quote { padding: 1px 6px; border-radius: 5px; font-weight: 700; }
+.saved-item-quote.good { background: rgba(40,148,72,0.12); color: var(--green); }
+.saved-item-quote.bad { background: rgba(192,57,43,0.1); color: var(--risk); }
+.saved-item-quote.wait, .saved-item-quote.warn { background: rgba(212,146,10,0.12); color: var(--yellow); }
+.issue-quote-answer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text2); }
+.issue-quote-answer.good span { color: var(--green); font-weight: 600; }
+.issue-quote-answer.wait span, .issue-quote-answer.warn span { color: var(--yellow); font-weight: 600; }
 .saved-item-issued {
   padding: 1px 6px;
   border-radius: 5px;
