@@ -1650,6 +1650,7 @@ function openApp(appName) {
     updateSyncStatus();
     // pull any cloud reports not on this device, then sort out photo storage
     supabaseSyncOnOpen().finally(tidyPhotoStorage);
+    processPendingNotes();
   }
 }
 
@@ -2462,7 +2463,7 @@ function startRecording() {
     const reason = (e && e.error) ? e.error : 'unknown';
     console.warn('Speech recognition error:', reason);
     const messages = {
-      'network': 'Lost connection to the speech service — recording stopped. Dictation needs a working internet connection; try again somewhere with better signal.',
+      'network': 'No signal for voice recording. Tap the box and use your keyboard\'s mic to dictate instead — the note will be saved and filled in when you\'re back online.',
       'no-speech': 'No speech detected — recording stopped.',
       'audio-capture': 'Microphone not available — check mic permission and that no other app is using it.',
       'not-allowed': 'Microphone permission denied — enable it in your browser/device settings.',
@@ -3101,9 +3102,66 @@ function buildSpeciesIntelHTML(data, prefills) {
 // ── AI EXTRACTION ─────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════
 // OFFLINE FALLBACK EXTRACTION ENGINE
-// Runs when the API is unreachable — pattern matching against the most
-// common Australian inspection phrases. Catches ~65% of typical dictation.
+// Pattern matching against the most common Australian inspection phrases,
+// used when the AI answers but can't extract (see applyOfflineExtraction).
+// With no signal at all, notes wait for the AI instead (NO-SIGNAL QUEUE).
 // ══════════════════════════════════════════════════════════════════════════
+
+// ── OFFLINE TERMITE FINDINGS ────────────────────────────────────────────
+// Sentence-level helpers for offlineExtract(). A borer or rot sentence
+// ("old exit holes in the floorboards") is left to the borer/decay code
+// unless it also names termites.
+function isTimberPestSentence(sentence) {
+  return /borer|beetle|exit\s+holes|\brot\b|rotten|rotting|decay/i.test(sentence) && !/termit/i.test(sentence);
+}
+
+function isTermiteSentence(sentence) {
+  const s = sentence.toLowerCase();
+  if (isTimberPestSentence(s)) return false;
+  return /termit|mud\s+(?:leads?|tubes?|galler\w*|work)|workings|\bnest\b|coptotermes|schedorhinotermes|nasutitermes|microcerotermes|cryptotermes|heterotermes|structural\s+(?:concern|damage)|hollow\s+sound|\bworkers\b|\bsoldiers\b|\bactivity\b/.test(s);
+}
+
+// Negated phrases ("no live termites", "not active", "nothing alive") are
+// taken out before looking for words like "live", so they can't count as
+// a sighting. "Inactive" never matches \bactive\b.
+const OFFLINE_NEGATION_RX = /\b(?:no|not|nil|without|nothing)\b(?:\s+(?:current|currently|live|active|actual|any|termites?|activity|evidence|of|sighted|seen|found|observed|present|alive|visible|was|were|is|are))+/g;
+
+function readTermiteSentence(sentence) {
+  const s = sentence.toLowerCase();
+  const negated = OFFLINE_NEGATION_RX.test(s);
+  OFFLINE_NEGATION_RX.lastIndex = 0;
+  const rest = s.replace(OFFLINE_NEGATION_RX, ' ');
+  const f = {};
+
+  if (/\blive\b|\bactive\b|\balive\b|\bworkers\b|\bsoldiers\b/.test(rest)) f.termiteActivity = 'ACTIVE';
+  else if (/\binactive\b|\bold\b|evidence\s+only|historic|previous|past\s+activity|mud\s+(?:leads?|tubes?|galler\w*|work)|workings|damage|hollow/.test(rest)) f.termiteActivity = 'INACTIVE';
+  else if (negated) f.termiteActivity = 'NONE';
+
+  const speciesMap = [
+    [/coptotermes\s+acin|c\.\s*acin/,  'Coptotermes acinaciformis'],
+    [/coptotermes\s+fren|c\.\s*fren/,  'Coptotermes frenchi'],
+    [/coptotermes/,                    'Coptotermes spp.'],
+    [/schedorhinotermes/,              'Schedorhinotermes spp.'],
+    [/nasutitermes/,                   'Nasutitermes spp.'],
+    [/microcerotermes/,                'Microcerotermes spp.'],
+    [/cryptotermes/,                   'Cryptotermes brevis'],
+    [/heterotermes/,                   'Heterotermes spp.'],
+  ];
+  for (const [rx, val] of speciesMap) { if (rx.test(s)) { f.species = val; break; } }
+
+  if (/no\s+structural\s+(?:concern|damage)/.test(s))                                   f.structuralConcern = 'NO';
+  else if (/structural\s+(?:concern|damage)|load.bearing|engineer|builder\s+referral/.test(s)) f.structuralConcern = 'YES';
+
+  if (/no\s+nest\s+(?:was\s+|is\s+)?(?:located|found)|nest\s+not\s+(?:located|found)/.test(s)) f.nestLocated = 'NO';
+  else if (/nest\s+(?:was\s+|is\s+)?(?:located|found)|found\s+(?:a\s+|the\s+)?nest/.test(s))  f.nestLocated = 'YES';
+
+  const locM = sentence.match(/\b(?:in|at|on|under|behind|around|along|near|to)\s+(?:the\s+)?([^,.;]*?\b(?:subfloor|sub-floor|roof\s+void|roof\s+space|walls?|bearers?|joists?|stumps?|slab|bathroom|kitchen|laundry|garage|carport|frames?|skirtings?|architraves?|doors?|windows?|deck|pergola|fences?|living|lounge|bedrooms?|hallway|eaves?|stairs?|posts?|trees?|garden|shed|verandah?|patio|external|internal|eastern|western|northern|southern)\b[^,.;]*)/i);
+  if (locM) f.activityLocation = locM[1].trim();
+
+  if (/mud\s+(?:leads?|tubes?|galler\w*|work)|hollow\s+sound\w*|damage|workings|frass/.test(s)) f.damageDescription = sentence;
+
+  return f;
+}
 
 function offlineExtract(transcript) {
   const t = transcript.toLowerCase();
@@ -3199,78 +3257,43 @@ function offlineExtract(transcript) {
   if (noAccessM) result.obstructions = noAccessM[1].trim();
 
   // ── FINDINGS ──────────────────────────────────────────────────────────
-  const finding = {};
-
-  // FIX: "inactive" contains the substring "active", so the old ACTIVE
-  // check (tested first) matched it before this INACTIVE check ever ran -
-  // every "old/inactive damage, no live termites" transcript was silently
-  // misreported as ACTIVE. INACTIVE/NONE are now checked first, and the
-  // ACTIVE pattern uses a negative lookbehind so "inactive" can never match
-  // it even if wording changes in the future.
-  // FIX: natural negated phrasing like "no active termite activity was
-  // observed" or "no live termites found" was falling straight through to
-  // the ACTIVE/INACTIVE checks below, because the words "active" and
-  // "live" are still literally present even though the sentence means the
-  // opposite - the exact same bug class as the ACTIVE/INACTIVE ordering
-  // fix already applied further down, just recurring in different wording.
-  // Checked first, ahead of everything else.
-  if (/no\s+(?:current\s+|live\s+)?active|not\s+active|no\s+live\s+termites?/i.test(t))
-    finding.termiteActivity = 'NONE';
-  else if (/inactive|evidence\s+only|old\s+workings|old\s+mud/i.test(t))
-    finding.termiteActivity = 'INACTIVE';
-  else if (/no\s+(?:termite\s+)?(?:activity|evidence|finding|workings)/i.test(t))
-    finding.termiteActivity = 'NONE';
-  // FIX: the old (?<!in)active guard only excluded a literal "in" prefix,
-  // so an unrelated word like "reactive" (as in "the owner was reactive
-  // and cooperative") still matched and wrongly flagged ACTIVE termite
-  // activity. \bactive\b requires "active" to be its own whole word, which
-  // excludes "inactive"/"reactive"/"proactive" etc. without needing to
-  // enumerate every possible prefix.
-  else if (/\bactive\b|live\s+termite|workers|soldiers\s+observed/i.test(t))
-    finding.termiteActivity = 'ACTIVE';
-
-  // Species
-  const speciesMap = [
-    [/coptotermes\s+acin|c\.\s*acin/i,          'Coptotermes acinaciformis'],
-    [/coptotermes\s+fren|c\.\s*fren/i,           'Coptotermes frenchi'],
-    [/coptotermes/i,                             'Coptotermes spp.'],
-    [/schedorhinotermes/i,                       'Schedorhinotermes spp.'],
-    [/nasutitermes/i,                            'Nasutitermes spp.'],
-    [/microcerotermes/i,                         'Microcerotermes spp.'],
-    [/cryptotermes/i,                            'Cryptotermes brevis'],
-    [/heterotermes/i,                            'Heterotermes spp.'],
-  ];
-  for (const [rx, val] of speciesMap) { if (rx.test(t)) { finding.species = val; break; } }
-
-  // FIX: these only ever checked for the positive phrasing, so "no
-  // structural concern was noted" / "no nest was located" still matched
-  // (the words "structural concern" / "nest located" are literally present
-  // in the negated sentence too) and silently flipped the field to YES -
-  // the opposite of what was actually said. Negation is now checked first.
-  if (/no\s+structural\s+concern|no\s+structural\s+damage/i.test(t))
-    finding.structuralConcern = 'NO';
-  else if (/structural\s+concern|structural\s+damage|load.bearing|engineer|builder\s+referral/i.test(t))
-    finding.structuralConcern = 'YES';
-
-  if (/no\s+nest\s+(?:was\s+|is\s+)?located|no\s+nest\s+found|nest\s+not\s+located/i.test(t))
-    finding.nestLocated = 'NO';
-  else if (/nest\s+located|found\s+nest|nest\s+found/i.test(t))
-    finding.nestLocated = 'YES';
-
-  // Location — look for common positional phrases
-  const locM = transcript.match(/(?:located?|found|present|observed)\s+(?:in|at|on|to)\s+(?:the\s+)?([^,.]+(?:subfloor|roof\s+void|wall|bearer|joist|stump|slab|bathroom|kitchen|living|bedroom|external|internal|eastern|western|northern|southern)[^,.]*)/i);
-  if (locM) finding.activityLocation = locM[1].trim();
-
-  // Damage description
-  const dmgM = transcript.match(/(?:mud\s+(?:galleries?|tubes?)|hollow\s+sounding?|damaged?\s+timber|workings?)[^.]+\./i);
-  if (dmgM) finding.damageDescription = dmgM[0].trim();
-
-  if (Object.keys(finding).length > 0) result.findings = [{ id: 'offline_' + Date.now(), ...finding }];
+  // Read sentence by sentence, the way technicians dictate one spot at a
+  // time ("Old mud leads on the eastern wall. Live termites in the subfloor
+  // bearer."). Reading the whole transcript at once let an "old" anywhere
+  // outvote "live termites" somewhere else (saving a live finding as
+  // INACTIVE) and merged every spot into one finding. Now a sentence with
+  // its own location, or a different status, starts a new finding, and a
+  // follow-on sentence ("Workers present.") adds to the one before it.
+  const sentences = transcript.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
+  const findings = [];
+  let lastWasTermite = false;
+  sentences.forEach(sentence => {
+    // "Old damage in the roof void, inactive." right after a termite
+    // sentence is about termites too, even without the word.
+    const isTermite = isTermiteSentence(sentence)
+      || (lastWasTermite && !isTimberPestSentence(sentence) && /damage|\bactive\b|\binactive\b|\blive\b/i.test(sentence));
+    lastWasTermite = isTermite;
+    if (!isTermite) return;
+    const f = readTermiteSentence(sentence);
+    const prev = findings[findings.length - 1];
+    const startsNew = !prev
+      || (f.activityLocation && prev.activityLocation)
+      || (f.termiteActivity && prev.termiteActivity && f.termiteActivity !== prev.termiteActivity);
+    if (startsNew) { findings.push(f); return; }
+    Object.keys(f).forEach(k => {
+      if (k === 'damageDescription' && prev.damageDescription) prev.damageDescription += ' ' + f.damageDescription;
+      else if (!prev[k]) prev[k] = f[k];
+    });
+  });
+  // "No live termites found." next to a real finding is a remark, not a
+  // finding of its own. Only report NONE when nothing else was found.
+  const realFindings = findings.filter(f => f.termiteActivity !== 'NONE' || f.activityLocation || f.damageDescription || f.species);
+  const termiteFindings = realFindings.length ? realFindings : findings.slice(0, 1);
+  if (termiteFindings.length) result.findings = termiteFindings.slice(0, MAX_FINDINGS);
 
   // ── BORERS & WOOD DECAY ───────────────────────────────────────────────
   // Read from the sentences that mention them only, so a termite sentence
   // ("live termites...") can't set the borer status. Negation first, as above.
-  const sentences = transcript.split(/(?<=[.!?])\s+/);
   const borerText = sentences.filter(x => /borer|anobium|lyctus|furniture\s+beetle|pine\s+beetle|exit\s+holes/i.test(x)).join(' ');
   if (borerText) {
     if (/no\s+(?:sign\s+of\s+|evidence\s+of\s+)?(?:borers?|borer\s+activity)/i.test(borerText)) result.borerActivity = 'NONE';
@@ -3390,13 +3413,21 @@ function offlineExtract(transcript) {
   return result;
 }
 
-async function processTranscript() {
-  if (!currentTranscript.trim()) return;
-  setAI('thinking', 'Extracting data...');
-  document.getElementById('extractBtn').disabled = true;
+// Sends one dictated note to the AI and returns the extracted fields.
+// Throws an error with .noSignal set when the phone can't reach the
+// internet (offline, a dropped connection or no answer in time), so the
+// note can wait for signal instead of going through offlineExtract().
+const EXTRACTION_TIMEOUT_MS = 60000;
 
+async function requestExtraction(text) {
+  const noSignal = (msg) => Object.assign(new Error(msg), { noSignal: true });
+  if (!navigator.onLine) throw noSignal('no signal');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), EXTRACTION_TIMEOUT_MS);
+  let res, rawBody;
   try {
-    const res = await fetch('https://korva.byronguyatt2.workers.dev', {
+    res = await fetch('https://korva.byronguyatt2.workers.dev', {
       method: 'POST',
       // FIX: the worker has required a Bearer session token since v4 (see
       // korva-worker-CLEAN-v5.js) - every call here was missing it, so the
@@ -3417,63 +3448,91 @@ async function processTranscript() {
         // real headroom rather than just enough for today's test case.
         max_tokens: 4096,
         system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: currentTranscript }]
-      })
+        messages: [{ role: 'user', content: text }]
+      }),
+      signal: controller.signal,
     });
+    rawBody = await res.text();
+  } catch (err) {
+    // fetch() only rejects when the request never got an answer.
+    throw noSignal(err && err.name === 'AbortError' ? 'no answer in time' : 'no connection');
+  } finally {
+    clearTimeout(timer);
+  }
 
-    // The worker can reject a request (e.g. a failed origin check) with a
-    // plain-text body like "Forbidden" rather than JSON — parse defensively
-    // so that text surfaces as-is instead of a confusing JSON-parse error.
-    const rawBody = await res.text();
-    let data;
-    try {
-      data = JSON.parse(rawBody);
-    } catch {
-      throw new Error(`HTTP ${res.status}: ${rawBody.slice(0, 200) || '(empty response)'}`);
+  // The worker can reject a request (e.g. a failed origin check) with a
+  // plain-text body like "Forbidden" rather than JSON — parse defensively
+  // so that text surfaces as-is instead of a confusing JSON-parse error.
+  let data;
+  try {
+    data = JSON.parse(rawBody);
+  } catch {
+    throw new Error(`HTTP ${res.status}: ${rawBody.slice(0, 200) || '(empty response)'}`);
+  }
+
+  if (!res.ok || data.error) {
+    const errMsg = data.error?.message || data.error?.type || `HTTP ${res.status}`;
+    throw new Error('API error: ' + errMsg);
+  }
+
+  // FIX: if the response was cut off at the token limit, say so plainly
+  // instead of letting JSON.parse() below throw an opaque "Unexpected
+  // EOF" that's indistinguishable from any other malformed-response bug.
+  if (data.stop_reason === 'max_tokens') {
+    throw new Error('AI response was cut off (transcript too long for the response limit) — falling back to offline mode');
+  }
+
+  const out = data.content.map(i => i.text || '').join('');
+  return JSON.parse(out.replace(/```json|```/g, '').trim());
+}
+
+// ── OFFLINE FALLBACK ───────────────────────────────────────────────────
+// Used when the AI answered but couldn't extract (an API error, a cut-off
+// response). Surfaces the real reason in the toast itself (not just the
+// console) — it's the one signal that tells us WHY the AI call failed
+// without digging through a device console. Returns false when nothing
+// was recognised, so the transcript can stay put.
+function applyOfflineExtraction(text, err) {
+  const reason = ((err && err.message) ? String(err.message) : 'unknown error').slice(0, 140);
+  console.warn('AI unavailable — running offline extraction:', reason);
+  try {
+    const extracted = offlineExtract(text);
+    const fieldCount = Object.keys(extracted).length;
+    if (fieldCount > 0) {
+      populateFields(extracted);
+      setAI('ready', 'Offline extraction used');
+      showToast(`Offline mode — ${fieldCount} field${fieldCount !== 1 ? 's' : ''} extracted. AI unavailable: ${reason}`, 'info');
+      return true;
     }
+    setAI('ready', 'No fields recognised');
+    showToast(`Offline mode — no fields recognised. AI unavailable: ${reason}`, 'error');
+  } catch (offlineErr) {
+    setAI('ready', 'Extraction failed');
+    showToast(`Extraction failed: ${reason}`, 'error');
+  }
+  return false;
+}
 
-    if (!res.ok || data.error) {
-      const errMsg = data.error?.message || data.error?.type || `HTTP ${res.status}`;
-      throw new Error('API error: ' + errMsg);
-    }
+async function processTranscript() {
+  if (!currentTranscript.trim()) return;
+  setAI('thinking', 'Extracting data...');
+  document.getElementById('extractBtn').disabled = true;
 
-    // FIX: if the response was cut off at the token limit, say so plainly
-    // instead of letting JSON.parse() below throw an opaque "Unexpected
-    // EOF" that's indistinguishable from any other malformed-response bug.
-    if (data.stop_reason === 'max_tokens') {
-      throw new Error('AI response was cut off (transcript too long for the response limit) — falling back to offline mode');
-    }
-
-    const text = data.content.map(i => i.text || '').join('');
-    const extracted = JSON.parse(text.replace(/```json|```/g, '').trim());
-    populateFields(extracted);
+  try {
+    populateFields(await requestExtraction(currentTranscript));
     setAI('ready', 'Data extracted');
     showToast('Fields populated', 'success');
-
-  } catch(err) {
-    // ── OFFLINE FALLBACK ───────────────────────────────────────────────
-    // Surface the real reason in the toast itself (not just the console) —
-    // this is the one signal that actually tells us WHY the AI call failed
-    // (a network error, a CORS/origin rejection, a bad API key, an invalid
-    // model, etc.) without needing to dig through Xcode's device console.
-    const reason = ((err && err.message) ? String(err.message) : 'unknown error').slice(0, 140);
-    console.warn('API unavailable — running offline extraction:', reason);
-    try {
-      const extracted = offlineExtract(currentTranscript);
-      const fieldCount = Object.keys(extracted).length;
-      if (fieldCount > 0) {
-        populateFields(extracted);
-        setAI('ready', 'Offline extraction used');
-        showToast(`Offline mode — ${fieldCount} field${fieldCount !== 1 ? 's' : ''} extracted. AI unavailable: ${reason}`, 'info');
-      } else {
-        setAI('ready', 'No fields recognised');
-        showToast(`Offline mode — no fields recognised. AI unavailable: ${reason}`, 'error');
+    processPendingNotes(); // signal is back, so fill in anything still waiting
+  } catch (err) {
+    if (err.noSignal) {
+      if (!queuePendingNote(currentTranscript)) {
+        setAI('ready', 'AI ready');
         document.getElementById('extractBtn').disabled = false;
         return;
       }
-    } catch(offlineErr) {
-      setAI('ready', 'Extraction failed');
-      showToast(`Extraction failed: ${reason}`, 'error');
+      setAI('ready', 'Saved until there\'s signal');
+      showToast('No signal — note saved. It will fill in the report when you\'re back online.', 'info');
+    } else if (!applyOfflineExtraction(currentTranscript, err)) {
       document.getElementById('extractBtn').disabled = false;
       return;
     }
@@ -3490,6 +3549,109 @@ async function processTranscript() {
   resetConfDebug();
   dismissCleanupSuggestion();
   dismissServerTranscript();
+}
+
+// ── NO-SIGNAL QUEUE ─────────────────────────────────────────────────────
+// With no signal (subfloors, roof voids, regional jobs) a dictated note is
+// kept on the report in reportData.pendingNotes, so it's saved with the
+// draft and the saved report, and sent to the AI once the phone is back
+// online or the report is next opened with signal. Nothing is filled in
+// from it until then: the offline pattern matcher is too rough to trust
+// with a whole note.
+const MAX_PENDING_NOTES = 50;
+let pendingNotesRunning = false;
+
+function getPendingNotes() {
+  return Array.isArray(reportData.pendingNotes) ? reportData.pendingNotes : [];
+}
+
+function queuePendingNote(text) {
+  const notes = getPendingNotes();
+  if (notes.length >= MAX_PENDING_NOTES) {
+    showToast(`${MAX_PENDING_NOTES} notes are already waiting for signal — fill those in before adding more`, 'error');
+    return false;
+  }
+  const id = 'note_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  reportData.pendingNotes = [...notes, { id, text: text.trim(), at: Date.now() }];
+  saveDraft();
+  renderPendingNotes();
+  return true;
+}
+
+function removePendingNote(id) {
+  if (!confirm('Delete this saved note? It hasn\'t been added to the report yet.')) return;
+  reportData.pendingNotes = getPendingNotes().filter(n => n.id !== id);
+  if (!reportData.pendingNotes.length) delete reportData.pendingNotes;
+  saveDraft();
+  renderPendingNotes();
+}
+
+function renderPendingNotes() {
+  const notes = getPendingNotes();
+  const n = notes.length;
+  const badge = document.getElementById('pendingNotesBadge');
+  if (badge) { badge.textContent = n; badge.style.display = n ? '' : 'none'; }
+  const bar = document.getElementById('pendingNotesBar');
+  if (!bar) return;
+  bar.style.display = n ? '' : 'none';
+  document.getElementById('pendingNotesText').textContent =
+    `${n} note${n !== 1 ? 's' : ''} waiting for signal`;
+  const btn = document.getElementById('pendingNotesBtn');
+  btn.disabled = pendingNotesRunning;
+  btn.textContent = pendingNotesRunning ? 'Filling in…' : 'Fill in now';
+  document.getElementById('pendingNotesList').innerHTML = notes.map(note => {
+    const time = new Date(note.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+    return `<div class="pending-note">
+      <span class="pending-note-time">${time}</span>
+      <span class="pending-note-text">${escapeHtml(note.text)}</span>
+      <button class="pending-note-remove" onclick="removePendingNote('${note.id}')" title="Delete note" aria-label="Delete note">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// Sends the open report's waiting notes to the AI, oldest first. Stops if
+// the signal drops again or a different report is opened part-way through,
+// so a note can only ever fill in the report it was dictated on.
+async function processPendingNotes(manual) {
+  if (pendingNotesRunning || !getPendingNotes().length) return;
+  if (!navigator.onLine) {
+    if (manual) showToast('Still no signal — the notes will fill in when you\'re back online', 'info');
+    return;
+  }
+  const target = reportData;
+  pendingNotesRunning = true;
+  renderPendingNotes();
+  setAI('thinking', 'Filling in saved notes...');
+  let filled = 0, stillNoSignal = false;
+  try {
+    for (let note = getPendingNotes()[0]; note && reportData === target; note = getPendingNotes()[0]) {
+      let extracted = null;
+      try {
+        extracted = await requestExtraction(note.text);
+      } catch (err) {
+        if (err.noSignal) { stillNoSignal = true; break; }
+        if (reportData !== target) break;
+        applyOfflineExtraction(note.text, err);
+      }
+      if (reportData !== target) break;
+      if (extracted) populateFields(extracted);
+      reportData.pendingNotes = getPendingNotes().filter(n => n.id !== note.id);
+      filled++;
+      saveDraft();
+    }
+  } finally {
+    pendingNotesRunning = false;
+    if (reportData === target && !getPendingNotes().length) delete reportData.pendingNotes;
+    renderPendingNotes();
+    setAI('ready', 'AI ready');
+  }
+  // A report that's already in Saved Reports is re-saved, so its copy
+  // there doesn't keep the notes and fill them in a second time.
+  if (filled && reportData === target && currentReportId && getSavedReports().some(r => r.id === currentReportId)) {
+    saveCurrentReport(true);
+  }
+  if (filled) showToast(`${filled} saved note${filled !== 1 ? 's' : ''} filled in — check the report`, 'success');
+  else if (stillNoSignal && manual) showToast('Still no signal — the notes will fill in when you\'re back online', 'info');
 }
 
 // ── COMPLIANCE PLATE SCAN ───────────────────────────────────────────────
@@ -5305,6 +5467,7 @@ function renderReportWidgets() {
   renderAllSectionPhotoGrids();
   renderAreaChecklist();
   renderMoistureTable();
+  renderPendingNotes();
 }
 
 // ── LEGACY GENERAL PHOTOS (Photos tab) ─────────────────────────────────────
@@ -6745,12 +6908,12 @@ function updateSyncStatus(state) {
   textEl.textContent = 'Not saved yet';
 }
 
-window.addEventListener('online', () => updateSyncStatus());
+window.addEventListener('online', () => { updateSyncStatus(); processPendingNotes(); });
 window.addEventListener('offline', () => updateSyncStatus());
 
 // Make sure a pending debounced save is never lost if the app is backgrounded
 // or closed before the debounce timer would otherwise have fired.
-document.addEventListener('visibilitychange', () => { if (document.hidden) flushDraftSave(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushDraftSave(); else processPendingNotes(); });
 window.addEventListener('pagehide', flushDraftSave);
 window.addEventListener('beforeunload', flushDraftSave);
 
@@ -6883,7 +7046,8 @@ function isFieldFilled(key) {
   return true;
 }
 
-function saveCurrentReport() {
+// quiet: no toast, for saves the app makes on its own (see processPendingNotes)
+function saveCurrentReport(quiet) {
   const street = document.getElementById('jobAddress').value.trim();
   if (!street) {
     showToast('Enter a property address before saving', 'error');
@@ -6918,7 +7082,7 @@ function saveCurrentReport() {
 
   if (setSavedReports(reports)) {
     currentReportId = id;
-    showToast('Report saved', 'success');
+    if (!quiet) showToast('Report saved', 'success');
     renderSavedList();
     saveDraft();
     lastLocalSaveAt = Date.now();
@@ -6981,6 +7145,7 @@ function loadReport(id) {
   saveDraft();
 
   showToast(`Loaded: ${entry.address}`, 'info');
+  processPendingNotes();
   if (window.innerWidth <= 768 && document.getElementById('sidebarPanel').classList.contains('open')) {
     toggleDrawer();
   }
@@ -7233,6 +7398,7 @@ function newReport() {
 
 function resetReportState() {
   reportData = {};
+  setAI('ready', 'AI ready');
   fieldNotes = {};
   pendingSpeciesMatch = null;
   window.__lastPdfBlob = null;
@@ -7655,6 +7821,7 @@ function renderSavedList() {
     const dateStr = date.toLocaleDateString('en-AU', { day:'numeric', month:'short' });
     const risk = r.reportData.riskLevel || 'none';
     const addr = r.address || 'Untitled property';
+    const pending = (r.reportData.pendingNotes || []).length;
     return `
       <div class="saved-item" onclick="loadReport('${r.id}')">
         <div class="saved-item-info">
@@ -7663,6 +7830,7 @@ function renderSavedList() {
             <span>${dateStr}</span>
             <span class="saved-item-risk ${risk}">${risk === 'none' ? 'N/A' : risk}</span>
             <span class="saved-item-pct">${r.completion}%</span>
+            ${pending ? `<span class="saved-item-pending">${pending} note${pending !== 1 ? 's' : ''} to fill in</span>` : ''}
           </div>
         </div>
         <button class="saved-item-delete" onclick="deleteReport('${r.id}', event)" title="Delete">✕</button>
