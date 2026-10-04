@@ -5820,7 +5820,7 @@ function toggleDrawer() {
 }
 
 function toggleJobPanel() {
-  togglePanel('jobPanelToggle', 'korva_jobpanel_collapsed');
+  togglePanel('jobPanel', 'korva_jobpanel_collapsed');
 }
 
 function togglePanel(toggleOrPanelId, storageKey) {
@@ -5835,48 +5835,26 @@ function togglePanel(toggleOrPanelId, storageKey) {
   try { localStorage.setItem(storageKey, collapsed ? '1' : '0'); } catch (e) {}
 }
 
+// Each drawer panel remembers whether it was left open. [panel id, storage
+// key, starts collapsed]
+const DRAWER_PANELS = [
+  ['jobPanel',           'korva_jobpanel_collapsed',      false],
+  ['savedPanel',         'korva_savedpanel_collapsed',    false],
+  ['companyPanelWrap',   'korva_companypanel_collapsed',  true],
+  ['teamPanel',          'korva_teampanel_collapsed',     true],
+  ['accessibilityPanel', 'korva_a11ypanel_collapsed',     true],
+  ['aiPanel',            'korva_aipanel_collapsed',       true],
+  ['settingsPanel',      'korva_settingspanel_collapsed', true],
+  ['billingPanel',       'korva_billingpanel_collapsed',  true],
+];
 function applyPanelCollapseStates() {
-  try {
-    if (localStorage.getItem('korva_jobpanel_collapsed') === '1') {
-      document.querySelector('.job-panel').classList.add('collapsed');
-    } else {
-      document.querySelector('.job-panel').classList.remove('collapsed');
-    }
-    if (localStorage.getItem('korva_savedpanel_collapsed') === '1') {
-      document.getElementById('savedPanel').classList.add('collapsed');
-    } else {
-      document.getElementById('savedPanel').classList.remove('collapsed');
-    }
-    // Settings/Accessibility/Demo panels default to collapsed; only expand if explicitly opened before
-    if (localStorage.getItem('korva_settingspanel_collapsed') === '0') {
-      document.getElementById('settingsPanel').classList.remove('collapsed');
-    } else {
-      document.getElementById('settingsPanel').classList.add('collapsed');
-    }
-    if (localStorage.getItem('korva_a11ypanel_collapsed') === '0') {
-      document.getElementById('accessibilityPanel').classList.remove('collapsed');
-    } else {
-      document.getElementById('accessibilityPanel').classList.add('collapsed');
-    }
-    const billingPanelEl = document.getElementById('billingPanel');
-    if (billingPanelEl) {
-      if (localStorage.getItem('korva_billingpanel_collapsed') === '0') {
-        billingPanelEl.classList.remove('collapsed');
-      } else {
-        billingPanelEl.classList.add('collapsed');
-      }
-    }
-    // demoPanel: not yet built (no matching HTML section exists) — guarded
-    // so it degrades silently instead of throwing inside this try block.
-    const demoPanelEl = document.getElementById('demoPanel');
-    if (demoPanelEl) {
-      if (localStorage.getItem('korva_demopanel_collapsed') === '0') {
-        demoPanelEl.classList.remove('collapsed');
-      } else {
-        demoPanelEl.classList.add('collapsed');
-      }
-    }
-  } catch (e) {}
+  DRAWER_PANELS.forEach(([id, key, collapsedByDefault]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    let saved = null;
+    try { saved = localStorage.getItem(key); } catch (e) {}
+    el.classList.toggle('collapsed', saved === null ? collapsedByDefault : saved === '1');
+  });
 }
 
 function toggleVoicePopover() {
