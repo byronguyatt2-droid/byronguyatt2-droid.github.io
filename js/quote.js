@@ -603,6 +603,12 @@ function quoteAnswerSummary(q) {
   const a = quoteAnswerState(q);
   if (!a) return q.sentAt ? { short: 'Quote sent', text: 'Waiting on the client\'s answer to the quote', tone: 'wait' } : null;
   if (a.stale) return { short: 'Quote changed', text: 'The quote changed after the client answered. Get their answer on the new version', tone: 'warn' };
+  if (a.status === 'accepted' && q.invoice) {
+    const inv = q.invoice, st = invoiceStatus(inv);
+    if (st === 'paid') return { short: 'Paid', text: `Invoice ${inv.number} paid on ${formatAnswerDate(inv.paid.date)}`, tone: 'good' };
+    if (st === 'overdue') return { short: 'Invoice overdue', text: `Invoice ${inv.number} was due ${formatAnswerDate(inv.due)}. Follow up the payment`, tone: 'warn' };
+    return { short: inv.sentAt ? 'Invoice sent' : 'Invoiced', text: `Invoice ${inv.number} ${inv.sentAt ? 'sent' : 'made'}. Due ${formatAnswerDate(inv.due)}`, tone: 'wait' };
+  }
   if (a.status === 'accepted' && q.treatment) return { short: 'Treatment done', text: `Treatment done on ${formatAnswerDate(q.treatment.date)}. Send the client the certificate`, tone: 'good' };
   if (a.status === 'accepted' && q.booking) return { short: 'Treatment booked', text: `Quote accepted. Treatment booked for ${formatBooking(q.booking)}`, tone: 'good' };
   if (a.status === 'accepted') return { short: 'Quote accepted', text: `Quote accepted by ${a.by} on ${formatAnswerDate(a.date)}. Book the treatment next`, tone: 'good' };
@@ -631,7 +637,7 @@ function renderQuoteAnswer() {
       ${a.note ? `<div class="quote-answer-note">${esc(a.note)}</div>` : ''}
       ${a.signature ? `<img class="quote-answer-sig" src="${a.signature}" alt="Client signature">` : ''}
       ${a.stale ? '<div class="quote-answer-warn">The quote has changed since then. Send the new version and record the client\'s answer again.</div>' : ''}
-      ${a.status === 'accepted' && !a.stale ? renderQuoteBookingBlock(q) + renderTreatmentBlock(q) : ''}
+      ${a.status === 'accepted' && !a.stale ? renderQuoteBookingBlock(q) + renderTreatmentBlock(q) + renderInvoiceBlock(q) : ''}
       <button class="quote-link-btn" onclick="clearQuoteAnswer()">${a.stale ? 'Record a new answer' : 'Change answer'}</button>`;
   }
   el.innerHTML = `<div class="quote-card-title">Client's answer</div>${body}`;
@@ -939,7 +945,7 @@ function closeQuotePriceList() {
 function quoteHasItems(q) { return !!(q && q.items && q.items.length); }
 function quoteContentHash(q) {
   const content = Object.assign({}, q);
-  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey', 'answer', 'booking', 'treatment'].forEach(k => delete content[k]);
+  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey', 'answer', 'booking', 'treatment', 'invoice'].forEach(k => delete content[k]);
   return sha256Hex(stableJson(content));
 }
 function markQuoteSent(q) {
@@ -1093,6 +1099,78 @@ function drawPdfNumberedTitle(doc, y, title, num) {
   return y + 15;
 }
 
+// The line items table: description and detail, qty, unit price, amount.
+// newPage() starts a fresh page and returns its top y. Returns the y below
+// the table.
+function drawPdfLineItems(doc, y, allItems, { bottom, newPage }) {
+  const C = PDF_COLORS;
+  const M = 15, CW = 180;
+  const X_QTY = M + CW - 66, X_PRICE = M + CW - 30, X_AMT = M + CW - 3;
+  const DESC_W = X_QTY - M - 22;
+  function tableHead() {
+    doc.setFillColor(...C.headerBg); doc.rect(M, y, CW, 8, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(235, 228, 218);
+    doc.text('DESCRIPTION', M + 4, y + 5.3);
+    doc.text('QTY', X_QTY, y + 5.3, { align: 'right' });
+    doc.text('UNIT PRICE', X_PRICE, y + 5.3, { align: 'right' });
+    doc.text('AMOUNT', X_AMT, y + 5.3, { align: 'right' });
+    y += 8;
+  }
+  tableHead();
+  const items = allItems.filter(it => (it.desc || '').trim() || lineTotal(it));
+  if (!items.length) {
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(...C.inkMuted);
+    doc.text('No line items.', M + 4, y + 6); y += 10;
+  }
+  items.forEach((it, i) => {
+    doc.setFontSize(9);
+    const descLines = doc.splitTextToSize((it.desc || '').trim() || 'Item', DESC_W);
+    doc.setFontSize(7.5);
+    const detailLines = (it.detail || '').trim() ? doc.splitTextToSize(it.detail.trim(), DESC_W) : [];
+    const rowH = Math.max(9, descLines.length * 4.4 + detailLines.length * 3.6 + 5);
+    if (y + rowH > bottom) { y = newPage(); tableHead(); }
+    if (i % 2 === 1) { doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, rowH, 'F'); }
+    doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, rowH, 'F');
+    doc.setDrawColor(...C.ruleLight); doc.setLineWidth(0.25); doc.line(M, y + rowH, M + CW, y + rowH);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...C.ink);
+    doc.text(descLines, M + 4, y + 5.5);
+    if (detailLines.length) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
+      doc.text(detailLines, M + 4, y + 5.5 + descLines.length * 4.4);
+    }
+    const qty = parseFloat(it.qty);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+    doc.text(`${isFinite(qty) ? +qty.toFixed(2) : 0} ${it.unit || ''}`.trim(), X_QTY, y + 5.5, { align: 'right' });
+    doc.text(formatAUD(parseFloat(it.price)), X_PRICE, y + 5.5, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatAUD(lineTotal(it)), X_AMT, y + 5.5, { align: 'right' });
+    y += rowH;
+  });
+  return y;
+}
+
+// Totals box, right-aligned: label/amount rows, then a highlighted final
+// row ([label, amount]).
+const PDF_TOTALS_BOX_W = 80;
+function pdfTotalsBoxHeight(rows) { return rows.length * 6.5 + 14; }
+function drawPdfTotalsBox(doc, y, rows, [finalLabel, finalValue]) {
+  const C = PDF_COLORS;
+  const M = 15, CW = 180, boxW = PDF_TOTALS_BOX_W;
+  const bx = M + CW - boxW;
+  doc.setFillColor(...C.rowAlt); doc.roundedRect(bx, y, boxW, pdfTotalsBoxHeight(rows), 2, 2, 'F');
+  let ty = y + 6.5;
+  rows.forEach(([label, val]) => {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
+    doc.text(label, bx + 5, ty);
+    doc.setTextColor(...C.ink); doc.text(formatAUD(val), bx + boxW - 4, ty, { align: 'right' });
+    ty += 6.5;
+  });
+  doc.setFillColor(...C.accent); doc.rect(bx, ty - 3, boxW, 10, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.white);
+  doc.text(finalLabel, bx + 5, ty + 3.4);
+  doc.text(formatAUD(finalValue), bx + boxW - 4, ty + 3.4, { align: 'right' });
+}
+
 function drawPdfDocFooters(doc, label) {
   const C = PDF_COLORS;
   const W = 210, M = 15, CW = W - M * 2;
@@ -1136,67 +1214,14 @@ function buildQuotePDF(q) {
 
   // ── 1. SCOPE OF WORKS ──
   sectionTitle('SCOPE OF WORKS', 1);
-  const X_QTY = M + CW - 66, X_PRICE = M + CW - 30, X_AMT = M + CW - 3;
-  const DESC_W = X_QTY - M - 22;
-  function tableHead() {
-    doc.setFillColor(...C.headerBg); doc.rect(M, y, CW, 8, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(235, 228, 218);
-    doc.text('DESCRIPTION', M + 4, y + 5.3);
-    doc.text('QTY', X_QTY, y + 5.3, { align: 'right' });
-    doc.text('UNIT PRICE', X_PRICE, y + 5.3, { align: 'right' });
-    doc.text('AMOUNT', X_AMT, y + 5.3, { align: 'right' });
-    y += 8;
-  }
-  tableHead();
-  const items = q.items.filter(it => (it.desc || '').trim() || lineTotal(it));
-  if (!items.length) {
-    doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(...C.inkMuted);
-    doc.text('No line items.', M + 4, y + 6); y += 10;
-  }
-  items.forEach((it, i) => {
-    doc.setFontSize(9);
-    const descLines = doc.splitTextToSize((it.desc || '').trim() || 'Item', DESC_W);
-    doc.setFontSize(7.5);
-    const detailLines = (it.detail || '').trim() ? doc.splitTextToSize(it.detail.trim(), DESC_W) : [];
-    const rowH = Math.max(9, descLines.length * 4.4 + detailLines.length * 3.6 + 5);
-    if (y + rowH > BOTTOM) { doc.addPage(); pageTopBand(); tableHead(); }
-    if (i % 2 === 1) { doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, rowH, 'F'); }
-    doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, rowH, 'F');
-    doc.setDrawColor(...C.ruleLight); doc.setLineWidth(0.25); doc.line(M, y + rowH, M + CW, y + rowH);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-    doc.text(descLines, M + 4, y + 5.5);
-    if (detailLines.length) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
-      doc.text(detailLines, M + 4, y + 5.5 + descLines.length * 4.4);
-    }
-    const qty = parseFloat(it.qty);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
-    doc.text(`${isFinite(qty) ? +qty.toFixed(2) : 0} ${it.unit || ''}`.trim(), X_QTY, y + 5.5, { align: 'right' });
-    doc.text(formatAUD(parseFloat(it.price)), X_PRICE, y + 5.5, { align: 'right' });
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatAUD(lineTotal(it)), X_AMT, y + 5.5, { align: 'right' });
-    y += rowH;
-  });
-
-  // Totals box, right-aligned under the table
+  y = drawPdfLineItems(doc, y, q.items, { bottom: BOTTOM, newPage: () => { doc.addPage(); pageTopBand(); return y; } });
   const totalRows = [['Subtotal (ex GST)', totals.subtotal]];
   if (q.gst !== false) totalRows.push(['GST (10%)', totals.gst]);
-  const boxW = 80, boxH = totalRows.length * 6.5 + 14;
+  const boxH = pdfTotalsBoxHeight(totalRows);
   ensure(boxH + 6);
   y += 5;
-  const bx = M + CW - boxW;
-  doc.setFillColor(...C.rowAlt); doc.roundedRect(bx, y, boxW, boxH, 2, 2, 'F');
-  let ty = y + 6.5;
-  totalRows.forEach(([label, val]) => {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
-    doc.text(label, bx + 5, ty);
-    doc.setTextColor(...C.ink); doc.text(formatAUD(val), bx + boxW - 4, ty, { align: 'right' });
-    ty += 6.5;
-  });
-  doc.setFillColor(...C.accent); doc.rect(bx, ty - 3, boxW, 10, 'F');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.white);
-  doc.text(q.gst !== false ? 'TOTAL (inc GST)' : 'TOTAL', bx + 5, ty + 3.4);
-  doc.text(formatAUD(totals.total), bx + boxW - 4, ty + 3.4, { align: 'right' });
+  drawPdfTotalsBox(doc, y, totalRows, [q.gst !== false ? 'TOTAL (inc GST)' : 'TOTAL', totals.total]);
+  const boxW = PDF_TOTALS_BOX_W;
   const terms = (q.paymentTerms || '').trim();
   if (terms) {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
