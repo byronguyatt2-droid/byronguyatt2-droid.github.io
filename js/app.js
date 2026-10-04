@@ -185,8 +185,7 @@ function obFinish() {
   document.getElementById('mainMenu').style.display      = 'flex';
   // Open the sidebar so they can start a new job immediately
   setTimeout(() => {
-    const drawer = document.getElementById('sidebarPanel');
-    if (drawer && !drawer.classList.contains('open')) toggleDrawer();
+    openMenuPage('jobPanel');
   }, 400);
 }
 
@@ -1578,7 +1577,6 @@ function openApp(appName) {
     if (restored) showToast('Restored unsaved work', 'info');
     if (!reportData.standard) setStandard('AS 3660.2-2017');
     enableKeyboardActivation();
-    applyPanelCollapseStates();
     restoreA11ySettings();
     restoreAudioCaptureSetting();
     loadCompanyDetails();
@@ -5716,47 +5714,36 @@ function toggleDrawer() {
   const btn = document.getElementById('hamburgerBtn');
   const dock = document.getElementById('micDock');
   const isOpen = sidebar.classList.toggle('open');
+  if (isOpen) showMenuPage(null);
   overlay.classList.toggle('open', isOpen);
   btn.classList.toggle('open', isOpen);
   if (dock) dock.classList.toggle('drawer-is-open', isOpen);
 }
 
-function toggleJobPanel() {
-  togglePanel('jobPanel', 'korva_jobpanel_collapsed');
+// ── MENU ─────────────────────────────────────────────────────────────────
+// Full screen. It opens on a list of groups (This job, Jobs, Business, App);
+// tapping an item opens it as its own page, with Back to return to the list.
+// Each item is a drawer panel: its header is the list row, its body the page.
+function openMenuPage(panelId) {
+  if (!document.getElementById('sidebarPanel').classList.contains('open')) toggleDrawer();
+  showMenuPage(panelId);
 }
 
-function togglePanel(toggleOrPanelId, storageKey) {
-  // Accept either the toggle button's id (job panel) or a panel container id (saved/settings)
-  let panel = document.getElementById(toggleOrPanelId);
-  if (!panel) return;
-  if (!panel.classList.contains('job-panel') && !panel.classList.contains('saved-panel') && !panel.classList.contains('settings-panel')) {
-    panel = panel.closest('.job-panel, .saved-panel, .settings-panel');
-  }
-  if (!panel) return;
-  const collapsed = panel.classList.toggle('collapsed');
-  try { localStorage.setItem(storageKey, collapsed ? '1' : '0'); } catch (e) {}
+function showMenuPage(panelId) {
+  const sidebar = document.getElementById('sidebarPanel');
+  const panel = panelId ? document.getElementById(panelId) : null;
+  sidebar.querySelectorAll('.menu-page-active').forEach(el => el.classList.remove('menu-page-active'));
+  if (panel) panel.classList.add('menu-page-active');
+  sidebar.classList.toggle('on-page', !!panel);
+  const title = panel && panel.querySelector('.panel-title');
+  document.getElementById('drawerTitle').textContent = title ? title.textContent : 'Menu';
+  document.getElementById('drawerBack').hidden = !panel;
+  sidebar.querySelector('.drawer-scroll').scrollTop = 0;
 }
 
-// Each drawer panel remembers whether it was left open. [panel id, storage
-// key, starts collapsed]
-const DRAWER_PANELS = [
-  ['jobPanel',           'korva_jobpanel_collapsed',      false],
-  ['savedPanel',         'korva_savedpanel_collapsed',    false],
-  ['companyPanelWrap',   'korva_companypanel_collapsed',  true],
-  ['teamPanel',          'korva_teampanel_collapsed',     true],
-  ['accessibilityPanel', 'korva_a11ypanel_collapsed',     true],
-  ['aiPanel',            'korva_aipanel_collapsed',       true],
-  ['settingsPanel',      'korva_settingspanel_collapsed', true],
-  ['billingPanel',       'korva_billingpanel_collapsed',  true],
-];
-function applyPanelCollapseStates() {
-  DRAWER_PANELS.forEach(([id, key, collapsedByDefault]) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    let saved = null;
-    try { saved = localStorage.getItem(key); } catch (e) {}
-    el.classList.toggle('collapsed', saved === null ? collapsedByDefault : saved === '1');
-  });
+function openDashboardFromMenu() {
+  toggleDrawer();
+  openDashboard();
 }
 
 function toggleVoicePopover() {
@@ -6926,13 +6913,7 @@ function closeProfileMenu() {
 }
 function openSettingsFromProfile() {
   closeProfileMenu();
-  const sidebar = document.getElementById('sidebarPanel');
-  if (sidebar && !sidebar.classList.contains('open')) toggleDrawer();
-  const panel = document.getElementById('settingsPanel');
-  if (panel && panel.classList.contains('collapsed')) {
-    togglePanel('settingsPanel', 'korva_settingspanel_collapsed');
-  }
-  setTimeout(() => { if (panel) panel.scrollIntoView({behavior:'smooth', block:'start'}); }, 250);
+  openMenuPage('settingsPanel');
 }
 function signOutFromProfile() {
   closeProfileMenu();
@@ -7464,7 +7445,7 @@ function loadReport(id) {
 
   showToast(`Loaded: ${entry.address}`, 'info');
   processPendingNotes();
-  if (window.innerWidth <= 768 && document.getElementById('sidebarPanel').classList.contains('open')) {
+  if (document.getElementById('sidebarPanel').classList.contains('open')) {
     toggleDrawer();
   }
 }
@@ -7610,7 +7591,7 @@ function importAllData(file) {
         if (blob) putPhotoBlob(id, blob).catch(() => {});
       });
 
-      // Restore preferences (accessibility, panel states) but not the in-progress draft,
+      // Restore preferences (accessibility, voice) but not the in-progress draft,
       // to avoid overwriting work the user has open right now
       Object.entries(backup.data).forEach(([key, value]) => {
         if (key === 'korva_saved_reports' || key === 'korva_draft') return;
@@ -7620,7 +7601,6 @@ function importAllData(file) {
       renderSavedList();
       restoreA11ySettings();
       restoreAudioCaptureSetting();
-      applyPanelCollapseStates();
       showToast(`Imported ${finalReports.length} report${finalReports.length === 1 ? '' : 's'}`, 'success');
     } catch (err) {
       console.error('Import failed', err);

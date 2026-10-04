@@ -175,6 +175,8 @@ function updateFollowUpBadge() {
   try { n = collectFollowUps().due.length; } catch (e) { console.warn('Follow-ups failed:', e); }
   badge.textContent = n > 9 ? '9+' : String(n);
   badge.hidden = n === 0;
+  const summary = document.getElementById('menuFollowUpSummary');
+  if (summary) summary.textContent = n ? `${n} to chase` : 'Nothing to chase';
 }
 
 // ── ACTIONS ──
@@ -278,7 +280,7 @@ function bookFollowUpInspection(reportId) {
   loadJobInfo();
   saveCurrentReport(true);
   updateFollowUpBadge();
-  if (!document.getElementById('sidebarPanel').classList.contains('open')) toggleDrawer();
+  openMenuPage('jobPanel');
   const date = document.getElementById('jobInspectionDate');
   if (date) date.scrollIntoView({ block: 'center' });
   showToast('Next inspection started. Set its date in Job Details', 'success');
