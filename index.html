@@ -1407,6 +1407,7 @@
         <line x1="8" y1="23" x2="16" y2="23"/>
       </svg>
     </button>
+    <span class="mic-badge" id="pendingNotesBadge" style="display:none" title="Notes waiting for signal"></span>
   </div>
   <!-- VOICE POPOVER -->
   <div class="voice-popover" id="voicePopover">
@@ -1493,6 +1494,19 @@
          per final chunk so we can tell "always unpopulated" apart from
          "falsely high" without needing devtools on a phone. -->
     <div class="conf-debug" id="confDebugLine"></div>
+
+    <!-- Notes dictated with no signal, waiting to be sent to the AI.
+         See the NO-SIGNAL QUEUE in js/app.js. -->
+    <div class="pending-notes-bar" id="pendingNotesBar" style="display:none">
+      <div class="pending-notes-head">
+        <span class="pending-notes-text" id="pendingNotesText"></span>
+        <button class="pending-notes-btn" id="pendingNotesBtn" onclick="processPendingNotes(true)">Fill in now</button>
+      </div>
+      <details class="pending-notes-details">
+        <summary>Show notes</summary>
+        <div id="pendingNotesList"></div>
+      </details>
+    </div>
 
     <button class="extract-btn" id="extractBtn" onclick="processTranscript()" disabled>
       <svg class="icon " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>Extract Data with AI
