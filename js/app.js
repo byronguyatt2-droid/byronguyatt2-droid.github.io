@@ -4351,7 +4351,8 @@ function checkFindingsGate() {
 const NO_SYSTEM_VALUES = new Set([
   '', '—', 'no', 'none', 'nil', 'na', 'n a', 'n/a', 'not applicable',
   'no system', 'nothing', 'no existing system', 'not identified',
-  'no system identified', 'no system present', 'no system found', 'no system installed'
+  'no system identified', 'no system present', 'no system found', 'no system installed',
+  'none found', 'not found', 'none seen', 'none observed', 'none visible',
 ]);
 function hasIdentifiedSystem(value) {
   if (!value) return false;
@@ -8670,6 +8671,11 @@ async function _buildAndDownloadPDF() {
   const client    = document.getElementById('jobClient').value    || 'Not specified';
   const inspector = document.getElementById('jobInspector').value || 'Not specified';
   const today = new Date().toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' });
+  // The day of the inspection, not the day this PDF was made.
+  const inspectedOn = reportData.jobInspectionDate || (reportData.agreement && reportData.agreement.inspectionDate);
+  const inspectionDate = inspectedOn
+    ? new Date(inspectedOn + 'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' })
+    : today;
   const reportNumber = ensureReportNumber();
   const version = reportVersion();
   const reportId = `${reportNumber} · Version ${version}`;
@@ -8691,8 +8697,18 @@ async function _buildAndDownloadPDF() {
   const C = PDF_COLORS;
 
 
-  function newPage() { doc.addPage(); y = 20; }
+  // Every page after the cover carries the header for the part it's in, so a
+  // section that runs onto a new page is still labelled.
+  let pageLabel = '';
+  function newPage() { doc.addPage(); compactHeader(pageLabel); _rowShade = false; }
   function gap(n=5) { y += n; }
+  // Starts a part of the report: on a fresh page when asked or when little of
+  // the page is left, otherwise straight after what came before.
+  function startPart(label, freshPage) {
+    pageLabel = label;
+    if (freshPage || y > 215) newPage(); else gap(8);
+    _rowShade = false;
+  }
 
   let pageNum = 1;
 
@@ -8724,8 +8740,12 @@ async function _buildAndDownloadPDF() {
   }
 
   // ── SECTION TITLE ─────────────────────────────────────────────────────────
-  function sectionTitle(title, num) {
-    if (y > 260) newPage();
+  // Numbered sections count up in the order they're drawn; numbered=false
+  // for the reference sections. A title never sits at the foot of a page.
+  let sectionNo = 0;
+  function sectionTitle(title, numbered = true) {
+    const num = numbered ? ++sectionNo : '';
+    if (y > 240) newPage();
     gap(4);
     // Number badge
     if (num) {
@@ -8813,15 +8833,36 @@ async function _buildAndDownloadPDF() {
     y += 24;
   }
 
+  // ── SUBHEADING ── a small label and rule over a group of rows
+  function subhead(label) {
+    if (y > 250) newPage();
+    y += 3;
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+    doc.text(label, M, y); y += 2.5;
+    doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 5;
+    _rowShade = false;
+  }
+
+  // Draws wrapped lines, carrying on over the page break where needed, so a
+  // long paragraph never leaves its heading alone at the foot of a page.
+  function flowLines(lines, x, leading, color) {
+    const font = doc.getFont(), size = doc.getFontSize();
+    lines.forEach(line => {
+      if (y + leading > 280) { newPage(); doc.setFont(font.fontName, font.fontStyle); doc.setFontSize(size); }
+      doc.setTextColor(...color);
+      doc.text(line, x, y); y += leading;
+    });
+  }
+
   // ── DISCLAIMER ────────────────────────────────────────────────────────────
   function disclaimer(text) {
     doc.setFont('helvetica','italic'); doc.setFontSize(7.5); doc.setTextColor(...C.inkMuted);
-    const lines = doc.splitTextToSize(text, CW - 5);
+    const lines = doc.splitTextToSize(text, CW - 6);
     const blockH = lines.length * 4 + 3;
     if (y + blockH > 280) newPage();
     // Subtle left bar
-    doc.setFillColor(...C.ruleLight); doc.rect(M, y, 1.5, blockH-2, 'F');
-    doc.text(lines, M+4, y+1); y += blockH + 2;
+    doc.setFillColor(...C.ruleLight); doc.rect(M, y, 1.5, blockH, 'F');
+    doc.text(lines, M+4, y+3); y += blockH + 2;
     doc.setFont('helvetica','normal');
   }
 
@@ -8850,16 +8891,11 @@ async function _buildAndDownloadPDF() {
     const photos = (reportData.photosBySection || {})[sectionKey] || [];
     if (photos.length === 0) return;
 
-    gap(4);
-    if (y + 10 > 275) newPage();
-
-    // Photo section sub-header
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text('PHOTOGRAPHIC EVIDENCE — ' + label.toUpperCase(), M, y); y += 4;
-    doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 5;
-
     const photoW = (CW - 4) / 2;
     const photoH = photoW * 0.65;
+    gap(2);
+    if (y + photoH + 24 > 278) newPage(); // keep the label with the first photos
+    subhead('PHOTOGRAPHIC EVIDENCE — ' + label.toUpperCase());
 
     let col = 0;
     let rowStartY = y;
@@ -8907,7 +8943,8 @@ async function _buildAndDownloadPDF() {
   function photoGallery() {
     const photos = reportData.photos;
     if (!photos || !photos.length) return;
-    sectionTitle('PHOTOGRAPHIC EVIDENCE', '9');
+    startPart('Photographs');
+    sectionTitle('PHOTOGRAPHIC EVIDENCE');
     const gutter = 6, colW = (CW - gutter) / 2, maxImgH = 58, captionGap = 4;
     function computeBox(p) {
       let w = colW, h = w * (p.height / p.width);
@@ -9047,7 +9084,7 @@ async function _buildAndDownloadPDF() {
     ['CLIENT PHONE',      reportData.jobClientPhone || ''],
     ['INSPECTOR',         inspector],
     ['PEST LICENCE NO.',  reportData.inspectorLicence || ''],
-    ['DATE OF INSPECTION',today],
+    ['DATE OF INSPECTION',inspectionDate],
     ['INSPECTION TIME',   reportData.jobInspectionTime || ''],
     ['INSPECTION TYPE',   reportData.jobInspectionType || ''],
     ['ORDER / JOB ID',    reportData.jobOrderId || ''],
@@ -9116,11 +9153,101 @@ async function _buildAndDownloadPDF() {
   // ─────────────────────────────────────────────────────────────────────
   // PAGE 2 — CLIENT, PROPERTY & SUMMARY
   // ─────────────────────────────────────────────────────────────────────
-  newPage();
-  compactHeader('Client & Property Details');
-  resetRowShade();
+  // ─────────────────────────────────────────────────────────────────────
+  // SUMMARY — the answers a client, agent or insurer looks for first, on one
+  // page, drawn from the sections that follow.
+  // ─────────────────────────────────────────────────────────────────────
+  startPart('Summary', true);
+  sectionTitle('SUMMARY OF FINDINGS', false);
+  {
+    const fs = (reportData.findings || []).filter(f => f && f.termiteActivity);
+    const live = fs.filter(f => f.termiteActivity === 'ACTIVE');
+    const evidence = fs.filter(f => f.termiteActivity === 'INACTIVE');
+    const structural = fs.some(f => f.structuralConcern === 'YES');
+    const conducive = [];
+    if (reportData.waterLeaks === 'YES') conducive.push(`water leak${reportData.leakLocation ? ` (${reportData.leakLocation})` : ''}`);
+    else if (reportData.moistureReadings === 'YES') conducive.push('elevated moisture');
+    if (reportData.timberSoil === 'YES') conducive.push('timber in contact with soil');
+    if (reportData.weepHoles === 'BRIDGED') conducive.push('weep holes bridged');
+    if (reportData.slabEdge === 'OBSTRUCTED') conducive.push('slab edge concealed');
+    const places = list => list.map(f => f.activityLocation).filter(Boolean).join('; ');
+    const NR = 'NOT RECORDED';
+    // [label, value, tone (bad | warn | good | none), detail]
+    const tiles = [
+      ['Live termites', live.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, live.length ? 'bad' : fs.length ? 'good' : 'none', places(live)],
+      ['Termite damage or old activity', evidence.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, evidence.length ? 'warn' : fs.length ? 'good' : 'none', places(evidence)],
+      ['Borers', { ACTIVE: 'ACTIVE', INACTIVE: 'OLD DAMAGE', NONE: 'NONE SEEN' }[reportData.borerActivity] || NR,
+        { ACTIVE: 'bad', INACTIVE: 'warn', NONE: 'good' }[reportData.borerActivity] || 'none', reportData.borerDetails || ''],
+      ['Wood decay (rot)', { YES: 'FOUND', NO: 'NONE SEEN' }[reportData.decayFound] || NR,
+        { YES: 'warn', NO: 'good' }[reportData.decayFound] || 'none', reportData.decayDetails || ''],
+      ['Structural concern', structural ? 'BUILDER TO ASSESS' : fs.length ? 'NONE FLAGGED' : NR, structural ? 'bad' : fs.length ? 'good' : 'none', ''],
+      ['Conducive conditions', conducive.length ? `${conducive.length} FOUND` : 'NONE RECORDED', conducive.length ? 'warn' : 'none', conducive.join('; ')],
+      ['Risk of termite attack', reportData.riskLevel || NR, { HIGH: 'bad', MEDIUM: 'warn', LOW: 'good' }[reportData.riskLevel] || 'none', ''],
+      ['Treatment recommended', { YES: 'YES', NO: 'NO' }[reportData.treatmentRecommended] || NR,
+        { YES: 'bad', NO: 'good' }[reportData.treatmentRecommended] || 'none', reportData.treatmentType || ''],
+    ];
+    const TONE = { bad: [C.danger, [253,242,240]], warn: [C.warn, [253,247,234]], good: [C.safe, [239,249,237]], none: [C.inkMuted, C.rowAlt] };
+    const tileW = (CW - 4) / 2, tileH = 19;
+    tiles.forEach(([label, value, tone, detail], i) => {
+      const x = M + (i % 2) * (tileW + 4);
+      const ty = y + Math.floor(i / 2) * (tileH + 3);
+      const [col, bg] = TONE[tone];
+      doc.setFillColor(...bg); doc.roundedRect(x, ty, tileW, tileH, 1.5, 1.5, 'F');
+      doc.setFillColor(...col); doc.rect(x, ty, 1.5, tileH, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
+      doc.text(label.toUpperCase(), x + 5, ty + 5.5);
+      doc.setFontSize(11); doc.setTextColor(...col);
+      doc.text(value, x + 5, ty + 11.5);
+      if (detail) {
+        doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkLight);
+        const d = doc.splitTextToSize(detail, tileW - 8);
+        doc.text(d[0] + (d.length > 1 ? '…' : ''), x + 5, ty + 16.5);
+      }
+    });
+    y += Math.ceil(tiles.length / 2) * (tileH + 3) + 5;
 
-  sectionTitle('CLIENT & JOB DETAILS', '1');
+    // Areas the inspector couldn't fully see, and why.
+    const limited = areasNotFullyInspected();
+    function summaryList(title, items) {
+      if (!items.length) return;
+      if (y + 14 > 270) newPage();
+      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+      doc.text(title, M, y); y += 2.5;
+      doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 5;
+      items.forEach((item, i) => {
+        const lines = doc.splitTextToSize(item, CW - 8);
+        if (y + lines.length * 4.3 > 276) newPage();
+        doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
+        doc.text(`${i + 1}.`, M, y);
+        doc.setFont('helvetica','normal'); doc.setTextColor(...C.ink);
+        doc.text(lines, M + 6, y);
+        y += lines.length * 4.3 + 1.8;
+      });
+      y += 4;
+    }
+    summaryList('AREAS NOT FULLY INSPECTED', limited.map(z => {
+      const why = ((reportData.areaReasons || {})[z] || []).join(', ');
+      return `${OBS_ZONES[z].label}: ${areaStatusOf(z) === 'NOT' ? 'not inspected' : 'partly inspected'}${why ? ` (${why})` : ''}`;
+    }));
+
+    const next = [];
+    if (live.length || reportData.treatmentRecommended === 'YES') {
+      next.push(`Termite treatment${reportData.treatmentType ? `: ${reportData.treatmentType}` : ' (see Recommendations)'}.`);
+    }
+    if (structural) next.push('Have a licensed builder or structural engineer assess the termite damage before any repairs.');
+    if (reportData.borerActivity === 'ACTIVE') next.push('Treat the active borers and replace badly affected timbers.');
+    if (reportData.decayFound === 'YES') next.push('Have a builder repair the decayed timbers, and fix the moisture that caused the decay.');
+    if (conducive.length) next.push(`Fix the conditions that attract termites: ${conducive.join('; ')}.`);
+    if (limited.length) next.push(`Provide access to ${limited.map(z => OBS_ZONES[z].label.replace(/^The /, '').toLowerCase()).join(', ')} for a follow-up inspection.`);
+    next.push(`Next timber pest inspection: ${reportData.inspectionFrequency || 'within 12 months'}.`);
+    summaryList('WHAT TO DO NEXT', next);
+
+    disclaimer('This summary highlights the main results only. Read the full report, including the areas not inspected, the limitations and the terms, before relying on it.');
+  }
+
+  startPart('Client & Property Details', true);
+
+  sectionTitle('CLIENT & JOB DETAILS');
   const co = getCompanyDetails();
   if (co.name)    row('Inspecting Company', co.name);
   if (co.licence) row('Pest Control Licence', co.licence);
@@ -9135,7 +9262,7 @@ async function _buildAndDownloadPDF() {
   if (clientPhone) row('Client Phone', clientPhone);
   if (clientEmail) row('Client Email', clientEmail);
   // Inspector and date always print
-  row('Inspection Date', today);
+  row('Inspection Date', inspectionDate);
   const inspectionTime = reportData.jobInspectionTime || document.getElementById('jobInspectionTime')?.value?.trim();
   if (inspectionTime) row('Inspection Time', inspectionTime);
   // Optional job tracking fields
@@ -9147,12 +9274,9 @@ async function _buildAndDownloadPDF() {
   if (orderId)    row('Order / Job ID', orderId);
   if (invoiceNo)  row('Invoice No.', invoiceNo);
   if (fee)        row('Fee (inc. GST)', fee);
-  gap(8);
-  newPage();
-  compactHeader('Property Details');
-  resetRowShade();
+  startPart('Property Details');
 
-  sectionTitle('PROPERTY DETAILS', '2');
+  sectionTitle('PROPERTY DETAILS');
   row('Structure Type', reportData.structureType); row('Wall Construction', reportData.wallConstruction);
   row('Floor Type', reportData.floorType); row('Roof Type', reportData.roofType);
   row('Height', reportData.height); row('Orientation', reportData.facadeDirection);
@@ -9177,14 +9301,12 @@ async function _buildAndDownloadPDF() {
   // ─────────────────────────────────────────────────────────────────────
   // PAGE 3 — SCOPE, RISK & FINDINGS
   // ─────────────────────────────────────────────────────────────────────
-  newPage();
-  compactHeader('Scope, Risk & Findings');
-  resetRowShade();
+  startPart('Scope, Risk & Findings');
 
   // ── UNDETECTED TIMBER PEST RISK ASSESSMENT ──────────────────────────
   // Per AS 4349.3 — rate overall risk of undetected activity given
   // access limitations, obstructions and restrictions noted
-  sectionTitle('UNDETECTED TIMBER PEST RISK ASSESSMENT', '3');
+  sectionTitle('UNDETECTED TIMBER PEST RISK ASSESSMENT');
   resetRowShade();
 
   const hasObstruction = areasNotFullyInspected().length > 0;
@@ -9192,15 +9314,19 @@ async function _buildAndDownloadPDF() {
   const hasActivity    = (reportData.findings || []).some(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
   const risk           = reportData.riskLevel || 'NOT ASSESSED';
 
-  const undetectedRisk = hasActivity && hasObstruction ? 'HIGH' :
+  const areasRecorded  = Object.keys(OBS_ZONES).some(z => areaStatusOf(z));
+  const undetectedRisk = !areasRecorded && !hasActivity ? 'NOT ASSESSED' :
+                         hasActivity && hasObstruction ? 'HIGH' :
                          hasObstruction || (hasActivity && hasRestriction) ? 'MODERATE-HIGH' :
                          hasRestriction ? 'MODERATE' : 'LOW-MODERATE';
 
   const undetectedCol = undetectedRisk === 'HIGH' ? C.danger :
                         undetectedRisk === 'MODERATE-HIGH' ? C.warn :
-                        undetectedRisk === 'MODERATE' ? [160, 100, 20] : C.safe;
+                        undetectedRisk === 'MODERATE' ? [160, 100, 20] :
+                        undetectedRisk === 'NOT ASSESSED' ? C.inkMuted : C.safe;
   const undetectedBg  = undetectedRisk === 'HIGH' ? [253,242,240] :
-                        undetectedRisk.includes('MODERATE') ? [253,247,234] : [239,249,237];
+                        undetectedRisk.includes('MODERATE') ? [253,247,234] :
+                        undetectedRisk === 'NOT ASSESSED' ? [248,246,243] : [239,249,237];
 
   // Risk box
   if (y + 22 > 278) newPage();
@@ -9218,6 +9344,8 @@ async function _buildAndDownloadPDF() {
     ? 'Access was limited or obstructed. Concealed activity cannot be ruled out in uninspected areas.'
     : undetectedRisk === 'MODERATE'
     ? 'Some areas were restricted. Regular monitoring and follow-up inspection recommended.'
+    : undetectedRisk === 'NOT ASSESSED'
+    ? 'The areas inspected were not recorded, so this risk could not be assessed.'
     : 'All readily accessible areas were inspected. Regular inspection programme should continue.';
   const noteLines = doc.splitTextToSize(undetectedNote, CW - 80);
   doc.text(noteLines, W-M-5, y+10, { align:'right', maxWidth: 80 });
@@ -9227,10 +9355,8 @@ async function _buildAndDownloadPDF() {
   gap(6);
 
   // ── OBSTRUCTIONS ──────────────────────────────────────────────────────
-  newPage();
-  compactHeader('Areas Inspected, Obstructions & Restrictions');
-  resetRowShade();
-  sectionTitle('AREAS INSPECTED & OBSTRUCTIONS', '4');
+  startPart('Areas Inspected');
+  sectionTitle('AREAS INSPECTED & OBSTRUCTIONS');
   resetRowShade();
   // Every area with its status; partly / not inspected areas list why.
   const AREA_STATUS_TEXT = { INSPECTED:'Inspected', PARTIAL:'PARTLY INSPECTED', NOT:'NOT INSPECTED', NA:'Not present' };
@@ -9247,8 +9373,9 @@ async function _buildAndDownloadPDF() {
   doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, 12, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
   doc.text('WERE THERE OBSTRUCTIONS THAT MAY CONCEAL POSSIBLE TIMBER PEST ACTIVITY?', M+4, y+5);
-  const obsAns = noObstructions ? 'NO' : 'YES';
-  const obsCol = noObstructions ? C.safe : C.danger;
+  const obsUnknown = noObstructions && !Object.keys(OBS_ZONES).some(z => areaStatusOf(z));
+  const obsAns = obsUnknown ? 'NOT RECORDED' : noObstructions ? 'NO' : 'YES';
+  const obsCol = obsUnknown ? C.inkMuted : noObstructions ? C.safe : C.danger;
   doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...obsCol);
   doc.text(obsAns, W-M-4, y+8, { align:'right' });
   y += 14;
@@ -9262,9 +9389,8 @@ async function _buildAndDownloadPDF() {
   gap(8);
 
   // ── RESTRICTIONS ──────────────────────────────────────────────────────
-  if (y > 150) { newPage(); compactHeader('Restrictions'); resetRowShade(); }
-  else { gap(6); doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.5, 'F'); gap(6); }
-  sectionTitle('RESTRICTIONS', '5');
+  startPart('Restrictions');
+  sectionTitle('RESTRICTIONS');
   resetRowShade();
   const noRestrictions = !reportData.hinderedAreas || reportData.hinderedAreas.includes('N/A');
   if (y + 14 > 278) newPage();
@@ -9288,10 +9414,8 @@ async function _buildAndDownloadPDF() {
   gap(8);
 
   // ── TIMBER PEST FINDINGS ─────────────────────────────────────────────
-  newPage();
-  compactHeader('Timber Pest Findings');
-  resetRowShade();
-  sectionTitle('TIMBER PEST FINDINGS', '6');
+  startPart('Timber Pest Findings');
+  sectionTitle('TIMBER PEST FINDINGS');
 
   const findings = (reportData.findings && reportData.findings.length > 0)
     ? reportData.findings
@@ -9299,12 +9423,12 @@ async function _buildAndDownloadPDF() {
 
   // ── Premium finding card renderer ────────────────────────────────────
   function findingCard(f, idx) {
-    const activity  = (f.termiteActivity || 'NONE').toUpperCase();
+    const activity  = (f.termiteActivity || '').toUpperCase();
     const isActive  = activity === 'ACTIVE';
     const isInactive= activity === 'INACTIVE';
     const actCol    = isActive ? C.danger : isInactive ? C.warn : C.inkMuted;
     const actBg     = isActive ? [253,242,240] : isInactive ? [253,247,234] : [248,246,243];
-    const actLabel  = isActive ? 'LIVE TERMITES PRESENT' : isInactive ? 'EVIDENCE ONLY — NO LIVE TERMITES' : 'NO ACTIVITY FOUND';
+    const actLabel  = isActive ? 'LIVE TERMITES PRESENT' : isInactive ? 'EVIDENCE ONLY — NO LIVE TERMITES' : activity ? 'NO ACTIVITY FOUND' : 'NOT RECORDED';
 
     const descLines = f.damageDescription ? doc.splitTextToSize(f.damageDescription, CW-10).length : 0;
     const locLines  = f.activityLocation  ? doc.splitTextToSize(f.activityLocation,  CW-10).length : 0;
@@ -9312,7 +9436,7 @@ async function _buildAndDownloadPDF() {
 
     if (y + Math.min(cardEstH, 60) > 275) newPage();
 
-    const cardStartY = y;
+    const cardStartY = y, cardStartPage = doc.internal.getNumberOfPages();
     const bodyPad = 6;
     const bodyX   = M + bodyPad;
     const bodyW   = CW - bodyPad * 2;
@@ -9352,8 +9476,8 @@ async function _buildAndDownloadPDF() {
     if (y > 272) newPage();
     doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
     doc.text('TERMITE NEST FOUND?', bodyX, y); y += 4.5;
-    const nestVal = f.nestLocated === 'YES' ? 'YES' : 'NO';
-    const nestCol = f.nestLocated === 'YES' ? C.danger : C.safe;
+    const nestVal = f.nestLocated === 'YES' ? 'YES' : f.nestLocated ? 'NO' : 'NOT RECORDED';
+    const nestCol = f.nestLocated === 'YES' ? C.danger : f.nestLocated ? C.safe : C.inkMuted;
     doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
     doc.setTextColor(...nestCol);
     doc.text(nestVal, bodyX, y); y += 7;
@@ -9397,8 +9521,11 @@ async function _buildAndDownloadPDF() {
     }
 
     y += 3;
-    doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
-    doc.rect(M, cardStartY, CW, y - cardStartY, 'D');
+    // The outline only fits a card that stayed on one page.
+    if (doc.internal.getNumberOfPages() === cardStartPage) {
+      doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
+      doc.rect(M, cardStartY, CW, y - cardStartY, 'D');
+    }
     y += 8;
   }
 
@@ -9407,11 +9534,7 @@ async function _buildAndDownloadPDF() {
   // Borers and wood decay: the other timber pests AS 4349.3 requires.
   // Always printed, so an unanswered field shows as a gap rather than
   // silently implying "none found".
-  if (y > 250) newPage();
-  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-  doc.text('BORERS & WOOD DECAY', M, y); y += 4;
-  doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 4;
-  resetRowShade();
+  subhead('BORERS & WOOD DECAY');
   row('Borers of Seasoned Timber', reportData.borerActivity);
   if (reportData.borerDetails) row('Borer Type, Location & Evidence', reportData.borerDetails);
   row('Wood Decay Fungi (Rot)', reportData.decayFound);
@@ -9427,22 +9550,15 @@ async function _buildAndDownloadPDF() {
   // ─────────────────────────────────────────────────────────────────────
   // PAGE 4 — CONDUCIVE CONDITIONS, RECOMMENDATIONS, SIGN-OFF
   // ─────────────────────────────────────────────────────────────────────
-  newPage();
-  compactHeader('Conducive Conditions & Recommendations');
-  resetRowShade();
+  startPart('Conducive Conditions');
 
-  sectionTitle('CONDUCIVE CONDITIONS', '7');
+  sectionTitle('CONDUCIVE CONDITIONS');
   resetRowShade();
 
   // ── Moisture group ─────────────────────────────────────────────────────
   const meterReadings = (reportData.moistureTable || []).filter(r => r.location || r.reading);
   const hasMoisture = reportData.waterLeaks || reportData.moistureReadings || reportData.leakLocation || meterReadings.length;
-  if (hasMoisture) {
-    if (y > 250) newPage();
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text('MOISTURE & DRAINAGE', M, y); y += 4;
-    doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 4;
-  }
+  if (hasMoisture) subhead('MOISTURE & DRAINAGE');
   row('Water Leaks', reportData.waterLeaks);
   row('Moisture Detected', reportData.moistureReadings);
   meterReadings.forEach(r => row('Moisture Meter Reading', [r.reading, r.location].filter(Boolean).join(' — ')));
@@ -9466,13 +9582,7 @@ async function _buildAndDownloadPDF() {
 
   // ── Physical barriers group ────────────────────────────────────────────
   const hasBarriers = reportData.timberSoil || reportData.slabEdge || reportData.weepHoles || reportData.highRiskAreas;
-  if (hasBarriers) {
-    if (y > 250) newPage();
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text('PHYSICAL BARRIERS & CONSTRUCTION', M, y); y += 4;
-    doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 4;
-    resetRowShade();
-  }
+  if (hasBarriers) subhead('PHYSICAL BARRIERS & CONSTRUCTION');
   row('Timber-to-Soil Contact', reportData.timberSoil);
   row('Slab Edge Concealed', reportData.slabEdge);
   row('Weep Holes', reportData.weepHoles);
@@ -9481,11 +9591,7 @@ async function _buildAndDownloadPDF() {
 
   // ── Existing system group ──────────────────────────────────────────────
   if (reportData.existingSystem) {
-    if (y > 245) newPage();
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text('EXISTING TERMITE MANAGEMENT SYSTEM', M, y); y += 4;
-    doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 4;
-    resetRowShade();
+    subhead('EXISTING TERMITE MANAGEMENT SYSTEM');
     row('Existing System — Type', reportData.existingSystem);
     if (reportData.existingSystemOther) row('Specific System Name', reportData.existingSystemOther);
 
@@ -9523,11 +9629,9 @@ async function _buildAndDownloadPDF() {
   gap(4);
   renderSectionPhotosInPDF('conducive', 'Conducive Conditions');
 
-  newPage();
-  compactHeader('Recommendations');
-  resetRowShade();
+  startPart('Recommendations');
 
-  sectionTitle('RECOMMENDATIONS', '8');
+  sectionTitle('RECOMMENDATIONS');
   resetRowShade();
   row('Risk of Termite Attack', reportData.riskLevel);
   row('Treatment Recommended', reportData.treatmentRecommended);
@@ -9544,22 +9648,19 @@ async function _buildAndDownloadPDF() {
   // ─────────────────────────────────────────────────────────────────────
   // CONCLUSION + TERMS & CONDITIONS
   // ─────────────────────────────────────────────────────────────────────
-  newPage();
-  compactHeader('Scope of Inspection & Definitions');
-  resetRowShade();
+  startPart('Scope of Inspection & Definitions', true);
 
   // ── WHAT IS A TIMBER PEST INSPECTION? ───────────────────────────────────
-  sectionTitle('WHAT IS A TIMBER PEST INSPECTION?', '');
+  sectionTitle('WHAT IS A TIMBER PEST INSPECTION?', false);
   gap(2);
 
   function infoPara(text) {
-    const wrapped = doc.splitTextToSize(text, CW);
-    if (y + wrapped.length * 4.3 > 278) newPage();
-    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
-    doc.text(wrapped, M, y); y += wrapped.length * 4.3 + 4;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8);
+    flowLines(doc.splitTextToSize(text, CW), M, 4.3, C.inkLight);
+    y += 4;
   }
   function infoHeading(text) {
-    if (y > 265) newPage();
+    if (y > 262) newPage();
     gap(3);
     doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
     doc.text(text, M, y); y += 6;
@@ -9584,7 +9685,7 @@ async function _buildAndDownloadPDF() {
 
   // ── DEFINITIONS ──────────────────────────────────────────────────────────
   gap(6);
-  sectionTitle('DEFINITIONS', '');
+  sectionTitle('DEFINITIONS', false);
   gap(2);
 
   const defs = [
@@ -9621,54 +9722,15 @@ async function _buildAndDownloadPDF() {
   doc.text(noticeLines, M+7, y+13);
   y += 34;
 
-  newPage();
-  compactHeader('Conclusion');
-  resetRowShade();
+  startPart('Terms & Conditions of Inspection', true);
 
-  // ── CONCLUSION ─────────────────────────────────────────────────────
-  sectionTitle('CONCLUSION', '');
-  gap(2);
-
-  const conclusionItems = [
-    ['Treatment of timber pest activity is required', (findings.some(f => f.termiteActivity === 'ACTIVE') || reportData.borerActivity === 'ACTIVE') ? 'YES — SEE FINDINGS' : 'NO'],
-    ['Wood decay (rot) was found', reportData.decayFound === 'YES' ? 'YES — SEE FINDINGS' : reportData.decayFound === 'NO' ? 'NO' : 'NOT ASSESSED'],
-    ['A termite management proposal is recommended', reportData.treatmentRecommended === 'YES' ? 'YES' : 'NO'],
-    ['Removal of conducive conditions is necessary', (reportData.waterLeaks === 'YES' || reportData.timberSoil === 'YES' || reportData.weepHoles === 'BRIDGED') ? 'YES — SEE CONDUCIVE CONDITIONS' : 'NO'],
-    ['Risk of termite attack', reportData.riskLevel || 'NOT ASSESSED'],
-    ['Next inspection recommended in', reportData.inspectionFrequency || '12 months (annual)'],
-  ];
-
-  conclusionItems.forEach(([label, value], i) => {
-    if (y + 9 > 278) newPage();
-    const isYes = value.startsWith('YES');
-    const isNo  = value === 'NO';
-    const dotCol = isYes ? C.danger : isNo ? C.safe : C.accent;
-    doc.setFillColor(...dotCol); doc.circle(M+4, y+4.5, 4, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.white);
-    doc.text(String(i+1), M+4, y+7, { align:'center' });
-    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
-    doc.text(label, M+12, y+5.5);
-    doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
-    const valCol = isYes ? C.danger : isNo ? C.safe : C.ink;
-    doc.setTextColor(...valCol);
-    doc.text(value, W-M-4, y+5.5, { align:'right' });
-    doc.setDrawColor(...C.ruleLight); doc.setLineWidth(0.3);
-    doc.line(M, y+10, M+CW, y+10);
-    y += 12;
-  });
-  gap(8);
-
-  newPage();
-  compactHeader('Terms & Conditions of Inspection');
-  resetRowShade();
-
-  sectionTitle('TERMS & CONDITIONS OF INSPECTION', '9');
+  sectionTitle('TERMS & CONDITIONS OF INSPECTION');
 
   const TC = { font:'helvetica', size:8, color:[50,44,38], leading:4.4 };
   const TCH = [28,24,20];
 
   function tcHeading(text) {
-    if (y > 268) newPage();
+    if (y > 262) newPage();
     gap(4);
     // Subtle teal left bar for each clause heading
     doc.setFillColor(...C.accent); doc.rect(M, y-1, 2, 8, 'F');
@@ -9676,10 +9738,9 @@ async function _buildAndDownloadPDF() {
     doc.text(text, M+6, y+5); y += 8;
   }
   function tcPara(text) {
-    const wrapped = doc.splitTextToSize(text, CW-6);
-    if (y + wrapped.length * TC.leading > 278) newPage();
-    doc.setFont(TC.font,'normal'); doc.setFontSize(TC.size); doc.setTextColor(...TC.color);
-    doc.text(wrapped, M+6, y); y += wrapped.length * TC.leading + 4;
+    doc.setFont(TC.font,'normal'); doc.setFontSize(TC.size);
+    flowLines(doc.splitTextToSize(text, CW-6), M+6, TC.leading, TC.color);
+    y += 4;
   }
 
   tcHeading('1. Purpose and Nature of This Inspection');
@@ -9722,13 +9783,11 @@ async function _buildAndDownloadPDF() {
   doc.text('This report must be read in its entirety, including these Terms and Conditions, before any reliance is placed upon its contents.', M + CW/2, y + 7.5, { align:'center', maxWidth: CW - 8 });
   y += 18;
 
-  newPage();
-  compactHeader('Inspection Agreement & Acknowledgement');
-  resetRowShade();
+  // The acknowledgement and signatures stay together on one page.
+  startPart('Inspection Agreement & Acknowledgement', y > 150);
 
-  sectionTitle('INSPECTION AGREEMENT & ACKNOWLEDGEMENT', '10');
+  sectionTitle('INSPECTION AGREEMENT & ACKNOWLEDGEMENT');
   gap(2);
-  if (y > 210) newPage();
   disclaimer('This report relates to the condition of the property in respect of timber pest activity at the time of inspection, limited to those areas that were reasonably accessible. It is not a warranty, guarantee, or certificate of compliance with any law, insurance policy, or building standard, and does not guarantee the property is, or will remain, free of termites or other timber pests. Conditions affecting the property may change after the inspection date, and concealed or inaccessible areas may contain damage or activity that could not be identified.');
   gap(3);
   if (!standard.startsWith('AS 4349')) {
@@ -9848,9 +9907,8 @@ async function _buildAndDownloadPDF() {
   doc.text(`Content fingerprint: ${formatFingerprint(fingerprint)}  ·  changes to the report change this code`, M+7, y+13);
 
   if (agreement) {
-    newPage();
-    compactHeader('Pre-Inspection Agreement');
-    sectionTitle('PRE-INSPECTION AGREEMENT', '11');
+    startPart('Pre-Inspection Agreement', true);
+    sectionTitle('PRE-INSPECTION AGREEMENT');
     gap(2);
     y = drawAgreementBody(doc, agreement, y, { M, CW, onNewPage: () => { compactHeader('Pre-Inspection Agreement'); return 22; } });
   }
