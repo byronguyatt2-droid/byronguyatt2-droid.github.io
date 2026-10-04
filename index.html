@@ -882,7 +882,7 @@
         </button>
         <button class="section-tab" onclick="showSection('obstructions')" id="tab-obstructions">
           <span class="tab-dot" id="dot-obstructions"></span>
-          <span class="tab-label">Obstructions</span>
+          <span class="tab-label">Areas</span>
         </button>
         <button class="section-tab" onclick="showSection('restrictions')" id="tab-restrictions">
           <span class="tab-dot" id="dot-restrictions"></span>
@@ -972,42 +972,25 @@
         
           <button class="next-section-btn" id="next-btn-property" onclick="showSection('obstructions')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-            Next: Obstructions
+            Next: Areas Inspected
           </button>
         </div>
 
         <!-- OBSTRUCTIONS -->
         <div class="report-section" id="section-obstructions" style="display:none">
           <div class="section-header">
-            <h3><span class="sec-num">2.</span>Obstructions</h3>
+            <h3><span class="sec-num">2.</span>Areas Inspected &amp; Obstructions</h3>
             <span class="sec-badge empty" id="sts-obstructions">Not started</span>
           </div>
 
-          <!-- No Obstructions toggle -->
-          <div style="padding:10px 16px 4px">
-            <button class="access-clear-btn" id="obsNoneBtn" onclick="toggleNoObstructions()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-              <span id="obsNoneLabel">No obstructions — all areas accessible</span>
-            </button>
+          <!-- Area-by-area record: every area gets a status; partly / not
+               inspected areas show their obstruction reasons. Rendered by
+               renderAreaChecklist(). -->
+          <div style="padding:10px 14px 4px">
+            <div class="obs-zone-label">Mark every area. Add the reason for any area not fully inspected.</div>
+            <button class="access-clear-btn" onclick="markRemainingAreasInspected()">Mark all unmarked areas as Inspected</button>
           </div>
-
-          <!-- Zone selector -->
-          <div id="obsZoneWrap" style="padding:10px 14px 0">
-            <div class="obs-zone-label">Select all zones that were obstructed:</div>
-            <div class="obs-zones" id="obsZones">
-              <button class="obs-zone-btn" id="obsZone-interior"          onclick="toggleObsZone('interior')">The Interior</button>
-              <button class="obs-zone-btn" id="obsZone-exterior"          onclick="toggleObsZone('exterior')">The Exterior</button>
-              <button class="obs-zone-btn" id="obsZone-subfloor"          onclick="toggleObsZone('subfloor')">Subfloor</button>
-              <button class="obs-zone-btn" id="obsZone-roofvoid"          onclick="toggleObsZone('roofvoid')">Roof Void</button>
-              <button class="obs-zone-btn" id="obsZone-outbuildings"      onclick="toggleObsZone('outbuildings')">Outbuildings</button>
-              <button class="obs-zone-btn" id="obsZone-site"              onclick="toggleObsZone('site')">The Site</button>
-              <button class="obs-zone-btn" id="obsZone-fences"            onclick="toggleObsZone('fences')">Fences</button>
-              <button class="obs-zone-btn" id="obsZone-retainingwalls"    onclick="toggleObsZone('retainingwalls')">Retaining Walls</button>
-              <button class="obs-zone-btn" id="obsZone-landscapingtimbers" onclick="toggleObsZone('landscapingtimbers')">Landscaping Timbers</button>
-            </div>
-          </div>
-          <!-- Per-zone item checklists — shown when zone is selected -->
-          <div id="obsItemsWrap" style="padding:8px 14px 4px"></div>
+          <div class="obs-panels-wrap" id="areaChecklist" style="padding:4px 14px 8px"></div>
 
           <!-- High Risk Areas -->
           <div class="section-fields" style="padding-top:4px">
@@ -1256,6 +1239,14 @@
           <div class="inactive-reminder" id="secondaryColonyReminder" style="display:none">
             <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
             <span>Leak location is above ground level — subterranean termites can establish a secondary colony near a roof or wall-cavity moisture source with no soil contact at all. Recommend checking timbers near this location specifically, even where there's no ground-level access.</span>
+          </div>
+
+          <!-- Moisture meter readings: rows rendered by renderMoistureTable() -->
+          <div class="system-verify">
+            <div class="system-verify-header"><span>Moisture Meter Readings</span></div>
+            <p class="system-verify-hint">Where each reading was taken and what the meter showed. Leave empty if no readings were taken.</p>
+            <div id="moistureTableRows"></div>
+            <button class="findings-add-btn" onclick="addMoistureReading()">+ Add Reading</button>
           </div>
         
 
