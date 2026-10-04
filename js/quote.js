@@ -27,6 +27,7 @@ const QUOTE_CATALOGUE = {
   system_topup:  { desc: 'Top-up / re-treatment of existing termite management system', unit: 'job', price: 1500 },
   treatment:     { desc: 'Termite management treatment', unit: 'job', price: 1800 },
   direct:        { desc: 'Direct treatment of active termite workings', unit: 'area', price: 380 },
+  borer:         { desc: 'Borer treatment of affected timbers', unit: 'area', price: 450 },
   timber_soil:   { desc: 'Remove timber-to-soil contact', unit: 'job', price: 220 },
   weep_holes:    { desc: 'Clear bridged weep holes', unit: 'job', price: 180 },
   slab_edge:     { desc: 'Expose concealed slab edge for inspection', unit: 'job', price: 250 },
@@ -238,6 +239,12 @@ function buildQuoteItemsFromReport(rd) {
     }
   }
 
+  // Active borers get treated; old borer damage and rot are repairs for a
+  // builder, so they go in the exclusions instead (buildQuoteExclusions).
+  if (rd.borerActivity === 'ACTIVE') {
+    items.push(newQuoteItem('borer', { detail: rd.borerDetails || '', source: 'Finding: active borers' }));
+  }
+
   if (rd.timberSoil === 'YES') {
     items.push(newQuoteItem('timber_soil', { source: 'Conducive condition: timber-to-soil contact' }));
   }
@@ -261,6 +268,12 @@ function buildQuoteExclusions(rd) {
     out.push('Structural assessment and repair of termite-damaged timbers, to be carried out by a licensed builder or structural engineer.');
   } else if (findings.some(f => f && f.damageDescription)) {
     out.push('Repair or replacement of termite-damaged timbers.');
+  }
+  if (rd.borerActivity === 'ACTIVE' || rd.borerActivity === 'INACTIVE') {
+    out.push('Repair or replacement of borer-damaged timbers.');
+  }
+  if (rd.decayFound === 'YES') {
+    out.push(`Repair or replacement of decayed timbers${rd.decayDetails ? ` (${rd.decayDetails})` : ''} by a licensed builder, and fixing the moisture that caused it.`);
   }
   if (rd.waterLeaks === 'YES') {
     out.push(`Repair of the moisture source${rd.leakLocation ? ` (${rd.leakLocation})` : ''} by a licensed plumber or builder.`);
@@ -375,6 +388,9 @@ function renderQuoteSourceSummary(src) {
   const inactive = findings.filter(f => f.termiteActivity === 'INACTIVE').length;
   if (active) chips.push([`${active} active finding${active > 1 ? 's' : ''}`, 'high']);
   if (inactive) chips.push([`${inactive} inactive finding${inactive > 1 ? 's' : ''}`, 'medium']);
+  if (rd.borerActivity === 'ACTIVE') chips.push(['Active borers', 'high']);
+  else if (rd.borerActivity === 'INACTIVE') chips.push(['Old borer damage', 'medium']);
+  if (rd.decayFound === 'YES') chips.push(['Wood decay', 'medium']);
   if (rd.treatmentType) chips.push([rd.treatmentType, '']);
   else if (rd.treatmentRecommended === 'YES') chips.push(['Treatment recommended', '']);
   if (!chips.length) chips.push(['No findings or recommendations recorded yet', '']);
