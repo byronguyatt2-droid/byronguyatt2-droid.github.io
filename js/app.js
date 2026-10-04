@@ -808,10 +808,6 @@ const SPECIES_DB = {
   'Coptotermes acinaciformis': {
     commonName: 'Subterranean Termite',
     family: 'Rhinotermitidae',
-    riskLevel: 'HIGH',
-    riskLabel: 'EXTREME RISK',
-    riskColor: 'risk',
-    destructionRate: 'Responsible for more economic damage than all other Australian termite species combined. Colonies up to 1 million individuals.',
     distribution: 'Most widely distributed termite in Australia — found continent-wide except Tasmania and parts of coastal Victoria.',
     fieldID: [
       '🔑 MILKY FLUID TEST: Press a soldier with multigrips or a probe — a white milky fluid secretes from the fontanelle (a pore on the top of the head). This is the definitive on-site field test for Coptotermes. No other common Australian species does this.',
@@ -846,14 +842,12 @@ const SPECIES_DB = {
       'Timber-soil contact',
       'High moisture environments'
     ],
-    treatmentRecommended: 'YES',
     treatmentOptions: [
       { product: 'Termidor (Fipronil)', type: 'Chemical Barrier', notes: 'Industry standard. Non-repellent, transfer effect, excellent soil binding. 8+ year protection. Preferred where moisture movement in soil.', toxicity: 'Moderate' },
       { product: 'Altriset (Chlorantraniliprole)', type: 'Chemical Barrier', notes: 'Lowest toxicity — exempt from poison scheduling in Australia. Paralyses muscles, stops feeding within hours. Up to 8 years. Higher cost.', toxicity: 'Very Low' },
       { product: 'Premise (Imidacloprid)', type: 'Chemical Barrier', notes: 'Non-repellent, water-soluble. Better soil penetration. Less durable in wet soils. Risk to bees/plants.', toxicity: 'Low–Moderate' },
       { product: 'Sentricon Baiting System', type: 'Bait Station', notes: 'Insect growth regulator. Slow-acting colony elimination. Useful where chemical barrier is not practical.', toxicity: 'Very Low' }
     ],
-    inspectionFrequency: '6 months',
     specialFlags: [],
     fieldNotePrompts: [
       'Perform milky fluid test on soldiers — document result (positive = Coptotermes confirmed)',
@@ -869,10 +863,6 @@ const SPECIES_DB = {
   'Coptotermes frenchi': {
     commonName: 'Subterranean Termite',
     family: 'Rhinotermitidae',
-    riskLevel: 'HIGH',
-    riskLabel: 'HIGH RISK',
-    riskColor: 'risk',
-    destructionRate: 'Significant economic pest in southern Australian states. Less aggressive than C. acinaciformis but still capable of severe structural damage.',
     distribution: 'Southern Australian states — common in Victoria, parts of NSW and SA. Less common than C. acinaciformis.',
     fieldID: [
       '🔑 MILKY FLUID TEST: Same as C. acinaciformis — press a soldier and check for white milky fluid from the fontanelle. Confirms genus (Coptotermes). Species differentiation between frenchi and acinaciformis requires specialist examination.',
@@ -896,12 +886,10 @@ const SPECIES_DB = {
       'Not as aggressive as C. acinaciformis'
     ],
     conduciveConditions: ['Decayed timber', 'Moisture', 'Tree stumps near structure'],
-    treatmentRecommended: 'YES',
     treatmentOptions: [
       { product: 'Termidor (Fipronil)', type: 'Chemical Barrier', notes: 'Non-repellent, transfer effect. Industry standard for Coptotermes species.', toxicity: 'Moderate' },
       { product: 'Altriset (Chlorantraniliprole)', type: 'Chemical Barrier', notes: 'Low toxicity alternative. Stops feeding within hours.', toxicity: 'Very Low' }
     ],
-    inspectionFrequency: '6 months',
     specialFlags: [],
     fieldNotePrompts: [
       'Perform milky fluid test on soldiers — confirms Coptotermes genus',
@@ -915,10 +903,6 @@ const SPECIES_DB = {
   'Schedorhinotermes': {
     commonName: 'Subterranean Termite',
     family: 'Rhinotermitidae',
-    riskLevel: 'HIGH',
-    riskLabel: 'HIGH RISK',
-    riskColor: 'risk',
-    destructionRate: 'Second most economically damaging termite genus in Australia. More damage to Australian homes than storms, floods and fires combined (alongside all subterranean species).',
     distribution: 'Widespread across eastern Australia. Most common damaging species in some regions including coastal NSW and QLD.',
     fieldID: [
       '🔑 TWO SOLDIER CASTES — KEY FIELD TEST: Look carefully at the soldiers. Schedorhinotermes is the ONLY common Australian genus with two distinct soldier sizes in the same colony. Major soldiers (5–7.5mm, large bulbous head) and minor soldiers (3–5.5mm, narrower head). If you see both sizes, this confirms the genus.',
@@ -948,12 +932,10 @@ const SPECIES_DB = {
       'Workers and soldiers live 1–2 years'
     ],
     conduciveConditions: ['Tree stumps', 'Buried timber', 'Subfloor moisture', 'Timber-soil contact'],
-    treatmentRecommended: 'YES',
     treatmentOptions: [
       { product: 'Termidor (Fipronil)', type: 'Chemical Barrier', notes: 'Non-repellent essential — repellent chemicals will cause colony relocation. Full perimeter treatment required.', toxicity: 'Moderate' },
       { product: 'Altriset (Chlorantraniliprole)', type: 'Chemical Barrier', notes: 'Non-repellent, low toxicity. Stops feeding within hours. Preferred where minimal disturbance required.', toxicity: 'Very Low' }
     ],
-    inspectionFrequency: '6 months',
     specialFlags: [
       { type: 'warning', icon: '⚠', text: 'DO NOT DISTURB — Schedorhinotermes is highly skittish. Any disturbance to active workings during inspection or treatment may cause the colony to relocate to an untreated area of the property. Avoid drilling, hammering, or directly exposing active galleries where possible until treatment strategy is confirmed.' }
     ],
@@ -970,10 +952,6 @@ const SPECIES_DB = {
   'Schedorhinotermes intermedius': {
     commonName: 'Subterranean Termite',
     family: 'Rhinotermitidae',
-    riskLevel: 'HIGH',
-    riskLabel: 'HIGH RISK',
-    riskColor: 'risk',
-    destructionRate: 'Major pest species along eastern coast. Second only to Coptotermes in economic damage.',
     distribution: 'Eastern coastline of Australia. Common throughout NSW, QLD, VIC.',
     fieldID: [
       '🔑 TWO SOLDIER CASTES: Major soldiers (larger, bulbous head) and minor soldiers (smaller, narrower head) present together — confirms Schedorhinotermes genus. Minor soldiers appear first in young colonies; presence of majors = well-established colony.',
@@ -993,12 +971,10 @@ const SPECIES_DB = {
       'Major soldiers indicate established, high-risk colony'
     ],
     conduciveConditions: ['Tree stumps', 'Subfloor moisture', 'Timber-soil contact'],
-    treatmentRecommended: 'YES',
     treatmentOptions: [
       { product: 'Termidor (Fipronil)', type: 'Chemical Barrier', notes: 'Non-repellent — critical for skittish species. Full perimeter.', toxicity: 'Moderate' },
       { product: 'Altriset (Chlorantraniliprole)', type: 'Chemical Barrier', notes: 'Non-repellent, lowest toxicity. Ideal for sensitive situations.', toxicity: 'Very Low' }
     ],
-    inspectionFrequency: '6 months',
     specialFlags: [
       { type: 'warning', icon: '⚠', text: 'DO NOT DISTURB — Schedorhinotermes intermedius will relocate if colony is disturbed. Use non-repellent treatments only. Avoid directly exposing galleries before treatment.' }
     ],
@@ -1014,10 +990,6 @@ const SPECIES_DB = {
   'Nasutitermes walkeri': {
     commonName: 'Tree Termite',
     family: 'Termitidae',
-    riskLevel: 'MEDIUM',
-    riskLabel: 'MODERATE RISK',
-    riskColor: 'yellow',
-    destructionRate: 'Capable of structural damage, particularly to hardwood. Less aggressive than Coptotermes but can damage buildings if left unchecked.',
     distribution: 'Eastern NSW and southeastern QLD. Found in mountains and coastal scrubland/wooded areas.',
     fieldID: [
       '🔑 POINTED SNOUT (NASUS): Nasutitermes soldiers have a distinctive pointed tube-like snout (nasus) on the front of the head instead of mandibles. They spray a sticky, amber-coloured defensive chemical from this snout when threatened — look for this if disturbed.',
@@ -1042,12 +1014,10 @@ const SPECIES_DB = {
       'Covers attacked timber with characteristic dark brown to black earthen mud'
     ],
     conduciveConditions: ['Decayed timber', 'Weathered hardwood', 'Tree contact with structure'],
-    treatmentRecommended: 'YES',
     treatmentOptions: [
       { product: 'Direct Nest Injection', type: 'Nest Treatment', notes: 'Locate arboreal nest in nearby trees. Inject nest and soil galleries with registered termiticide.', toxicity: 'Moderate' },
       { product: 'Termidor (Fipronil)', type: 'Chemical Barrier', notes: 'If nest cannot be located or eliminated, chemical barrier treatment around structure.', toxicity: 'Moderate' }
     ],
-    inspectionFrequency: '12 months',
     specialFlags: [],
     fieldNotePrompts: [
       'Look for arboreal nest in nearby trees — check ironbark, stringybark, tallowwood within 100m',
@@ -1061,10 +1031,6 @@ const SPECIES_DB = {
   'Nasutitermes exitiosus': {
     commonName: 'Snouted Termite',
     family: 'Termitidae',
-    riskLevel: 'MEDIUM',
-    riskLabel: 'MODERATE RISK',
-    riskColor: 'yellow',
-    destructionRate: 'Can cause extensive damage to hardwood structures, bridges, poles and fences. Most significant Nasutitermes pest species.',
     distribution: 'Southern QLD to NSW and Victoria, ACT region. Common in Canberra. Builds low mounds in open ground near eucalypts.',
     fieldID: [
       '🔑 POINTED SNOUT (NASUS): Like all Nasutitermes — soldiers have a pointed tube-like snout that sprays defensive chemical. No mandibles. Amber sticky fluid sprayed when threatened.',
@@ -1092,12 +1058,10 @@ const SPECIES_DB = {
       'Covers attacked timber with characteristic dark to black earthen material'
     ],
     conduciveConditions: ['Hardwood timber in ground contact', 'Decayed wood', 'Proximity to eucalypts'],
-    treatmentRecommended: 'YES',
     treatmentOptions: [
       { product: 'Direct Mound Injection', type: 'Nest Treatment', notes: 'Locate and inject the mound directly with registered termiticide. Inject surrounding soil. Usually straightforward since nest is visible.', toxicity: 'Moderate' },
       { product: 'Termidor (Fipronil)', type: 'Chemical Barrier', notes: 'Full perimeter treatment if mound cannot be directly treated.', toxicity: 'Moderate' }
     ],
-    inspectionFrequency: '12 months',
     specialFlags: [],
     fieldNotePrompts: [
       'Look for dome-shaped mound nest in open ground near eucalypts within 60m',
@@ -1111,10 +1075,6 @@ const SPECIES_DB = {
   'Mastotermes darwiniensis': {
     commonName: 'Giant Northern Termite / Darwin Termite',
     family: 'Mastotermitidae',
-    riskLevel: 'HIGH',
-    riskLabel: 'EXTREME RISK — SPECIALIST REQUIRED',
-    riskColor: 'risk',
-    destructionRate: 'Most primitive living termite. Under favourable conditions colonies can reach millions and destroy an untreated structure in months. Eats almost anything organic.',
     distribution: 'Northern Australia only — confined north of Tropic of Capricorn (tropical NT, far north QLD, northern WA). NOT found in southern states.',
     identification: [
       'Largest Australian termite species: 11–13mm body length',
@@ -1137,11 +1097,9 @@ const SPECIES_DB = {
       'Can destroy a building or its contents faster than any other termite species'
     ],
     conduciveConditions: ['Irrigation', 'Stored timber', 'Any organic material', 'Warm tropical conditions'],
-    treatmentRecommended: 'YES',
     treatmentOptions: [
       { product: 'Specialist Treatment Required', type: 'Specialist', notes: 'Standard bait systems are ineffective against M. darwiniensis. Consult specialist — chemical treatment with registered termiticide, often requiring extensive soil treatment. Colony can reach millions — urgent action required.', toxicity: 'Varies' }
     ],
-    inspectionFrequency: '3 months',
     specialFlags: [
       { type: 'danger', icon: '🚨', text: 'SPECIALIST TREATMENT REQUIRED — Mastotermes darwiniensis is the most destructive termite species in Australia. Standard bait systems are NOT effective. Immediate specialist intervention required. Under favourable conditions, colonies can destroy a structure within months.' },
       { type: 'info', icon: 'ℹ', text: 'LOCATION CHECK — M. darwiniensis is confined to northern Australia (north of Tropic of Capricorn). If found in southern states, confirm identification — possible misidentification or transported specimen.' }
@@ -1157,10 +1115,6 @@ const SPECIES_DB = {
   'Cryptotermes brevis': {
     commonName: 'West Indian Drywood Termite',
     family: 'Kalotermitidae',
-    riskLevel: 'HIGH',
-    riskLabel: 'NOTIFIABLE PEST',
-    riskColor: 'risk',
-    destructionRate: 'Considered the most destructive drywood termite in the world. Multiple colonies can exist in one building simultaneously.',
     distribution: "Invasive species — found in QLD (particularly around Maryborough/Brisbane). Listed under Australia's Biosecurity Act 2015. Regularly intercepted at Australian border.",
     identification: [
       'Soldiers: 4–6mm, cigar-shaped white body, head is sloping and rough (phragmotic)',
@@ -1183,13 +1137,11 @@ const SPECIES_DB = {
       'Infested items can transport the species — a biosecurity risk'
     ],
     conduciveConditions: ['Imported timber', 'Second-hand furniture', 'Any dry timber'],
-    treatmentRecommended: 'YES',
     treatmentOptions: [
       { product: 'Whole-Building Fumigation', type: 'Fumigation', notes: 'Wrapping entire building in plastic and fumigating with sulfuryl fluoride. Required when multiple colonies present throughout the structure. Expensive and disruptive but thorough.', toxicity: 'High (during application)' },
       { product: 'Localised Treatment', type: 'Spot Treatment', notes: 'Injection of insecticide into gallery entry holes in affected timber. Suitable for single or limited infestations. Requires thorough survey to confirm scope.', toxicity: 'Moderate' },
       { product: 'Heat Treatment', type: 'Physical', notes: 'Heating structure or items to specific temperature to kill termites. Energy-intensive, requires specialised equipment.', toxicity: 'None' }
     ],
-    inspectionFrequency: '6 months',
     specialFlags: [
       { type: 'danger', icon: '🚨', text: 'NOTIFIABLE PEST — Cryptotermes brevis is a regulated pest under the Australian Biosecurity Act 2015 and is a National Priority Plant Pest (NPPP). This finding must be reported to the relevant state biosecurity authority. Do not remove any infested timber or furniture from the property until directed by the authority.' },
       { type: 'warning', icon: '⚠', text: 'BIOSECURITY RISK — Infested furniture, timber or materials must not be moved from the property. Transportation of infested goods is how this species spreads. Advise client immediately.' }
@@ -1206,10 +1158,6 @@ const SPECIES_DB = {
   'Porotermes adamsoni': {
     commonName: 'Common Dampwood Termite',
     family: 'Termopsidae',
-    riskLevel: 'MEDIUM',
-    riskLabel: 'MODERATE RISK',
-    riskColor: 'yellow',
-    destructionRate: 'Rarely attacks sound timber. When it does, challenging to manage as standard termiticides are not registered for its control.',
     distribution: 'Southern coastal Australia — southern QLD to SA including ACT and Tasmania.',
     identification: [
       'Large species: workers and soldiers 10–15mm — noticeably larger than subterranean termites',
@@ -1226,12 +1174,10 @@ const SPECIES_DB = {
       'Less mobile than subterranean species'
     ],
     conduciveConditions: ['Persistent leaks', 'Decayed timber', 'Poor ventilation', 'High subfloor moisture'],
-    treatmentRecommended: 'YES',
     treatmentOptions: [
       { product: 'Structural Remediation', type: 'Physical', notes: 'PRIMARY TREATMENT — remove or replace affected decayed timber, eliminate moisture source. Termiticides are NOT registered for P. adamsoni control.', toxicity: 'None' },
       { product: 'Moisture Source Elimination', type: 'Environmental', notes: 'Address all moisture sources — plumbing leaks, drainage, ventilation. Without moisture, the species cannot sustain a colony in the structure.', toxicity: 'None' }
     ],
-    inspectionFrequency: '12 months',
     specialFlags: [
       { type: 'warning', icon: '⚠', text: 'TREATMENT LIMITATION — Modern termiticides are NOT registered for the control of Porotermes adamsoni. Treatment is primarily structural: remove affected timber, eliminate all moisture sources, and improve ventilation. Termiticide application is not the appropriate response for this species.' }
     ],
@@ -1246,10 +1192,6 @@ const SPECIES_DB = {
   'Heterotermes': {
     commonName: 'Subterranean Termite',
     family: 'Rhinotermitidae',
-    riskLevel: 'MEDIUM',
-    riskLabel: 'MODERATE RISK',
-    riskColor: 'yellow',
-    destructionRate: 'Generally considered less of a threat than Coptotermes or Schedorhinotermes, but can cause considerable damage in northern Australia.',
     distribution: 'Found across mainland Australia. More significant pest in northern Australia.',
     identification: [
       'Soldiers: similar appearance to Coptotermes but HEAD IS LONGER AND MORE RECTANGULAR',
@@ -1263,12 +1205,10 @@ const SPECIES_DB = {
       'Significant concern in northern Australia'
     ],
     conduciveConditions: ['Timber-soil contact', 'Moisture', 'Decayed wood'],
-    treatmentRecommended: 'YES',
     treatmentOptions: [
       { product: 'Termidor (Fipronil)', type: 'Chemical Barrier', notes: 'Standard non-repellent chemical barrier treatment.', toxicity: 'Moderate' },
       { product: 'Altriset (Chlorantraniliprole)', type: 'Chemical Barrier', notes: 'Low toxicity alternative.', toxicity: 'Very Low' }
     ],
-    inspectionFrequency: '12 months',
     specialFlags: [
       { type: 'info', icon: 'ℹ', text: 'IDENTIFICATION NOTE — Heterotermes soldiers are often confused with Coptotermes. Key difference: Heterotermes soldiers have a longer, more rectangular head vs the teardrop shape of Coptotermes. Confirm identification before finalising treatment recommendation.' }
     ],
@@ -1281,10 +1221,6 @@ const SPECIES_DB = {
   'Microcerotermes': {
     commonName: 'Termite',
     family: 'Termitidae',
-    riskLevel: 'MEDIUM',
-    riskLabel: 'MODERATE RISK',
-    riskColor: 'yellow',
-    destructionRate: 'Less destructive than Coptotermes or Schedorhinotermes but can damage hardwood timber, fences, poles and structural timbers.',
     distribution: 'Most of mainland Australia. Species distribution varies: M. turneri (east coast QLD to Port Macquarie NSW), M. distinctus (inland NSW/VIC), M. serratus (QLD, WA, NT, SA).',
     fieldID: [
       '👀 NEST TYPE: Look for a visible mound or arboreal nest. Microcerotermes may build low on-ground mounds, underground nests, or small arboreal mounds with distinctive stalactite-like projections — sometimes found on fence posts or halfway up tree trunks.',
@@ -1303,12 +1239,10 @@ const SPECIES_DB = {
     ],
     behaviour: ['Damages hardwood timber', 'Less aggressive than major pest species'],
     conduciveConditions: ['Timber-soil contact', 'Decayed wood', 'Hardwood structures'],
-    treatmentRecommended: 'YES',
     treatmentOptions: [
       { product: 'Termidor (Fipronil)', type: 'Chemical Barrier', notes: 'Standard chemical barrier treatment.', toxicity: 'Moderate' },
       { product: 'Direct Nest Treatment', type: 'Nest Treatment', notes: 'If mound/nest is visible and accessible, direct injection is effective.', toxicity: 'Moderate' }
     ],
-    inspectionFrequency: '12 months',
     specialFlags: [],
     fieldNotePrompts: [
       'Note nesting type — on-ground mound, underground, or arboreal with stalactites',
@@ -1482,6 +1416,7 @@ riskLevel inference: technicians rarely state "overall risk is HIGH" directly �
 - HIGH: termiteActivity is "ACTIVE" AND (structuralConcern is "YES" OR a nest located OR multiple significant conducive conditions together, e.g. timber-soil contact AND water leak AND high moisture)
 - MEDIUM: termiteActivity is "ACTIVE" with no builder/engineer referral, OR termiteActivity is "INACTIVE", OR one or two conducive conditions present with termiteActivity "NONE"
 - LOW: termiteActivity is "NONE" and no, or only very minor, conducive conditions
+- Never base riskLevel on the termite species: every species can cause severe damage, so species is recorded for identification and treatment only.
 - Only set riskLevel if there's enough information across the whole transcript to make this judgement — otherwise leave null.
 - propertyStreetAddress/propertySuburb/propertyState/propertyPostcode/clientName: only fill these if the technician actually states the property address and/or client name out loud (this is common at the start of a recording, e.g. "inspection at 42 Smith Street, Chatswood, client John Mitchell"). Never guess, infer, or invent an address or client name from context. propertyState must be one of the 8 official Australian abbreviations shown above — convert a spoken state name (e.g. "New South Wales") to its abbreviation. Leave every one of these null if not clearly stated.`;
 
@@ -2939,31 +2874,9 @@ function confirmSpecies() {
 
   const { name, data } = pendingSpeciesMatch;
 
-  // Pre-fill related fields where appropriate
-  const prefills = {};
-  if (data.riskLevel && !reportData.riskLevel) prefills.riskLevel = data.riskLevel;
-  if (data.treatmentRecommended && !reportData.treatmentRecommended) prefills.treatmentRecommended = data.treatmentRecommended;
-  if (data.inspectionFrequency && !reportData.inspectionFrequency) prefills.inspectionFrequency = data.inspectionFrequency;
-  if (data.treatmentOptions && data.treatmentOptions.length > 0 && !reportData.treatmentType) {
-    prefills.treatmentType = data.treatmentOptions[0].product + ' — ' + data.treatmentOptions[0].type;
-  }
-
-  Object.entries(prefills).forEach(([key, val]) => {
-    const el = document.getElementById('f-' + key);
-    if (el) {
-      renderField(el, key, val);
-      reportData[key] = val;
-    }
-  });
-
-  if (Object.keys(prefills).length > 0) {
-    updateProgress();
-    saveDraft();
-  }
-
   // Hide confirm, show intelligence panel
   document.getElementById('speciesConfirm').style.display = 'none';
-  showSpeciesIntel(name, data, prefills);
+  showSpeciesIntel(name, data);
 
   pendingSpeciesMatch = null;
 }
@@ -2977,19 +2890,19 @@ function closeSpeciesIntel() {
   document.getElementById('speciesIntel').style.display = 'none';
 }
 
-function showSpeciesIntel(name, data, prefills = {}) {
+function showSpeciesIntel(name, data) {
   const panel = document.getElementById('speciesIntel');
   const title = document.getElementById('speciesIntelName');
   const body = document.getElementById('speciesIntelBody');
   if (!panel || !body) return;
 
   title.textContent = name + (data.commonName ? ' — ' + data.commonName : '');
-  body.innerHTML = buildSpeciesIntelHTML(data, prefills);
+  body.innerHTML = buildSpeciesIntelHTML(data);
   panel.style.display = 'block';
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-function buildSpeciesIntelHTML(data, prefills) {
+function buildSpeciesIntelHTML(data) {
   let html = '';
 
   // On-site field identification — rendered first, most useful in the moment
@@ -3012,14 +2925,6 @@ function buildSpeciesIntelHTML(data, prefills) {
           <span class="species-flag-text">${flag.text}</span>
         </div>`;
     });
-  }
-
-  // Destruction rate / significance
-  if (data.destructionRate) {
-    html += `<div class="intel-section">
-      <div class="intel-section-title">Significance</div>
-      <div class="intel-item">${data.destructionRate}</div>
-    </div>`;
   }
 
   // Identification markers
@@ -3071,20 +2976,6 @@ function buildSpeciesIntelHTML(data, prefills) {
       </div>`;
     });
     html += `</div></div>`;
-  }
-
-  // What was pre-filled
-  const prefilledKeys = Object.keys(prefills);
-  if (prefilledKeys.length > 0) {
-    const labels = {
-      riskLevel: 'Risk Level', treatmentRecommended: 'Treatment Recommended',
-      treatmentType: 'Treatment Type', inspectionFrequency: 'Re-inspection Frequency'
-    };
-    const filled = prefilledKeys.map(k => labels[k] || k).join(', ');
-    html += `<div class="intel-prefilled">
-      <svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
-      Pre-filled in Recommendations tab: ${filled} — review and adjust there as needed
-    </div>`;
   }
 
   // Field note prompts
@@ -8430,6 +8321,17 @@ function reportSummary() {
   if (reportData.slabEdge === 'OBSTRUCTED') conducive.push('slab edge concealed');
   const places = list => list.map(f => f.activityLocation).filter(Boolean).join('; ');
   const NR = 'NOT RECORDED';
+  const limitedZones = areasNotFullyInspected();
+  // What the risk rating rests on: the property, never the termite species.
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const basis = [];
+  if (live.length) basis.push('live termites');
+  else if (evidence.length) basis.push('old termite activity');
+  else if (fs.length) basis.push('no termites seen');
+  if (fs.some(f => f.nestLocated === 'YES')) basis.push('nest found');
+  if (structural) basis.push('builder referral');
+  if (conducive.length) basis.push(plural(conducive.length, 'conducive condition'));
+  if (limitedZones.length) basis.push(`${plural(limitedZones.length, 'area')} not fully inspected`);
   const tiles = [
     ['Live termites', live.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, live.length ? 'bad' : fs.length ? 'good' : 'none', places(live)],
     ['Termite damage or old activity', evidence.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, evidence.length ? 'warn' : fs.length ? 'good' : 'none', places(evidence)],
@@ -8439,12 +8341,12 @@ function reportSummary() {
       { YES: 'warn', NO: 'good' }[reportData.decayFound] || 'none', reportData.decayDetails || ''],
     ['Builder referral', structural ? 'BUILDER TO ASSESS' : fs.length ? 'NONE FLAGGED' : NR, structural ? 'bad' : fs.length ? 'good' : 'none', ''],
     ['Conducive conditions', conducive.length ? `${conducive.length} FOUND` : 'NONE RECORDED', conducive.length ? 'warn' : 'none', conducive.join('; ')],
-    ['Risk of termite attack', reportData.riskLevel || NR, { HIGH: 'bad', MEDIUM: 'warn', LOW: 'good' }[reportData.riskLevel] || 'none', ''],
+    ['Risk of termite attack', reportData.riskLevel || NR, { HIGH: 'bad', MEDIUM: 'warn', LOW: 'good' }[reportData.riskLevel] || 'none',
+      reportData.riskLevel && basis.length ? `Based on ${basis.join(', ')}` : ''],
     ['Treatment recommended', { YES: 'YES', NO: 'NO' }[reportData.treatmentRecommended] || NR,
       { YES: 'bad', NO: 'good' }[reportData.treatmentRecommended] || 'none', reportData.treatmentType || ''],
   ];
   // Areas the inspector couldn't fully see, and why.
-  const limitedZones = areasNotFullyInspected();
   const limited = limitedZones.map(z => {
     const why = ((reportData.areaReasons || {})[z] || []).join(', ');
     return `${OBS_ZONES[z].label}: ${areaStatusOf(z) === 'NOT' ? 'not inspected' : 'partly inspected'}${why ? ` (${why})` : ''}`;
@@ -8459,7 +8361,7 @@ function reportSummary() {
   if (conducive.length) next.push(`Fix the conditions that attract termites: ${conducive.join('; ')}.`);
   if (limitedZones.length) next.push(`Provide access to ${limitedZones.map(z => OBS_ZONES[z].label.replace(/^The /, '').toLowerCase()).join(', ')} for a follow-up inspection.`);
   next.push(`Next timber pest inspection: ${reportData.inspectionFrequency || 'within 12 months'}.`);
-  return { tiles, limited, next };
+  return { tiles, limited, next, basis };
 }
 
 // Gaps in the report itself, shown before sending and before completing.
@@ -8845,9 +8747,12 @@ function drawPdfCompanyMark(doc, company) {
       return;
     } catch (e) {}
   }
+  // No logo: the business's initials (or K for KORVUS) in a teal tile.
+  const initials = (company.name || 'KORVUS').split(/\s+/).filter(w => /^[A-Za-z0-9]/.test(w))
+    .slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'K';
   doc.setFillColor(...C.accent); doc.roundedRect(14, 14, 20, 20, 3, 3, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...C.coverDark);
-  doc.text('K', 24, 27.5, { align:'center' });
+  doc.setFont('helvetica','bold'); doc.setFontSize(initials.length > 1 ? 11 : 13); doc.setTextColor(...C.white);
+  doc.text(initials, 24, 26.8, { align:'center' });
 }
 
 // Gets a finished PDF off the device. Inside the native app wrapper there is
@@ -8952,28 +8857,21 @@ async function _buildAndDownloadPDF() {
   // ── PAGE HEADER ──────────────────────────────────────────────────────────
   function compactHeader(sectionLabel) {
     pageNum++;
-    const reportTitle = 'TIMBER PEST INSPECTION REPORT';
-    // White page — thin top band in dark
-    doc.setFillColor(...C.headerBg); doc.rect(0, 0, W, 13, 'F');
-    doc.setFillColor(...C.accent);   doc.rect(0, 0, 4, 13, 'F');
-    // Report title
-    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(235,228,218);
-    doc.text(reportTitle, 9, 8.5);
-    // Address centred
+    // A light running header: who prepared it and for which property on the
+    // left, the part of the report on the right, over a thin teal rule.
+    const companyName = (getCompanyDetails().name || '').trim();
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.ink);
+    doc.text(companyName || 'Timber Pest Inspection Report', M, 10);
     const addr = getFullAddress() || '';
-    if (addr) {
-      const addrTrunc = addr.length > 52 ? addr.slice(0,51)+'…' : addr;
-      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(170,160,148);
-      doc.text(addrTrunc, W/2, 8.5, { align:'center' });
+    const sub = [companyName ? 'Timber Pest Inspection Report' : '', addr].filter(Boolean).join('   ·   ');
+    if (sub) {
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+      doc.text(sub.length > 90 ? sub.slice(0, 89) + '…' : sub, M, 14);
     }
-    // Section label + page number
-    doc.setTextColor(170,160,148); doc.setFontSize(7);
-    doc.text(sectionLabel, W-M, 8.5, { align:'right' });
-    // Thin orange rule below header
-    doc.setFillColor(...C.accent); doc.rect(0, 13, W, 0.6, 'F');
-    // Light rule below that
-    doc.setFillColor(...C.ruleLight); doc.rect(0, 13.6, W, 0.4, 'F');
-    y = 22;
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.accent);
+    doc.text(sectionLabel.toUpperCase(), W-M, 10, { align:'right' });
+    doc.setFillColor(...C.accent); doc.rect(M, 17, CW, 0.35, 'F');
+    y = 26;
   }
 
   // ── SECTION TITLE ─────────────────────────────────────────────────────────
@@ -8995,8 +8893,8 @@ async function _buildAndDownloadPDF() {
     doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(...C.ink);
     doc.text(title, titleX, y+5.5);
     // Full-width orange rule
-    doc.setFillColor(...C.accent); doc.rect(M, y+8, CW, 0.7, 'F');
-    y += 14;
+    doc.setFillColor(...C.rule); doc.rect(M, y+9, CW, 0.3, 'F');
+    y += 15;
   }
 
   // ── DATA ROW ──────────────────────────────────────────────────────────────
@@ -9006,10 +8904,12 @@ async function _buildAndDownloadPDF() {
   function row(label, value, invert) {
     const v     = String(value || '');
     const isEmpty = !value && value !== 0;
-    const LABEL_W = 60;
-    doc.setFontSize(8.5);
-    const wrapped = isEmpty ? ['—'] : doc.splitTextToSize(v, CW - LABEL_W - 6);
-    const rowH = Math.max(8, wrapped.length * 4.5 + 4);
+    // Nothing recorded: leave the row out rather than print a dash.
+    if (isEmpty) return;
+    const LABEL_W = 62;
+    doc.setFontSize(9);
+    const wrapped = doc.splitTextToSize(v, CW - LABEL_W - 6);
+    const rowH = Math.max(8.5, wrapped.length * 4.6 + 4);
     if (y + rowH > 277) { newPage(); _rowShade = false; }
 
     // Alternating shade
@@ -9020,12 +8920,9 @@ async function _buildAndDownloadPDF() {
     doc.setDrawColor(...C.ruleLight); doc.setLineWidth(0.25);
     doc.line(M, y+rowH, M+CW, y+rowH);
 
-    // Orange left indicator on filled rows
-    if (!isEmpty) { doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, rowH, 'F'); }
-
     // Label
-    doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
-    doc.text(label.toUpperCase(), M+4, y+5.5);
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+    doc.text(label.toUpperCase(), M+3, y+5.7);
 
     // Value — colour-coded
     if (isEmpty) {
@@ -9041,8 +8938,8 @@ async function _buildAndDownloadPDF() {
     } else {
       doc.setTextColor(...C.ink); doc.setFont('helvetica','normal');
     }
-    doc.setFontSize(8.5);
-    doc.text(wrapped, M+LABEL_W, y+5.5);
+    doc.setFontSize(9);
+    doc.text(wrapped, M+LABEL_W, y+5.7);
     y += rowH;
   }
 
@@ -9107,23 +9004,28 @@ async function _buildAndDownloadPDF() {
     doc.setFont('helvetica','normal');
   }
 
+  // ── CALLOUT ── a tinted note with a coloured bar: a short bold title, then
+  // plain text. tone: 'bad' | 'warn'.
+  function callout(title, body, tone, x = M, w = CW) {
+    const col = tone === 'warn' ? C.warn : C.danger;
+    const bg  = tone === 'warn' ? [253,247,234] : [253,242,240];
+    doc.setFont('helvetica','normal'); doc.setFontSize(8);
+    const lines = doc.splitTextToSize(body, w - 12);
+    const h = 11 + lines.length * 4;
+    if (y + h > 278) newPage();
+    doc.setFillColor(...bg); doc.roundedRect(x, y, w, h, 1.5, 1.5, 'F');
+    doc.setFillColor(...col); doc.rect(x, y, 1.5, h, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...col);
+    doc.text(title.toUpperCase(), x + 6, y + 6);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
+    doc.text(lines, x + 6, y + 11);
+    y += h + 4;
+    doc.setTextColor(...C.ink);
+  }
+
   // ── BUILDER / ENGINEER REFERRAL BOX ────────────────────────────────────────────────
   function referralBox() {
-    const text = 'BUILDER OR ENGINEER REFERRAL: The inspector recommends that the damage described above be assessed by a licensed builder or structural engineer. A timber pest inspection does not assess structural soundness or load-bearing capacity, and no opinion on either is given in this report.';
-    doc.setFont('helvetica','bold'); doc.setFontSize(8);
-    const lines = doc.splitTextToSize(text, CW-10);
-    const blockH = lines.length*4.2+8;
-    if (y + blockH > 280) newPage();
-    // Light red background
-    doc.setFillColor(253,242,240); doc.roundedRect(M, y, CW, blockH, 2, 2, 'F');
-    doc.setDrawColor(...C.danger); doc.setLineWidth(0.6);
-    doc.roundedRect(M, y, CW, blockH, 2, 2, 'D');
-    doc.setFillColor(...C.danger); doc.roundedRect(M, y, 4, blockH, 2, 2, 'F');
-    doc.rect(M+2, y, 2, blockH, 'F');
-    doc.setTextColor(...C.danger);
-    doc.text(lines, M+7, y+6);
-    y += blockH+4;
-    doc.setFont('helvetica','normal'); doc.setTextColor(...C.ink);
+    callout('Builder or engineer referral', 'The inspector recommends that the damage described above be assessed by a licensed builder or structural engineer. A timber pest inspection does not assess structural soundness or load-bearing capacity, and no opinion on either is given in this report.', 'bad');
   }
 
   // ── PHOTO GALLERY ─────────────────────────────────────────────────────────
@@ -9377,11 +9279,14 @@ async function _buildAndDownloadPDF() {
     doc.text('RISK OF TERMITE ATTACK', M+8, riskBadgeY+7);
     doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...riskCol);
     doc.text(riskLvl || 'PENDING ASSESSMENT', M+8, riskBadgeY+16);
-    // Show species from first active finding if present
-    const firstSpecies = (reportData.findings || []).find(f => f.species)?.species || reportData.species;
-    if (firstSpecies) {
+    const basis = riskLvl ? reportSummary().basis : [];
+    if (basis.length) {
+      const bw = CW - 80;
+      doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
+      doc.text('BASED ON', W-M-5, riskBadgeY+7, { align:'right' });
       doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
-      doc.text(firstSpecies, W-M-5, riskBadgeY+16, { align:'right' });
+      const lines = doc.splitTextToSize(basis.join(' · '), bw).slice(0, 2);
+      lines.forEach((ln, i) => doc.text(ln, W-M-5, riskBadgeY+12 + i*4, { align:'right' }));
     }
   }
 
@@ -9407,10 +9312,19 @@ async function _buildAndDownloadPDF() {
   {
     const { tiles, limited, next } = reportSummary();
     const TONE = { bad: [C.danger, [253,242,240]], warn: [C.warn, [253,247,234]], good: [C.safe, [239,249,237]], none: [C.inkMuted, C.rowAlt] };
-    const tileW = (CW - 4) / 2, tileH = 19;
-    tiles.forEach(([label, value, tone, detail], i) => {
+    const tileW = (CW - 4) / 2;
+    // Details wrap to three lines; each row of two tiles grows to fit the longer.
+    doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    const details = tiles.map(t => t[3] ? doc.splitTextToSize(t[3], tileW - 8).slice(0, 3) : []);
+    const rowH = [];
+    for (let r = 0; r * 2 < tiles.length; r++) {
+      const n = Math.max(details[r * 2].length, (details[r * 2 + 1] || []).length);
+      rowH.push(19 + Math.max(0, n - 1) * 3.2);
+    }
+    let ty = y;
+    tiles.forEach(([label, value, tone], i) => {
       const x = M + (i % 2) * (tileW + 4);
-      const ty = y + Math.floor(i / 2) * (tileH + 3);
+      const tileH = rowH[Math.floor(i / 2)];
       const [col, bg] = TONE[tone];
       doc.setFillColor(...bg); doc.roundedRect(x, ty, tileW, tileH, 1.5, 1.5, 'F');
       doc.setFillColor(...col); doc.rect(x, ty, 1.5, tileH, 'F');
@@ -9418,13 +9332,13 @@ async function _buildAndDownloadPDF() {
       doc.text(label.toUpperCase(), x + 5, ty + 5.5);
       doc.setFontSize(11); doc.setTextColor(...col);
       doc.text(value, x + 5, ty + 11.5);
-      if (detail) {
+      if (details[i].length) {
         doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkLight);
-        const d = doc.splitTextToSize(detail, tileW - 8);
-        doc.text(d[0] + (d.length > 1 ? '…' : ''), x + 5, ty + 16.5);
+        doc.text(details[i], x + 5, ty + 16.5, { lineHeightFactor: 1.3 });
       }
+      if (i % 2 === 1 || i === tiles.length - 1) ty += tileH + 3;
     });
-    y += Math.ceil(tiles.length / 2) * (tileH + 3) + 5;
+    y = ty + 5;
 
     function summaryList(title, items) {
       if (!items.length) return;
@@ -9533,16 +9447,6 @@ async function _buildAndDownloadPDF() {
                         undetectedRisk.includes('MODERATE') ? [253,247,234] :
                         undetectedRisk === 'NOT ASSESSED' ? [248,246,243] : [239,249,237];
 
-  // Risk box
-  if (y + 22 > 278) newPage();
-  doc.setFillColor(...undetectedBg); doc.roundedRect(M, y, CW, 22, 2, 2, 'F');
-  doc.setDrawColor(...undetectedCol); doc.setLineWidth(0.6); doc.roundedRect(M, y, CW, 22, 2, 2, 'D');
-  doc.setFillColor(...undetectedCol); doc.roundedRect(M, y, 4, 22, 2, 2, 'F'); doc.rect(M+2, y, 2, 22, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-  doc.text('RISK OF UNDETECTED TIMBER PEST ACTIVITY', M+8, y+7);
-  doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...undetectedCol);
-  doc.text(undetectedRisk, M+8, y+17);
-  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
   const undetectedNote = undetectedRisk === 'HIGH'
     ? 'Active or inactive termites found with uninspected areas. Further invasive inspection strongly recommended.'
     : undetectedRisk === 'MODERATE-HIGH'
@@ -9552,9 +9456,20 @@ async function _buildAndDownloadPDF() {
     : undetectedRisk === 'NOT ASSESSED'
     ? 'The areas inspected were not recorded, so this risk could not be assessed.'
     : 'All readily accessible areas were inspected. Regular inspection programme should continue.';
-  const noteLines = doc.splitTextToSize(undetectedNote, CW - 80);
-  doc.text(noteLines, W-M-5, y+10, { align:'right', maxWidth: 80 });
-  y += 28;
+  // Risk box: label, rating, then what it means underneath.
+  doc.setFont('helvetica','normal'); doc.setFontSize(8);
+  const noteLines = doc.splitTextToSize(undetectedNote, CW - 16);
+  const boxH = 23 + noteLines.length * 4;
+  if (y + boxH > 278) newPage();
+  doc.setFillColor(...undetectedBg); doc.roundedRect(M, y, CW, boxH, 2, 2, 'F');
+  doc.setFillColor(...undetectedCol); doc.rect(M, y, 1.5, boxH, 'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+  doc.text('RISK OF UNDETECTED TIMBER PEST ACTIVITY', M+7, y+7);
+  doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...undetectedCol);
+  doc.text(undetectedRisk, M+7, y+15.5);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
+  doc.text(noteLines, M+7, y+21.5);
+  y += boxH + 5;
   gap(4);
   disclaimer('This rating reflects the risk of timber pest activity existing but not being detected at the time of inspection, due to access limitations. It is not an assessment of pest pressure or building susceptibility.');
   gap(6);
@@ -9649,32 +9564,22 @@ async function _buildAndDownloadPDF() {
     // Header
     const headerH = 13;
     doc.setFillColor(...actBg); doc.rect(M, y, CW, headerH, 'F');
-    doc.setFillColor(...actCol); doc.rect(M, y, 4, headerH, 'F');
-    doc.setDrawColor(...actCol); doc.setLineWidth(0.5);
-    doc.line(M, y+headerH, M+CW, y+headerH);
+    doc.setFillColor(...actCol); doc.rect(M, y, 1.5, headerH, 'F');
     doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
     doc.text(`TERMITE FINDING ${idx + 1}`, M+8, y+5.5);
     doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...actCol);
     doc.text(actLabel, M+8, y+10.5);
-    doc.setFillColor(...actCol); doc.circle(M+CW-6, y+7, 3, 'F');
     y += headerH + 5;
 
     // Species
     if (f.species && f.species.trim()) {
-      const speciesMatch = lookupSpecies(f.species);
-      const riskTag = speciesMatch ? speciesMatch.data.riskLabel || '' : '';
-      const riskCol2 = riskTag.includes('EXTREME') ? C.danger : riskTag.includes('HIGH') ? [180,100,20] : C.inkMuted;
       doc.setFillColor(245,243,240); doc.roundedRect(bodyX, y, bodyW, 10, 1, 1, 'F');
       doc.setDrawColor(...C.rule); doc.setLineWidth(0.3); doc.roundedRect(bodyX, y, bodyW, 10, 1, 1, 'D');
       doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
       doc.text('SPECIES / GENUS', bodyX+4, y+4.5);
       doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...C.ink);
       doc.text(f.species, bodyX+4, y+8.5);
-      if (riskTag) {
-        doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...riskCol2);
-        doc.text(riskTag, M+CW-bodyPad-4, y+8.5, { align:'right' });
-      }
-      y += 14;
+      y += 17;
     }
 
     // Was a nest found?
@@ -9711,18 +9616,8 @@ async function _buildAndDownloadPDF() {
 
     // Builder / engineer referral
     if (f.structuralConcern === 'YES') {
-      if (y > 268) newPage();
       y += 2;
-      const scText = 'BUILDER OR ENGINEER REFERRAL — The inspector recommends a licensed builder or structural engineer assess this damage, and any effect on the structure, before work proceeds.';
-      const scLines = doc.splitTextToSize(scText, bodyW-8);
-      const scH = scLines.length*4+8;
-      doc.setFillColor(253,242,240); doc.roundedRect(bodyX, y, bodyW, scH, 1.5, 1.5, 'F');
-      doc.setDrawColor(...C.danger); doc.setLineWidth(0.5); doc.roundedRect(bodyX, y, bodyW, scH, 1.5, 1.5, 'D');
-      doc.setFillColor(...C.danger); doc.roundedRect(bodyX, y, 3, scH, 1.5, 1.5, 'F');
-      doc.rect(bodyX+1.5, y, 1.5, scH, 'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.danger);
-      doc.text(scLines, bodyX+6, y+5.5);
-      y += scH + 4;
+      callout('Builder or engineer referral', 'The inspector recommends a licensed builder or structural engineer assess this damage, and any effect on the structure, before work proceeds.', 'bad', bodyX, bodyW);
     }
 
     y += 3;
@@ -9771,16 +9666,7 @@ async function _buildAndDownloadPDF() {
     row('Location of Moisture Ingress', reportData.leakLocation);
     if (isAboveGroundLeak(reportData.leakLocation)) {
       gap(2);
-      // Above-ground leak callout — amber warning box
-      const alertText = 'ABOVE-GROUND LEAK — Subterranean termites can establish a secondary moisture-dependent colony in roof voids and wall cavities with no soil contact. Inspect timbers adjacent to this leak location specifically.';
-      const alertLines = doc.splitTextToSize(alertText, CW-10);
-      const alertH = alertLines.length*4+8;
-      if (y + alertH > 278) newPage();
-      doc.setFillColor(253,247,234); doc.roundedRect(M,y,CW,alertH,2,2,'F');
-      doc.setDrawColor(...C.warn); doc.setLineWidth(0.5); doc.roundedRect(M,y,CW,alertH,2,2,'D');
-      doc.setFillColor(...C.warn); doc.roundedRect(M,y,4,alertH,2,2,'F'); doc.rect(M+2,y,2,alertH,'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.warn);
-      doc.text(alertLines, M+7, y+5.5); y += alertH+4;
+      callout('Above-ground leak', 'Subterranean termites can establish a secondary moisture-dependent colony in roof voids and wall cavities with no soil contact. Timbers next to this leak should be checked specifically.', 'warn');
     }
   }
   gap(4);
@@ -9816,15 +9702,7 @@ async function _buildAndDownloadPDF() {
 
       if (concerns.length > 0) {
         gap(3);
-        const cText = 'SYSTEM VERIFICATION CONCERN: ' + concerns.join('. ') + '. These checks verify the system can still be properly inspected — not its effectiveness. Recommend rectification and re-inspection.';
-        const cLines = doc.splitTextToSize(cText, CW-10);
-        const cH = cLines.length*4+8;
-        if (y + cH > 278) newPage();
-        doc.setFillColor(253,242,240); doc.roundedRect(M,y,CW,cH,2,2,'F');
-        doc.setDrawColor(...C.danger); doc.setLineWidth(0.5); doc.roundedRect(M,y,CW,cH,2,2,'D');
-        doc.setFillColor(...C.danger); doc.roundedRect(M,y,4,cH,2,2,'F'); doc.rect(M+2,y,2,cH,'F');
-        doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.danger);
-        doc.text(cLines, M+7, y+5.5); y += cH+4;
+        callout('System verification concern', concerns.join('. ') + '. These checks confirm the system can still be inspected, not that it works. Rectification and re-inspection are recommended.', 'bad');
       }
     }
     gap(4);
@@ -10122,13 +10000,10 @@ async function _buildAndDownloadPDF() {
   const totalPages = doc.internal.getNumberOfPages();
   for (let p = 2; p <= totalPages; p++) {
     doc.setPage(p);
-    doc.setFillColor(...C.rowAlt); doc.rect(0, 284, W, 13, 'F');
-    doc.setFillColor(...C.accent); doc.rect(0, 284, W, 0.5, 'F');
+    doc.setFillColor(...C.rule); doc.rect(M, 284, CW, 0.3, 'F');
     doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text(`KORVUS  ·  ${reportNumber} v${version}`, M, 291);
-    doc.text(address, W/2, 291, { align:'center' });
-    doc.setFont('helvetica','bold'); doc.setTextColor(...C.inkLight);
-    doc.text(`${p-1} / ${totalPages-1}`, W-M, 291, { align:'right' });
+    doc.text(`Report ${reportNumber}  ·  Version ${version}`, M, 290);
+    doc.text(`Page ${p-1} of ${totalPages-1}`, W-M, 290, { align:'right' });
   }
 
   const fname = `KORVUS_${address.replace(/\s+/g,'_').substring(0,25)}_${today.replace(/\s+/g,'_')}.pdf`;
