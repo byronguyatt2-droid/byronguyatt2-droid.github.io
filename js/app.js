@@ -7871,7 +7871,7 @@ function renderScheduleAgenda(assignedJobs) {
     time: q.booking.time || '',
     address: q.address || 'No address',
     client: [q.client, q.booking.notes].filter(Boolean).join(' · '),
-    badge: 'Treatment',
+    badge: q.treatment ? 'Treated' : 'Treatment',
     reportId: report ? report.id : '',
   }));
 
@@ -7920,7 +7920,7 @@ function renderScheduleAgenda(assignedJobs) {
       <div class="schedule-item${item.reportId ? ' tappable' : ''}"${item.reportId ? ` onclick="closeDashboard(); loadReport('${item.reportId}')"` : ''}>
         <div class="schedule-item-time">${fmtTime(item.time)}</div>
         <div class="schedule-item-body">
-          <div class="schedule-item-addr">${escapeHtml(item.address)}${item.badge ? `<span class="schedule-item-badge${item.badge === 'Treatment' ? ' treatment' : ''}">${item.badge}</span>` : ''}</div>
+          <div class="schedule-item-addr">${escapeHtml(item.address)}${item.badge ? `<span class="schedule-item-badge${item.badge === 'Treatment' || item.badge === 'Treated' ? ' treatment' : ''}">${item.badge}</span>` : ''}</div>
           <div class="schedule-item-meta">${fmtDateShort(item.date)}${item.client ? ' · ' + escapeHtml(item.client) : ''}</div>
         </div>
       </div>

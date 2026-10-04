@@ -253,4 +253,13 @@ select.quote-input { cursor: pointer; }
 .quote-book-btn { width: 100%; }
 .quote-booking { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(40,148,72,0.35); background: rgba(40,148,72,0.06); font-size: 13.5px; color: var(--text2); }
 .quote-booking strong { color: var(--green); }
-.quote-booking-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.quote-booking-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+/* Treatment record */
+.treat-methods { display: flex; flex-direction: column; gap: 6px; }
+.treat-method { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 13.5px; color: var(--text); }
+.treat-method input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--accent); }
+.treat-method span { flex: 1; }
+.treat-method-qty { width: 92px; flex-shrink: 0; }
+.treat-product { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
+.treat-product .quote-link-btn, .treat-add-product { align-self: flex-start; }
