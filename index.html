@@ -376,6 +376,39 @@
   </div>
 </div>
 
+<div class="page-sheet-overlay" id="quoteBookOverlay">
+  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="quoteBookTitle">
+    <div class="page-sheet-header">
+      <span class="page-sheet-title" id="quoteBookTitle">Book the treatment</span>
+      <button class="voice-popover-close" onclick="closeQuoteBooking()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+    </div>
+    <div class="page-sheet-body">
+      <p class="quote-hint" id="qbSummary" style="margin:0"></p>
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Date</div>
+          <input class="job-input" id="qbDate" type="date">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Time</div>
+          <input class="job-input" id="qbTime" type="time">
+        </div>
+      </div>
+      <div class="job-field" id="qbAssigneeWrap" style="display:none">
+        <div class="job-field-label">Technician</div>
+        <select class="job-input" id="qbAssignee"></select>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Notes</div>
+        <input class="job-input" id="qbNotes" placeholder="e.g. Client home after 9, dog in the backyard">
+      </div>
+      <p class="quote-hint" style="margin:0">It goes on the Schedule. Booked for someone else on your team, it goes on their Schedule too.</p>
+      <button class="extract-btn" id="qbSaveBtn" onclick="saveQuoteBooking()">Book it</button>
+      <button class="link-btn send-review-cancel" onclick="closeQuoteBooking()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="page-sheet-overlay" id="quotePriceOverlay">
   <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="quotePriceTitle">
     <div class="page-sheet-header">
@@ -689,6 +722,11 @@
           <div class="job-field">
             <div class="job-field-label">Business Email</div>
             <input class="job-input" id="companyEmail" type="email" placeholder="e.g. office@abcpest.com.au" oninput="saveCompanyDetails()">
+          </div>
+          <div class="job-field">
+            <div class="job-field-label">Quote Prices</div>
+            <button class="quote-link-btn" onclick="openQuotePriceList()">Set your prices</button>
+            <p class="drawer-hint">Your usual price for each treatment, so the first quote is right.</p>
           </div>
           <div class="job-field">
             <div class="job-field-label">Pre-Inspection Agreement Wording</div>

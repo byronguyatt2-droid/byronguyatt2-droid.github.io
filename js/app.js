@@ -7931,10 +7931,18 @@ function renderScheduleAgenda(assignedJobs) {
       time: j.job_time || '',
       address: j.address || 'No address',
       client: j.notes || '',
-      assigned: true,
+      badge: /^Treatment\b/.test(j.notes || '') ? 'Treatment' : 'Assigned',
     }));
+  const treatmentItems = bookedTreatments().map(({ q, report }) => ({
+    date: q.booking.date,
+    time: q.booking.time || '',
+    address: q.address || 'No address',
+    client: [q.client, q.booking.notes].filter(Boolean).join(' · '),
+    badge: 'Treatment',
+    reportId: report ? report.id : '',
+  }));
 
-  const all = [...localItems, ...assignedItems];
+  const all = [...localItems, ...assignedItems, ...treatmentItems];
   if (all.length === 0) {
     body.innerHTML = '<div class="dashboard-empty">No scheduled jobs yet.<br>Set an Inspection Date on a job to see it here.</div>';
     return;
@@ -7976,10 +7984,10 @@ function renderScheduleAgenda(assignedJobs) {
     if (items.length === 0) return;
     html += `<div class="schedule-group-label">${groupName}</div>`;
     html += items.map(item => `
-      <div class="schedule-item">
+      <div class="schedule-item${item.reportId ? ' tappable' : ''}"${item.reportId ? ` onclick="closeDashboard(); loadReport('${item.reportId}')"` : ''}>
         <div class="schedule-item-time">${fmtTime(item.time)}</div>
         <div class="schedule-item-body">
-          <div class="schedule-item-addr">${escapeHtml(item.address)}${item.assigned ? '<span class="schedule-item-badge">Assigned</span>' : ''}</div>
+          <div class="schedule-item-addr">${escapeHtml(item.address)}${item.badge ? `<span class="schedule-item-badge${item.badge === 'Treatment' ? ' treatment' : ''}">${item.badge}</span>` : ''}</div>
           <div class="schedule-item-meta">${fmtDateShort(item.date)}${item.client ? ' · ' + escapeHtml(item.client) : ''}</div>
         </div>
       </div>
