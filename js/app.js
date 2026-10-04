@@ -5262,7 +5262,11 @@ function openAgreementSheet() {
     if (a.signature) img.src = a.signature;
   } else {
     document.getElementById('agreementSignerName').value = document.getElementById('jobClient').value.trim();
-    document.getElementById('agreementDate').value = todayIsoDate();
+    // Job Details may already have the booking's date and fee.
+    document.getElementById('agreementDate').value = reportData.jobInspectionDate || todayIsoDate();
+    const jobFee = (reportData.jobFee || '').trim();
+    document.getElementById('agreementFee').value = jobFee ? `${/^\$/.test(jobFee) ? '' : '$'}${jobFee} inc GST` : '';
+    document.getElementById('agreementNotes').value = '';
     document.getElementById('agreementAgree').checked = false;
     document.getElementById('agreementOtherNote').value = '';
     document.getElementById('agreementOtherWrap').style.display = 'none';
@@ -7321,6 +7325,8 @@ function saveCurrentReport(quiet) {
 
   const reports = getSavedReports();
   const id = currentReportId || ('report_' + Date.now());
+  // A quote started before the report was first saved moves to its new id.
+  if (!currentReportId) adoptDraftQuote(id, getFullAddress());
 
   const entry = {
     id,
@@ -7336,6 +7342,10 @@ function saveCurrentReport(quiet) {
     savedAt: Date.now(),
     completion: calculateCompletion(),
   };
+  // The quote rides along in the saved report, so it syncs to the account
+  // with it (see the quote builder in js/quote.js).
+  const quote = quoteForReport(id, entry.address);
+  if (quote) entry.quote = quote;
 
   const existingIndex = reports.findIndex(r => r.id === id);
   if (existingIndex >= 0) {
@@ -8137,40 +8147,71 @@ function showToast(msg, type = 'default') {
 }
 
 // ── PDF GENERATION ────────────────────────────────────────────────────────
-async function shareReport() {
-  const blob = window.__lastPdfBlob;
-  const fname = window.__lastPdfName || 'KORVUS_Report.pdf';
-  if (!blob) {
-    showToast('Generate the PDF first', 'error');
-    return;
-  }
+// ── SEND TO CLIENT ──────────────────────────────────────────────────────
+// Opens the phone's share sheet with the PDFs attached and a short message
+// ready to go, so the inspector picks Mail (or Messages) and taps send. The
+// client's email address is copied first, to paste into To. Browsers that
+// can't share files (desktop) download the PDFs and open a new email to the
+// client instead. The share sheet only opens straight from a tap, so the
+// PDFs must already be built when this is called.
+function clientMessage({ client, address, docs, signOff }) {
+  const company = getCompanyDetails();
+  const firstName = (client || '').trim().split(/\s+/)[0];
+  return [
+    firstName ? `Hi ${firstName},` : 'Hi,',
+    '',
+    `Please find attached your ${docs} for ${address || 'the property'}.`,
+    '',
+    `If you have any questions, just reply to this email${company.phone ? ` or call us on ${company.phone}` : ''}.`,
+    '',
+    'Kind regards,',
+    ...[signOff, company.name].filter(Boolean),
+  ].join('\n');
+}
 
-  const file = new File([blob], fname, { type: 'application/pdf' });
-
-  // Web Share API — works on iOS Safari and Android Chrome
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+async function sendPdfsToClient({ files, to, subject, body }) {
+  const fileObjs = files.map(f => new File([f.blob], f.fname, { type: 'application/pdf' }));
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: fileObjs })) {
+    if (to && navigator.clipboard) {
+      navigator.clipboard.writeText(to).catch(() => {});
+      showToast(`${to} copied — paste it into To`, 'info');
+    }
     try {
-      await navigator.share({
-        title: 'KORVUS Inspection Report',
-        text: `Timber Pest Inspection Report — ${getFullAddress() || 'Property'}`,
-        files: [file],
-      });
-    } catch(e) {
-      if (e.name !== 'AbortError') {
-        // User cancelled share — not an error
-        showToast('Share cancelled', 'info');
-      }
+      await navigator.share({ title: subject, text: body, files: fileObjs });
+    } catch (e) {
+      // Safari refuses if too long passed since the tap; a second tap works.
+      if (e.name === 'NotAllowedError') showToast('Tap Send again to open your email', 'info');
+      else if (e.name !== 'AbortError') showToast('Could not open sharing on this device', 'error');
     }
     return;
   }
+  files.forEach(f => downloadBlob(f.blob, f.fname));
+  window.location.href = `mailto:${encodeURIComponent(to || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  showToast(`PDF${files.length > 1 ? 's' : ''} downloaded — attach ${files.length > 1 ? 'them' : 'it'} to the email that just opened`, 'info');
+}
 
-  // Fallback for desktop / unsupported browsers — re-download
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = fname;
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 300);
-  showToast('PDF downloaded — share from your Downloads folder', 'info');
+// Sends the report PDF just generated, plus this report's quote if it has one.
+function sendReportToClient() {
+  const blob = window.__lastPdfBlob;
+  if (!blob) { showToast('Generate the PDF first', 'error'); return; }
+  const files = [{ blob, fname: window.__lastPdfName || 'KORVUS_Report.pdf' }];
+  const quote = quoteForReport(currentReportId || 'draft', getFullAddress());
+  if (quote && quote.items && quote.items.length) {
+    try { files.push(buildQuotePDF(quote)); } catch (e) { console.warn('Quote PDF failed:', e); }
+  }
+  const address = getFullAddress();
+  const withQuote = files.length > 1;
+  sendPdfsToClient({
+    files,
+    to: (reportData.jobClientEmail || '').trim(),
+    subject: `${withQuote ? 'Timber pest inspection report and quote' : 'Timber pest inspection report'} — ${address || 'your property'}`,
+    body: clientMessage({
+      client: document.getElementById('jobClient').value,
+      address,
+      docs: withQuote ? 'timber pest inspection report and treatment quote' : 'timber pest inspection report',
+      signOff: document.getElementById('jobInspector').value.trim(),
+    }),
+  });
 }
 
 function generateReport() {
@@ -8263,6 +8304,12 @@ async function deliverPdfBlob(blob, fname, { title, text, readyToast }) {
     }
     return;
   }
+  downloadBlob(blob, fname);
+  showToast('PDF downloaded', 'success');
+}
+
+// Safari-compatible blob download, falling back to opening it in a new tab.
+function downloadBlob(blob, fname) {
   const url = URL.createObjectURL(blob);
   try {
     const a = document.createElement('a');
@@ -8274,9 +8321,7 @@ async function deliverPdfBlob(blob, fname, { title, text, readyToast }) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }, 300);
-    showToast('PDF downloaded', 'success');
   } catch(e) {
-    // Fallback — open PDF in new tab
     window.open(url, '_blank');
     showToast('PDF opened in new tab — save from there', 'info');
   }
