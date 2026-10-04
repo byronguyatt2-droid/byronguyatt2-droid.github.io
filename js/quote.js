@@ -17,9 +17,10 @@
 // quote restored from the cloud on another device shows up here too.
 // ══════════════════════════════════════════════════════════════════════════
 
-// Starting prices (AUD, ex GST) used until the business sets its own, either
-// in Your prices (openQuotePriceList) or by changing a price on a quote. Both
-// go into the same per-business memory (see quotePriceMemory).
+// Starting prices (AUD, ex GST) for a business's first quote. After that,
+// each line starts at the rate the business last quoted for it (see
+// quotePriceMemory). There's no price list to fill in: treatment prices come
+// from the job, mostly per linear metre or per station.
 const QUOTE_CATALOGUE = {
   barrier_lm:    { desc: 'Chemical soil treatment (termite barrier)', unit: 'lm', price: 28 },
   barrier_job:   { desc: 'Chemical soil treatment (termite barrier)', unit: 'job', price: 2400 },
@@ -913,33 +914,6 @@ function exportQuotePDF() {
 function rememberQuotePrices(q) {
   q.items.forEach(it => rememberQuotePrice(it.key, parseFloat(it.price)));
   if (q.paymentTerms !== undefined) rememberPaymentTerms(q.paymentTerms.trim());
-}
-
-// ── YOUR PRICES ─────────────────────────────────────────────────────────────
-// The business's usual price for each item KORVUS quotes, so the first quote
-// is right. New lines use these; lines already on a quote keep their price.
-function openQuotePriceList() {
-  const mem = quotePriceMemory();
-  document.getElementById('quotePriceRows').innerHTML = Object.keys(QUOTE_CATALOGUE)
-    .filter(k => k !== 'custom')
-    .map(k => {
-      const cat = QUOTE_CATALOGUE[k];
-      const price = (k in mem) ? mem[k] : cat.price;
-      return `<label class="quote-price-row"><span>${escapeHtml(cat.desc)}<small>per ${escapeHtml(cat.unit)}</small></span>` +
-        `<input class="quote-input" type="number" min="0" step="any" inputmode="decimal" value="${price}" data-key="${k}" aria-label="${escapeHtml(cat.desc)} price"></label>`;
-    }).join('');
-  document.getElementById('quotePriceOverlay').classList.add('open');
-}
-function saveQuotePriceList() {
-  document.querySelectorAll('#quotePriceRows input[data-key]').forEach(inp => {
-    const v = parseFloat(inp.value);
-    if (isFinite(v) && v >= 0) rememberQuotePrice(inp.dataset.key, v);
-  });
-  closeQuotePriceList();
-  showToast('Prices saved. New quote lines will use them', 'success');
-}
-function closeQuotePriceList() {
-  document.getElementById('quotePriceOverlay').classList.remove('open');
 }
 
 // ── SENT AND LOCKED ─────────────────────────────────────────────────────────
