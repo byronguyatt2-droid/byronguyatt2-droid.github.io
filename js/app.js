@@ -6050,6 +6050,7 @@ function saveCompanyDetails() {
   details.licence = document.getElementById('companyLicence').value.trim();
   details.phone   = document.getElementById('companyPhone').value.trim();
   details.abn     = document.getElementById('companyABN').value.trim();
+  details.email   = document.getElementById('companyEmail').value.trim();
   // Kept empty while it matches the default, so the business picks up
   // improvements to the default wording until they've customised it.
   const agreementText = document.getElementById('companyAgreementText').value;
@@ -6067,6 +6068,7 @@ function loadCompanyDetails() {
     document.getElementById('companyLicence').value = '';
     document.getElementById('companyPhone').value   = '';
     document.getElementById('companyABN').value     = '';
+    document.getElementById('companyEmail').value   = '';
     document.getElementById('companyAgreementText').value = DEFAULT_AGREEMENT_TEXT;
     if (!stored) { renderCompanyLogoPreview(null); return; }
     const d = JSON.parse(stored);
@@ -6074,6 +6076,7 @@ function loadCompanyDetails() {
     if (d.licence) document.getElementById('companyLicence').value = d.licence;
     if (d.phone)   document.getElementById('companyPhone').value   = d.phone;
     if (d.abn)     document.getElementById('companyABN').value     = d.abn;
+    if (d.email)   document.getElementById('companyEmail').value   = d.email;
     if (d.agreementText) document.getElementById('companyAgreementText').value = d.agreementText;
     renderCompanyLogoPreview(d.logo || null);
   } catch(e) {}
@@ -6083,6 +6086,16 @@ function resetAgreementTemplate() {
   if (!confirm('Replace your agreement wording with the default?')) return;
   document.getElementById('companyAgreementText').value = DEFAULT_AGREEMENT_TEXT;
   saveCompanyDetails();
+}
+
+// Company details a client-facing PDF should carry, by what's missing.
+function companyDetailGaps() {
+  const c = getCompanyDetails();
+  return [['name', 'business name'], ['licence', 'licence number'], ['abn', 'ABN'], ['phone', 'phone number']]
+    .filter(([k]) => !(c[k] || '').trim()).map(([, label]) => label);
+}
+function joinWithAnd(list) {
+  return list.length < 2 ? (list[0] || '') : list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1];
 }
 
 function getCompanyDetails() {
@@ -8666,6 +8679,8 @@ function openSendReview() {
     (limited.length ? `<div class="send-review-sub">Not fully inspected</div><ul class="send-review-list">${limited.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : '');
 
   const gaps = reportPrepItems();
+  const companyGaps = companyDetailGaps();
+  if (companyGaps.length) gaps.push(`Your ${joinWithAnd(companyGaps)} ${companyGaps.length === 1 ? 'is' : 'are'} missing from Company details, so the PDFs won't show ${companyGaps.length === 1 ? 'it' : 'them'}`);
   const gapsWrap = document.getElementById('sendReviewGaps');
   gapsWrap.style.display = gaps.length ? '' : 'none';
   gapsWrap.innerHTML = `<div class="send-review-label">Worth checking first</div><ul class="send-review-list">${gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul>`;
@@ -9201,6 +9216,10 @@ async function _buildAndDownloadPDF() {
       doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(160,150,138);
       doc.text(sub.join('   ·   '), 40, 29);
     }
+    if (company.email) {
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(160,150,138);
+      doc.text(company.email, 40, 34);
+    }
   } else {
     doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(240,234,224);
     doc.text('KORVUS', 40, 22);
@@ -9378,6 +9397,7 @@ async function _buildAndDownloadPDF() {
   if (co.licence) row('Pest Control Licence', co.licence);
   if (co.phone)   row('Company Phone', co.phone);
   if (co.abn)     row('ABN', co.abn);
+  if (co.email)   row('Company Email', co.email);
   // Address and client name are always required
   row('Property Inspected', address);
   row('Client Name', client);
