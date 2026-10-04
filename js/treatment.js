@@ -1,11 +1,19 @@
 // ── TREATMENT RECORD AND CERTIFICATE ────────────────────────────────────────
 // After the treatment, the technician records what was done on the accepted
-// quote: q.treatment = { date, technician, licence, methods: { key: qty },
-// products: [{ name, active, rate, amount, where }], areas, notTreated,
-// notice: 'new'|'updated'|'none', noticeWhere, nextInspection, notes,
-// signature, at }. It's kept with the quote, so it syncs with the report,
-// and gives the client a treatment certificate PDF with what AS 3660.2 and
-// the durable notice (AS 3660.1) ask to be recorded.
+// quote: q.treatment = { date, start, finish, technician, licence, pest,
+// weather, equipment, methods: { key: qty }, products: [{ name, active,
+// batch, rate, amount, life, where }], areas, notTreated, notice:
+// 'new'|'updated'|'none', noticeWhere, cautions, nextInspection, warranty,
+// notes, signature, at }. It's kept with the quote, so it syncs with the
+// report, and gives the client a treatment certificate PDF.
+//
+// The certificate carries what AS 3660.2 and the durable notice (AS 3660.1,
+// NCC 3.1.4.4: system, date, chemical life per label, future inspections)
+// ask for, and the state treatment records: NSW Pesticides Regulation cl 36,
+// QLD pest control advice, VIC licence record keeping and WA treatment
+// records (pest, start and finish time, product, active constituent, batch,
+// rate, quantity, where, equipment, weather, re-entry precautions,
+// technician and licence, signature).
 
 // What was done. qty labels the number asked for, if any. quoteKeys are
 // the quote lines that mean the method was quoted.
@@ -95,15 +103,38 @@ function draftTreatment(q) {
     date,
     technician: b.assignedName || q.inspector || me.name || '',
     licence: b.assignedName ? '' : (rd.inspectorLicence || me.licence || company.licence || ''),
+    start: (b.date === date && b.time) || '',
+    finish: '',
+    pest: treatmentPestFromReport(rd, methods),
+    weather: '',
+    equipment: '',
     methods,
-    products: [{ name: name || '', active: name ? TREATMENT_PRODUCTS[name] : '', rate: '', amount: '', where: '' }],
+    products: [{ name: name || '', active: name ? TREATMENT_PRODUCTS[name] : '', batch: '', rate: '', amount: '', life: '', where: '' }],
     areas: places.join('; '),
     notTreated: '',
     notice: 'new',
     noticeWhere: 'Meter box',
+    cautions: TREATMENT_DEFAULT_CAUTIONS,
     nextInspection: addMonthsIso(date, treatmentNextInspectionMonths(rd)),
+    warranty: '',
     notes: '',
   };
+}
+
+const TREATMENT_DEFAULT_CAUTIONS = 'Keep people and pets away from treated areas until the treatment has dried. ' +
+  'Do not disturb treated soil, and do not wash treated surfaces.';
+
+// "Subterranean termites (Coptotermes acinaciformis)", plus borers when
+// they were treated too.
+function treatmentPestFromReport(rd, methods) {
+  const species = [...new Set((rd.findings || []).filter(f => f && f.termiteActivity === 'ACTIVE' && f.species)
+    .map(f => f.species.trim()))];
+  const pests = [];
+  if (Object.keys(methods).some(k => k !== 'borer') || !('borer' in methods)) {
+    pests.push('Subterranean termites' + (species.length ? ` (${species.join(', ')})` : ''));
+  }
+  if (methods.borer !== undefined) pests.push('Borers');
+  return pests.join('; ');
 }
 
 // ── ON THE QUOTE ──
@@ -115,6 +146,7 @@ function renderTreatmentBlock(q) {
   return `<div class="quote-booking">
       <div><strong>Treatment done</strong> on ${escapeHtml(formatAnswerDate(t.date))}${t.technician ? ` by ${escapeHtml(t.technician)}` : ''}</div>
       ${t.nextInspection ? `<div class="quote-answer-note">Next inspection due ${escapeHtml(formatAnswerDate(t.nextInspection))}</div>` : ''}
+      ${treatmentSourceReport().propertyState === 'QLD' ? '<div class="quote-answer-note">In Queensland, email alone isn\'t enough: also hand the client a printed copy, or leave one in their letterbox.</div>' : ''}
       <div class="quote-booking-actions">
         <button class="quote-btn primary" onclick="emailTreatmentCertificate()">Email certificate</button>
         <button class="quote-link-btn" onclick="downloadTreatmentCertificate()">Certificate PDF</button>
@@ -133,6 +165,13 @@ function openTreatmentRecord() {
   document.getElementById('trDate').value = t.date || todayIsoDate();
   document.getElementById('trTech').value = t.technician || '';
   document.getElementById('trLicence').value = t.licence || '';
+  document.getElementById('trStart').value = t.start || '';
+  document.getElementById('trFinish').value = t.finish || '';
+  document.getElementById('trPest').value = t.pest || '';
+  document.getElementById('trWeather').value = t.weather || '';
+  document.getElementById('trEquipment').value = t.equipment || '';
+  document.getElementById('trCautions').value = t.cautions != null ? t.cautions : TREATMENT_DEFAULT_CAUTIONS;
+  document.getElementById('trWarranty').value = t.warranty || '';
   document.getElementById('trMethods').innerHTML = Object.entries(TREATMENT_METHODS).map(([key, m]) => {
     const on = key in (t.methods || {});
     return `<label class="treat-method">
@@ -196,6 +235,16 @@ function renderTreatmentProducts(products) {
           <input class="job-input" data-f="amount" value="${esc(p.amount || '')}" placeholder="e.g. 640 L of mix">
         </div>
       </div>
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Batch No.</div>
+          <input class="job-input" data-f="batch" value="${esc(p.batch || '')}" placeholder="On the container">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Life (per label)</div>
+          <input class="job-input" data-f="life" value="${esc(p.life || '')}" placeholder="e.g. Up to 8 years">
+        </div>
+      </div>
       <div class="job-field">
         <div class="job-field-label">Where it was applied</div>
         <input class="job-input" data-f="where" value="${esc(p.where || '')}" placeholder="e.g. Trenched and rodded around the perimeter">
@@ -248,13 +297,20 @@ function saveTreatmentRecord() {
     date: v('trDate') || todayIsoDate(),
     technician: v('trTech'),
     licence: v('trLicence'),
+    start: v('trStart'),
+    finish: v('trFinish'),
+    pest: v('trPest'),
+    weather: v('trWeather'),
+    equipment: v('trEquipment'),
     methods,
     products: readTreatmentProducts().filter(p => p.name || p.active || p.amount),
     areas: v('trAreas'),
     notTreated: v('trNotTreated'),
     notice: v('trNotice'),
     noticeWhere: v('trNotice') === 'none' ? '' : v('trNoticeWhere'),
+    cautions: v('trCautions'),
     nextInspection: v('trNext'),
+    warranty: v('trWarranty'),
     notes: v('trNotes'),
     signature: treatmentPad.canvas.toDataURL('image/png'),
     at: Date.now(),
@@ -309,7 +365,7 @@ function buildTreatmentCertificatePDF(q) {
   const C = PDF_COLORS;
   const t = q.treatment;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const W = 210, M = 15, CW = W - M * 2, BOTTOM = 278;
+  const W = 210, M = 15, CW = W - M * 2, BOTTOM = 281;
   const company = getCompanyDetails();
   const number = treatmentCertNumber(q);
   let y = 0;
@@ -345,16 +401,33 @@ function buildTreatmentCertificatePDF(q) {
   y = drawPdfDocCover(doc, company, { compact: true, kicker: 'TERMITE MANAGEMENT', title: 'TREATMENT CERTIFICATE', date: formatLongDate(t.date), left: [
     ['CLIENT', q.client || 'Not specified'],
     ['PROPERTY ADDRESS', q.address || 'Not specified'],
-    ['QUOTE NO.', q.number],
+    ['CONTACT', [q.clientPhone, q.clientEmail].map(v => (v || '').trim()).filter(Boolean).join('  ·  ')],
   ], right: [
     ['CERTIFICATE NO.', number],
-    ['TREATMENT DATE', formatLongDate(t.date)],
+    ['TREATMENT DATE', formatLongDate(t.date) + (t.start ? `, ${formatClockTime(t.start)}${t.finish ? ` to ${formatClockTime(t.finish)}` : ''}` : '')],
     ['TECHNICIAN', t.technician],
     ['LICENCE NO.', t.licence],
   ] });
 
   // ── WHAT WAS DONE ──
   section('TREATMENT CARRIED OUT');
+  // Pest, equipment and weather in a row of small labelled cells.
+  const facts = [['Pest treated', t.pest], ['Equipment', t.equipment], ['Weather', t.weather]].filter(([, v]) => v);
+  if (facts.length) {
+    const fw = (CW - (facts.length - 1) * 6) / facts.length;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+    const fl = facts.map(([, v]) => doc.splitTextToSize(v, fw));
+    const fh = 4 + Math.max(...fl.map(l => l.length)) * 4;
+    ensure(fh);
+    facts.forEach(([label], i) => {
+      const x = M + i * (fw + 6);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
+      doc.text(label.toUpperCase(), x, y);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+      doc.text(fl[i], x, y + 4);
+    });
+    y += fh + 1;
+  }
   Object.entries(t.methods || {}).forEach(([key, qty]) => {
     const m = TREATMENT_METHODS[key];
     if (!m) return;
@@ -371,12 +444,14 @@ function buildTreatmentCertificatePDF(q) {
   const products = (t.products || []).filter(p => p.name || p.active);
   if (products.length) {
     section('PRODUCTS APPLIED');
+    // The product cell carries the active constituent on its second line.
     const cols = [
-      { h: 'PRODUCT', w: 32, f: p => p.name },
-      { h: 'ACTIVE CONSTITUENT', w: 34, f: p => p.active },
-      { h: 'RATE', w: 32, f: p => p.rate },
-      { h: 'AMOUNT', w: 26, f: p => p.amount },
-      { h: 'WHERE', w: CW - 124, f: p => p.where },
+      { h: 'PRODUCT', w: 34, f: p => p.name || p.active },
+      { h: 'RATE', w: 30, f: p => p.rate },
+      { h: 'AMOUNT', w: 24, f: p => p.amount },
+      { h: 'BATCH NO.', w: 22, f: p => p.batch },
+      { h: 'LIFE (LABEL)', w: 24, f: p => p.life },
+      { h: 'WHERE', w: CW - 134, f: p => p.where },
     ];
     const head = () => {
       doc.setFillColor(...C.headerBg); doc.rect(M, y, CW, 8, 'F');
@@ -385,18 +460,24 @@ function buildTreatmentCertificatePDF(q) {
       cols.forEach(c => { doc.text(c.h, x, y + 5.3); x += c.w; });
       y += 8;
     };
-    ensure(20); head();
+    ensure(20); y -= 2.5; head();
     products.forEach((p, i) => {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
       const cells = cols.map(c => doc.splitTextToSize(c.f(p) || '—', c.w - 3));
-      const rowH = Math.max(...cells.map(l => l.length)) * 4 + 4;
+      doc.setFontSize(7.5);
+      const active = p.name && p.active ? doc.splitTextToSize(p.active, cols[0].w - 3) : [];
+      const rowH = Math.max(cells[0].length * 4 + active.length * 3.4, ...cells.slice(1).map(l => l.length * 4)) + 4;
       if (y + rowH > BOTTOM) { doc.addPage(); y = drawPdfRunningHeader(doc, company, 'Treatment Certificate', q.address, number); head(); }
       if (i % 2 === 1) { doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, rowH, 'F'); }
       doc.setDrawColor(...C.ruleLight); doc.setLineWidth(0.25); doc.line(M, y + rowH, M + CW, y + rowH);
       let x = M + 3;
       cells.forEach((lines, ci) => {
-        doc.setFont('helvetica', ci === 0 ? 'bold' : 'normal'); doc.setTextColor(...C.ink);
+        doc.setFont('helvetica', ci === 0 ? 'bold' : 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
         doc.text(lines, x, y + 5);
+        if (ci === 0 && active.length) {
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
+          doc.text(active, x, y + 5 + lines.length * 4);
+        }
         x += cols[ci].w;
       });
       y += rowH;
@@ -406,16 +487,17 @@ function buildTreatmentCertificatePDF(q) {
 
   // ── AREAS AND DURABLE NOTICE ──
   section('AREAS AND DURABLE NOTICE');
-  // Treated and not treated side by side.
-  const colW = (CW - 8) / 2;
-  const areaCols = [['Areas treated', t.areas], ['Areas not treated', t.notTreated]].filter(([, v]) => v);
+  // Treated, not treated and the notice side by side.
+  const notice = TREATMENT_NOTICE[t.notice] + (t.notice !== 'none' && t.noticeWhere ? `: ${t.noticeWhere}` : '');
+  const areaCols = [['Areas treated', t.areas], ['Areas not treated', t.notTreated], ['Durable notice', notice]].filter(([, v]) => v);
+  const colW = (CW - (areaCols.length - 1) * 6) / areaCols.length;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-  const areaLines = areaCols.map(([, v]) => doc.splitTextToSize(v, areaCols.length > 1 ? colW : CW));
+  const areaLines = areaCols.map(([, v]) => doc.splitTextToSize(v, colW));
   if (areaCols.length) {
     const h = 4 + Math.max(...areaLines.map(l => l.length)) * 4.4;
     ensure(h);
     areaCols.forEach(([label], i) => {
-      const x = M + i * (colW + 8);
+      const x = M + i * (colW + 6);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
       doc.text(label.toUpperCase(), x, y);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
@@ -423,13 +505,14 @@ function buildTreatmentCertificatePDF(q) {
     });
     y += h + 1.5;
   }
-  labelled('Durable notice', TREATMENT_NOTICE[t.notice] + (t.notice !== 'none' && t.noticeWhere ? `: ${t.noticeWhere}. Keep it in place and legible so future inspectors know what was done.` : '.'));
 
   // ── NEXT STEPS ──
   section('KEEPING THE PROPERTY PROTECTED');
   const steps = [];
+  if (t.cautions) steps.push(`Safety and re-entry: ${t.cautions}`);
   if (t.nextInspection) steps.push(`Book your next timber pest inspection by ${formatLongDate(t.nextInspection)}. AS 3660.2 recommends one at least every 12 months.`);
   if ((t.methods || {}).barrier !== undefined) steps.push('Do not disturb the treated soil: no digging, new garden beds, paving or structures against the building without asking us first, as these can break the treated zone.');
+  if (t.notice !== 'none') steps.push('Keep the durable notice in place and legible so future inspectors know what was done.');
   steps.push('Keep the slab edge and weep holes clear, keep garden beds and stored items away from the walls, and fix water leaks promptly.');
   steps.push('Contact us straight away if you see termites, mud leads or new damage.');
   steps.forEach((s, i) => {
@@ -440,33 +523,29 @@ function buildTreatmentCertificatePDF(q) {
     doc.text(`${i + 1}.`, M, y);
     doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.ink);
     doc.text(lines, M + 6, y);
-    y += lines.length * 4.2 + 1.2;
+    y += lines.length * 4.2 + 0.8;
   });
-  if (t.notes) { y += 2; labelled('Technician notes', t.notes); }
+  if (t.warranty || t.notes) y += 1.5;
+  if (t.warranty) labelled('Warranty and service terms', t.warranty);
+  if (t.notes) labelled('Technician notes', t.notes);
 
-  // ── SIGN-OFF ── (kept together)
-  ensure(40);
+  // ── SIGN-OFF ── (kept together): who, licence and date on the left,
+  // the signature on the right.
+  ensure(27);
   y += 3;
   doc.setFillColor(...C.accent); doc.rect(M, y, CW, 0.5, 'F');
-  y += 5;
-  para(`Treatment carried out by the technician below on ${formatLongDate(t.date)}, in line with the product label directions and AS 3660.2.`,
-    { size: 8, color: C.inkLight, after: 4 });
+  y += 9.5;
   const half = (CW - 10) / 2;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...C.ink);
+  doc.text([t.technician, t.licence ? `Licence ${t.licence}` : ''].filter(Boolean).join('  ·  ') || 'Technician', M, y - 4);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
+  doc.text(formatLongDate(t.date), M, y + 0.5);
+  doc.setFontSize(9); doc.setTextColor(...C.ink);
   doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
-  doc.text('Technician:', M, y); doc.line(M + 19, y + 1, M + half, y + 1);
-  doc.text('Licence:', M + half + 10, y); doc.line(M + half + 25, y + 1, M + CW, y + 1);
-  doc.setFont('helvetica', 'bold');
-  if (t.technician) doc.text(t.technician, M + 21, y - 0.5);
-  if (t.licence) doc.text(t.licence, M + half + 27, y - 0.5);
-  doc.setFont('helvetica', 'normal');
-  y += 10;
-  doc.text('Signature:', M, y); doc.line(M + 19, y + 1, M + half, y + 1);
-  if (t.signature) { try { doc.addImage(t.signature, 'PNG', M + 21, y - 8.5, 28, 9.6); } catch (e) {} }
-  doc.text('Date:', M + half + 10, y); doc.line(M + half + 20, y + 1, M + CW, y + 1);
-  doc.setFont('helvetica', 'bold'); doc.text(formatLongDate(t.date), M + half + 22, y - 0.5);
-  y += 6;
-  para('This certificate records the treatment carried out. It does not repair existing damage, and no treatment can guarantee termites will never return. Regular inspections are the best protection.',
+  doc.text('Signature:', M + half + 10, y); doc.line(M + half + 28, y + 1, M + CW, y + 1);
+  if (t.signature) { try { doc.addImage(t.signature, 'PNG', M + half + 31, y - 8.5, 28, 9.6); } catch (e) {} }
+  y += 5;
+  para('The treatment above was carried out by this technician in line with the product label directions and AS 3660.2. It does not repair existing damage, and no treatment can guarantee termites will never return. Regular inspections are the best protection.',
     { size: 7, color: C.inkMuted });
 
   drawPdfDocFooters(doc, `Certificate ${number}${company.name ? `  ·  ${company.name}` : ''}`);

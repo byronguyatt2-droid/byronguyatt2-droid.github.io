@@ -1010,7 +1010,7 @@ function drawPdfDocCover(doc, company, { kicker, title, date, left, right, compa
   const W = 210, M = 15, CW = W - M * 2;
   left = left.filter(([, v]) => v);
   right = right.filter(([, v]) => v);
-  const bandH = compact ? 40 : 48;
+  const bandH = compact ? 39 : 48;
   doc.setFillColor(...C.coverDark); doc.rect(0, 0, W, bandH, 'F');
   doc.setFillColor(...C.accent); doc.rect(0, 0, W, 3, 'F');
   doc.setFillColor(...C.accent); doc.rect(0, 0, 4, bandH, 'F');
@@ -1027,7 +1027,7 @@ function drawPdfDocCover(doc, company, { kicker, title, date, left, right, compa
   doc.setFontSize(8);
   doc.text(date, W - 8, 22, { align: 'right' });
 
-  const t0 = compact ? -8 : 0;
+  const t0 = compact ? -12 : 0;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
   doc.text(kicker, M, 57 + t0);
   doc.setFontSize(compact ? 20 : 24); doc.setTextColor(...C.ink);
@@ -1035,7 +1035,7 @@ function drawPdfDocCover(doc, company, { kicker, title, date, left, right, compa
   doc.setFillColor(...C.accent); doc.rect(M, (compact ? 68.5 : 70) + t0, 32, 2, 'F');
 
   const leftW = (CW - 16) * 0.48, rightX = M + 12 + leftW, cellW = (M + CW - 4 - rightX) / 2;
-  const cardY = compact ? 66 : 77;
+  const cardY = compact ? 62 : 77;
   const measure = (rows, w) => rows.map(([, v]) => 6 + doc.splitTextToSize(String(v), w - 3).length * 4.2);
   doc.setFontSize(9);
   const leftH = measure(left, leftW).reduce((a, b) => a + b, 0);
