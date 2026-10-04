@@ -6,9 +6,15 @@
 //
 // Loaded after js/app.js and relies on its globals:
 // appInitialised, currentReportId, authUser, authBusiness, DRAFT_KEY,
-// flushDraftSave, getSavedReports, getCompanyDetails, formatAddress, jsPDF,
-// ensureJsPDFLoaded, PDF_COLORS, drawPdfCompanyMark, deliverPdfBlob,
+// flushDraftSave, getSavedReports, setSavedReports, supabaseSave,
+// getCompanyDetails, formatAddress, jsPDF, ensureJsPDFLoaded, PDF_COLORS,
+// drawPdfCompanyMark, deliverPdfBlob, sendPdfsToClient, clientMessage,
 // showToast, escapeHtml, toggleDrawer.
+//
+// Quotes are kept on the device (quotesStorageKey) and, once the report is
+// saved, inside its saved-report entry as entry.quote, which syncs to the
+// account with the report. getSavedQuotes() merges both, newest wins, so a
+// quote restored from the cloud on another device shows up here too.
 // ══════════════════════════════════════════════════════════════════════════
 
 // Starting prices (AUD, ex GST) used until the business sets its own. Each
@@ -50,7 +56,44 @@ function readJSON(key, fallback) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
   catch (e) { return fallback; }
 }
-function getSavedQuotes() { return readJSON(quotesStorageKey(), {}); }
+function getSavedQuotes() {
+  const all = readJSON(quotesStorageKey(), {});
+  getSavedReports().forEach(r => {
+    const q = r.quote;
+    if (q && (!all[r.id] || (q.updatedAt || 0) > (all[r.id].updatedAt || 0))) all[r.id] = q;
+  });
+  return all;
+}
+
+// The quote for a report, or null. The unsaved draft's quote is keyed
+// 'draft', which every new unsaved report shares, so it only counts when
+// it was made for the same address.
+function quoteForReport(key, address) {
+  const q = getSavedQuotes()[key];
+  if (!q) return null;
+  if (key === 'draft' && (q.address || '') !== (address || '')) return null;
+  return q;
+}
+
+// Called when a report is saved for the first time: its draft quote moves
+// to the report's new id.
+function adoptDraftQuote(id, address) {
+  const q = quoteForReport('draft', address);
+  if (!q) return;
+  const all = readJSON(quotesStorageKey(), {});
+  delete all.draft;
+  all[id] = Object.assign({}, q, { reportKey: id });
+  try { localStorage.setItem(quotesStorageKey(), JSON.stringify(all)); } catch (e) {}
+}
+
+// Copies the quote into its saved report, and (cloud) syncs that report.
+function storeQuoteOnReport(q, cloud) {
+  const reports = getSavedReports();
+  const entry = reports.find(r => r.id === q.reportKey);
+  if (!entry) return;
+  entry.quote = q;
+  if (setSavedReports(reports) && cloud) supabaseSave(entry);
+}
 function quotePriceMemory() { return readJSON(quotePricesStorageKey(), {}); }
 
 function rememberQuotePrice(key, price) {
@@ -63,10 +106,11 @@ function rememberQuotePrice(key, price) {
 function persistQuote() {
   if (!quoteState) return;
   quoteState.updatedAt = Date.now();
-  const all = getSavedQuotes();
+  const all = readJSON(quotesStorageKey(), {});
   all[quoteState.reportKey] = quoteState;
   try {
     localStorage.setItem(quotesStorageKey(), JSON.stringify(all));
+    storeQuoteOnReport(quoteState, false);
     setQuoteSaveState('Saved');
   } catch (e) {
     setQuoteSaveState('Not saved');
@@ -273,7 +317,7 @@ function openQuoteFromReport() {
 
 function closeQuote() {
   clearTimeout(quoteSaveTimer);
-  if (quoteState) persistQuote();
+  if (quoteState) { persistQuote(); storeQuoteOnReport(quoteState, true); }
   document.getElementById('quoteScreen').classList.remove('open');
   if (quoteReturnTo === 'app') document.getElementById('app').style.display = 'flex';
   else document.getElementById('mainMenu').style.display = 'flex';
@@ -308,7 +352,7 @@ function onQuoteSourceChange() {
   const src = currentQuoteSource();
   const editor = document.getElementById('quoteEditor');
   if (!src) { quoteState = null; editor.style.display = 'none'; return; }
-  const saved = getSavedQuotes()[src.key];
+  const saved = quoteForReport(src.key, src.address);
   quoteState = saved || createQuoteFromSource(src);
   if (!saved) persistQuote();
   else setQuoteSaveState('Saved');
@@ -455,9 +499,8 @@ function exportQuotePDF() {
   if (!quoteState) return;
   clearTimeout(quoteSaveTimer);
   persistQuote();
-  // Remember every line's price, not just ones edited this session, so the
-  // exported quote becomes the business's price list for next time.
-  quoteState.items.forEach(it => rememberQuotePrice(it.key, parseFloat(it.price)));
+  storeQuoteOnReport(quoteState, true);
+  rememberQuotePrices(quoteState);
   const btn = document.getElementById('quotePdfBtn');
   btn.disabled = true;
   setTimeout(() => {
@@ -474,6 +517,35 @@ function exportQuotePDF() {
       })
       .finally(() => { btn.disabled = false; });
   }, 50);
+}
+
+// Remember every line's price, not just ones edited this session, so a quote
+// that goes to a client becomes the business's price list for next time.
+function rememberQuotePrices(q) {
+  q.items.forEach(it => rememberQuotePrice(it.key, parseFloat(it.price)));
+}
+
+// Emails the quote PDF to the client. The PDF is built right here, inside
+// the tap, because the share sheet won't open after a wait.
+function emailQuoteToClient() {
+  if (!quoteState) return;
+  clearTimeout(quoteSaveTimer);
+  persistQuote();
+  storeQuoteOnReport(quoteState, true);
+  rememberQuotePrices(quoteState);
+  if (!jsPDF) {
+    ensureJsPDFLoaded()
+      .then(() => showToast('Ready — tap Email to client again', 'info'))
+      .catch(e => showToast((e && e.message) || 'Could not load the PDF tools', 'error'));
+    return;
+  }
+  const q = quoteState;
+  sendPdfsToClient({
+    files: [buildQuotePDF(q)],
+    to: (q.clientEmail || '').trim(),
+    subject: `Quote ${q.number || ''} — ${q.address || 'your property'}`.replace('  ', ' '),
+    body: clientMessage({ client: q.client, address: q.address, docs: 'treatment quote', signOff: q.inspector }),
+  });
 }
 
 function buildQuotePDF(q) {
