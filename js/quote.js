@@ -237,20 +237,26 @@ function buildQuoteItemsFromReport(rd) {
 
   if (wantsTreatment) {
     const kind = classifyTreatment(treatmentType);
+    // Live termites already have their own direct-treatment lines above, so
+    // the main treatment line leaves out that part of the recommendation
+    // ("barrier ..., plus direct treatment of active termites in laundry").
+    const detail = active.length
+      ? treatmentType.split(/\s*(?:,|;|\+|\bplus\b|\band\b)\s*(?=direct\b)/i)[0].replace(/[\s,;]+$/, '')
+      : treatmentType;
     const src = treatmentType ? `Recommendation: ${treatmentType}` : 'Recommendation: treatment';
     if (kind === 'barrier') {
       const lm = treatmentType.match(/(\d+(?:\.\d+)?)\s*(?:linear\s*)?(?:lm|m|metres|meters)\b/i);
       items.push(lm
-        ? newQuoteItem('barrier_lm', { detail: treatmentType, qty: parseFloat(lm[1]), source: src })
-        : newQuoteItem('barrier_job', { detail: treatmentType, source: src }));
+        ? newQuoteItem('barrier_lm', { detail, qty: parseFloat(lm[1]), source: src })
+        : newQuoteItem('barrier_job', { detail, source: src }));
     } else if (kind === 'bait') {
       const st = treatmentType.match(/(\d+)\s*(?:bait\s*)?stations?/i);
-      items.push(newQuoteItem('bait_install', { detail: treatmentType, qty: st ? parseInt(st[1], 10) : 12, source: src }));
+      items.push(newQuoteItem('bait_install', { detail, qty: st ? parseInt(st[1], 10) : 12, source: src }));
       items.push(newQuoteItem('bait_monitor', { source: src }));
     } else if (kind === 'system') {
       items.push(newQuoteItem('system_topup', { detail: treatmentType || rd.existingSystem || '', source: src }));
     } else {
-      items.push(newQuoteItem('treatment', { detail: treatmentType, source: src }));
+      items.push(newQuoteItem('treatment', { detail, source: src }));
     }
   }
 
@@ -280,7 +286,7 @@ function buildQuoteExclusions(rd) {
   const out = [];
   const findings = Array.isArray(rd.findings) ? rd.findings : [];
   if (findings.some(f => f && f.structuralConcern === 'YES')) {
-    out.push('Structural assessment and repair of termite-damaged timbers, to be carried out by a licensed builder or structural engineer.');
+    out.push('Assessment of termite damage by a licensed builder or structural engineer, and repair of damaged timbers.');
   } else if (findings.some(f => f && f.damageDescription)) {
     out.push('Repair or replacement of termite-damaged timbers.');
   }
@@ -1003,14 +1009,16 @@ function buildQuotePDF(q) {
   let y = 0;
 
   function pageTopBand() {
-    doc.setFillColor(...C.headerBg); doc.rect(0, 0, W, 13, 'F');
-    doc.setFillColor(...C.accent); doc.rect(0, 0, 4, 13, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(235, 228, 218);
-    doc.text('TREATMENT QUOTE', 9, 8.5);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(170, 160, 148);
-    doc.text(q.number || '', W - M, 8.5, { align: 'right' });
-    doc.setFillColor(...C.accent); doc.rect(0, 13, W, 0.6, 'F');
-    y = 22;
+    // Same light running header as the inspection report.
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...C.ink);
+    doc.text(company.name || 'Treatment Quote', M, 10);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+    const sub = [company.name ? 'Treatment Quote' : '', q.address || ''].filter(Boolean).join('   ·   ');
+    if (sub) doc.text(sub.length > 90 ? sub.slice(0, 89) + '…' : sub, M, 14);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.accent);
+    doc.text(q.number || '', W - M, 10, { align: 'right' });
+    doc.setFillColor(...C.accent); doc.rect(M, 17, CW, 0.35, 'F');
+    y = 26;
   }
   function ensure(h) { if (y + h > BOTTOM) { doc.addPage(); pageTopBand(); } }
   function sectionTitle(title, num) {
@@ -1021,8 +1029,8 @@ function buildQuotePDF(q) {
     doc.text(String(num), M + 3.5, y + 5.2, { align: 'center' });
     doc.setFontSize(10.5); doc.setTextColor(...C.ink);
     doc.text(title, M + 10, y + 5.5);
-    doc.setFillColor(...C.accent); doc.rect(M, y + 8, CW, 0.7, 'F');
-    y += 14;
+    doc.setFillColor(...C.rule); doc.rect(M, y + 9, CW, 0.3, 'F');
+    y += 15;
   }
 
   // ── HEADER BAND (as on the report cover) ──
@@ -1234,14 +1242,10 @@ function buildQuotePDF(q) {
   const pages = doc.internal.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p);
-    doc.setFillColor(...C.rowAlt); doc.rect(0, 284, W, 13, 'F');
-    doc.setFillColor(...C.accent); doc.rect(0, 284, W, 0.5, 'F');
+    doc.setFillColor(...C.rule); doc.rect(M, 284, CW, 0.3, 'F');
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text(company.name ? `Prepared by ${company.name}` : 'Generated via KORVUS', M, 291);
-    const addr = q.address || '';
-    doc.text(addr.length > 60 ? addr.slice(0, 59) + '…' : addr, W / 2, 291, { align: 'center' });
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.inkLight);
-    doc.text(`${p} / ${pages}`, W - M, 291, { align: 'right' });
+    doc.text(`Quote ${q.number || ''}${company.name ? `  ·  ${company.name}` : ''}`, M, 290);
+    doc.text(`Page ${p} of ${pages}`, W - M, 290, { align: 'right' });
   }
 
   const safe = (q.address || 'Property').replace(/[^\w]+/g, '_').substring(0, 25);
