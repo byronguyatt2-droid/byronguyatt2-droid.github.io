@@ -1163,6 +1163,21 @@
             <span>No termite activity or evidence found — no further findings details required for this section.</span>
           </div>
 
+          <!-- Borers and wood decay: the other timber pests AS 4349.3 requires a report on -->
+          <div class="system-verify" id="otherTimberPests">
+            <div class="system-verify-header">
+              <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+              <span>Borers &amp; Wood Decay</span>
+            </div>
+            <p class="system-verify-hint">AS 4349.3 timber pests other than termites. Record what you saw, even if it's none.</p>
+            <div class="section-fields">
+              <div class="field"><div class="field-label">Borers of Seasoned Timber</div><div class="field-val" id="f-borerActivity" onclick="startEdit(this,'borerActivity','activity')">—</div></div>
+              <div class="field"><div class="field-label">Wood Decay Fungi (Rot)</div><div class="field-val" id="f-decayFound" onclick="startEdit(this,'decayFound','yesno')">—</div></div>
+              <div class="field field-wide"><div class="field-label">Borer Type, Location &amp; Evidence</div><div class="field-val" id="f-borerDetails" onclick="startEdit(this,'borerDetails','text')">—</div></div>
+              <div class="field field-wide"><div class="field-label">Wood Decay Location &amp; Evidence</div><div class="field-val" id="f-decayDetails" onclick="startEdit(this,'decayDetails','text')">—</div></div>
+            </div>
+          </div>
+
           <!-- Species Reference (inline) -->
           <div class="species-inline">
             <div class="species-inline-label"><span class="panel-icon"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2 5 6"/><path d="M16 2l3 4"/><rect x="7" y="7" width="10" height="12" rx="5"/><path d="M7 12H3"/><path d="M21 12h-4"/><path d="M7 16H3"/><path d="M21 16h-4"/></svg></span>NSW Species Reference</div>
