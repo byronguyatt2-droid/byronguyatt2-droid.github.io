@@ -3334,6 +3334,7 @@ body.report-locked #micDock { opacity: 0.4; }
 }
 .team-invite-btn:hover { opacity:0.85; }
 .team-invite-btn:disabled { opacity:0.4; cursor:not-allowed; }
+.voice-privacy-hint { font-size: 11px; color: var(--text3); line-height: 1.5; margin: 6px 2px 0; }
 .team-invite-hint { font-size:10px; color:var(--text3); line-height:1.5; }
 
 .team-list { display:flex; flex-direction:column; gap:6px; }

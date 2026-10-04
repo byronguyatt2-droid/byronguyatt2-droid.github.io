@@ -5176,7 +5176,7 @@ You will receive a written report after the inspection. It is for your use only 
 9. Your rights
 Nothing in this agreement limits your rights under the Australian Consumer Law.
 
-By signing, you confirm you have read and agree to this agreement before the inspection starts.`;
+By signing, you confirm you have read and agree to this agreement before the inspection starts. You also agree to sign it electronically and to receive the report by email.`;
 
 function getAgreementTemplate() {
   const custom = getCompanyDetails().agreementText;
