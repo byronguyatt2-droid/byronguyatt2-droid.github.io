@@ -1451,7 +1451,7 @@ CRITICAL — damageDescription must NEVER contain a severity opinion:
 - damageDescription captures ONLY what is objectively observable: the affected timber/element (e.g. "skirting board", "wall plate", "tree stump"), the specific location (e.g. "bedroom four, hallway", "rear section of property"), and visible characteristics (hollow sounding, mud tubes, bubbling paint, frass, exit holes, gallery patterns). This mirrors real AS 4349.3 report language such as "top wall plate timbers — bedroom four, lounge room, hallway."
 - NEVER write or infer the words "minor", "moderate", "severe", "extensive", "significant", "extreme", or any other severity/extent-grading adjective into damageDescription, even if the technician uses one of these words themselves while speaking. If a technician says "it's pretty severe" or "just minor damage", DROP the severity adjective entirely and extract only the factual description that accompanies it (what, where). Do not paraphrase their severity opinion into different wording — omit it.
 - Timber pest inspectors are not qualified to assess structural damage severity, and asserting it creates legal and insurance liability exposure if a severity opinion later contradicts an actual structural finding. This is a hard architectural rule, not a style preference.
-- structuralConcern is a separate YES/NO flag, NOT a severity rating. Set to "YES" only if the technician's language suggests the damage may be structurally significant (e.g. "this is structural", "looks like it's gone through the load-bearing section", "could be holding up the roof", "extensive enough it might need an engineer") — this triggers a mandatory recommendation in the report that a builder or structural engineer be engaged, mirroring real industry practice where the inspector flags a structural concern without personally rating how bad it is. If unclear or not mentioned, leave as null rather than guessing "NO".
+- structuralConcern means "refer this damage to a builder or engineer". It is NOT the inspector's opinion that the structure is compromised: timber pest inspectors don't conclude that, they refer it to someone qualified. Set to "YES" when the technician recommends a builder, carpenter or engineer check the damage or the framing behind it, OR suggests the damage could be structural (e.g. "should be checked by a builder", "get an engineer to look at it", "could be into the load-bearing timbers"). This holds even if the technician also says they don't think it's structural: a recommended builder check is still a referral. Set "NO" only if they say no referral is needed. If unclear or not mentioned, leave as null rather than guessing "NO".
 
 Handling real-world speech:
 - SELF-CORRECTIONS: technicians often correct themselves mid-sentence ("brick veneer, no wait, actually it's weatherboard", "eastern side — sorry, western side"). Always use the FINAL corrected value, never the originally stated one, and never combine both into a single string.
@@ -1479,7 +1479,7 @@ Apply this reasoning generally: prioritise the pest-inspection-domain-sensible r
 
 riskLevel inference: technicians rarely state "overall risk is HIGH" directly — infer it from what was found, unless an explicit overall risk statement is given (which always takes precedence). riskLevel reflects relative property-level risk of attack (a legitimate, subjective, comparative rating under AS 4349.3/AEPMA guidance), NOT a damage severity judgement — these are different things:
 - HIGH: termiteActivity is "ACTIVE" AND (structuralConcern is "YES" OR a nest located OR multiple significant conducive conditions together, e.g. timber-soil contact AND water leak AND high moisture)
-- MEDIUM: termiteActivity is "ACTIVE" with no structural concern flagged, OR termiteActivity is "INACTIVE", OR one or two conducive conditions present with termiteActivity "NONE"
+- MEDIUM: termiteActivity is "ACTIVE" with no builder/engineer referral, OR termiteActivity is "INACTIVE", OR one or two conducive conditions present with termiteActivity "NONE"
 - LOW: termiteActivity is "NONE" and no, or only very minor, conducive conditions
 - Only set riskLevel if there's enough information across the whole transcript to make this judgement — otherwise leave null.
 - propertyStreetAddress/propertySuburb/propertyState/propertyPostcode/clientName: only fill these if the technician actually states the property address and/or client name out loud (this is common at the start of a recording, e.g. "inspection at 42 Smith Street, Chatswood, client John Mitchell"). Never guess, infer, or invent an address or client name from context. propertyState must be one of the 8 official Australian abbreviations shown above — convert a spoken state name (e.g. "New South Wales") to its abbreviation. Leave every one of these null if not clearly stated.`;
@@ -3151,7 +3151,7 @@ function readTermiteSentence(sentence) {
   for (const [rx, val] of speciesMap) { if (rx.test(s)) { f.species = val; break; } }
 
   if (/no\s+structural\s+(?:concern|damage)/.test(s))                                   f.structuralConcern = 'NO';
-  else if (/structural\s+(?:concern|damage)|load.bearing|engineer|builder\s+referral/.test(s)) f.structuralConcern = 'YES';
+  else if (/structural\s+(?:concern|damage)|load.bearing|engineer|builder|carpenter/.test(s)) f.structuralConcern = 'YES';
 
   if (/no\s+nest\s+(?:was\s+|is\s+)?(?:located|found)|nest\s+not\s+(?:located|found)/.test(s)) f.nestLocated = 'NO';
   else if (/nest\s+(?:was\s+|is\s+)?(?:located|found)|found\s+(?:a\s+|the\s+)?nest/.test(s))  f.nestLocated = 'YES';
@@ -3883,7 +3883,7 @@ function renderField(el, key, val) {
 
   if (key === 'structuralConcern') {
     el.innerHTML = val === 'YES'
-      ? '<span class="risk-tag risk-high">YES — Builder/Engineer Referral Required</span>'
+      ? '<span class="risk-tag risk-high">YES — refer to a builder or engineer</span>'
       : '<span class="no-tag">NO</span>';
   } else if (key === 'termiteActivity') {
     const cls = val==='ACTIVE'?'risk-high':val==='INACTIVE'?'risk-medium':'risk-low';
@@ -4103,7 +4103,7 @@ function findingCardHTML(finding, index, total) {
     let inner;
     if (key === 'structuralConcern') {
       inner = val === 'YES'
-        ? '<span class="risk-tag risk-high">YES — Builder/Engineer Referral Required</span>'
+        ? '<span class="risk-tag risk-high">YES — refer to a builder or engineer</span>'
         : val === 'NO' ? '<span class="no-tag">NO</span>' : '—';
     } else if (key === 'nestLocated') {
       inner = val === 'YES' ? '<span class="yes-tag">YES</span>' : val === 'NO' ? '<span class="no-tag">NO</span>' : '—';
@@ -4137,10 +4137,10 @@ function findingCardHTML(finding, index, total) {
             <div class="field field-wide"><div class="field-label">Damage Description (location, extent, what's visible — no severity opinion)</div>${fv('damageDescription','text')}</div>
             <div class="field"><div class="field-label">Location of Activity</div>${fv('activityLocation','text')}</div>
             <div class="field"><div class="field-label">Workings / Nest Located</div>${fv('nestLocated','yesno')}</div>
-            <div class="field"><div class="field-label">Damage Appears to Compromise Structure?</div>${fv('structuralConcern','yesno')}</div>
+            <div class="field"><div class="field-label">Refer to a Builder or Engineer?</div>${fv('structuralConcern','yesno')}</div>
           </div>
           ${act === 'INACTIVE' ? `<div class="inactive-reminder" style="display:flex"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span>Inactive workings can mean termites have temporarily abandoned the area, not that the risk is gone. Continued, regular inspections remain essential.</span></div>` : ''}
-          ${finding.structuralConcern === 'YES' ? `<div class="warn-note" style="margin:0 0 10px"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Structural concern flagged — PDF will include mandatory builder/engineer referral for this finding.</div>` : ''}
+          ${finding.structuralConcern === 'YES' ? `<div class="warn-note" style="margin:0 0 10px"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Referral recorded. The PDF recommends a licensed builder or engineer assess this damage.</div>` : ''}
         </div>` : ''}
         ${showNone ? `<div class="findings-none" style="display:flex;margin:8px 0 6px"><span class="findings-none-icon"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span><span>No activity or evidence found at this location.</span></div>` : ''}
       </div>
@@ -8404,7 +8404,7 @@ function reportSummary() {
       { ACTIVE: 'bad', INACTIVE: 'warn', NONE: 'good' }[reportData.borerActivity] || 'none', reportData.borerDetails || ''],
     ['Wood decay (rot)', { YES: 'FOUND', NO: 'NONE SEEN' }[reportData.decayFound] || NR,
       { YES: 'warn', NO: 'good' }[reportData.decayFound] || 'none', reportData.decayDetails || ''],
-    ['Structural concern', structural ? 'BUILDER TO ASSESS' : fs.length ? 'NONE FLAGGED' : NR, structural ? 'bad' : fs.length ? 'good' : 'none', ''],
+    ['Builder referral', structural ? 'BUILDER TO ASSESS' : fs.length ? 'NONE FLAGGED' : NR, structural ? 'bad' : fs.length ? 'good' : 'none', ''],
     ['Conducive conditions', conducive.length ? `${conducive.length} FOUND` : 'NONE RECORDED', conducive.length ? 'warn' : 'none', conducive.join('; ')],
     ['Risk of termite attack', reportData.riskLevel || NR, { HIGH: 'bad', MEDIUM: 'warn', LOW: 'good' }[reportData.riskLevel] || 'none', ''],
     ['Treatment recommended', { YES: 'YES', NO: 'NO' }[reportData.treatmentRecommended] || NR,
@@ -9070,9 +9070,9 @@ async function _buildAndDownloadPDF() {
     doc.setFont('helvetica','normal');
   }
 
-  // ── STRUCTURAL CONCERN BOX ────────────────────────────────────────────────
+  // ── BUILDER / ENGINEER REFERRAL BOX ────────────────────────────────────────────────
   function referralBox() {
-    const text = 'STRUCTURAL CONCERN FLAGGED: The damage described above appears to potentially affect structural elements. This inspector is not qualified to assess structural damage severity or load-bearing capacity. A licensed builder or structural engineer should be engaged to determine the extent of any structural impact before proceeding.';
+    const text = 'BUILDER OR ENGINEER REFERRAL: The inspector recommends that the damage described above be assessed by a licensed builder or structural engineer. A timber pest inspection does not assess structural soundness or load-bearing capacity, and no opinion on either is given in this report.';
     doc.setFont('helvetica','bold'); doc.setFontSize(8);
     const lines = doc.splitTextToSize(text, CW-10);
     const blockH = lines.length*4.2+8;
@@ -9184,7 +9184,7 @@ async function _buildAndDownloadPDF() {
     constructionEra:'Year / Period of Construction', standard:'Applicable Standard',
     hinderedAreas:'Readily Accessible Areas Inspected', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'Restrictions', highRiskAreas:'High Risk Areas',
     borerActivity:'Borers of Seasoned Timber', borerDetails:'Borer Type, Location & Evidence', decayFound:'Wood Decay Fungi (Rot)', decayDetails:'Wood Decay Location & Evidence',
-    termiteActivity:'Termite Activity Status', species:'Species', damageDescription:'Damage Description', activityLocation:'Location of Activity', nestLocated:'Workings / Nest Located', structuralConcern:'Structural Concern Flagged',
+    termiteActivity:'Termite Activity Status', species:'Species', damageDescription:'Damage Description', activityLocation:'Location of Activity', nestLocated:'Workings / Nest Located', structuralConcern:'Builder / Engineer Referral',
     waterLeaks:'Water Leaks', leakLocation:'Location of Moisture Ingress', moistureReadings:'Moisture Readings', timberSoil:'Timber-to-Soil Contact', slabEdge:'Slab Edge Concealed', weepHoles:'Weep Holes (Clear / Bridged)', existingSystem:'Existing System',
     durableNoticePresent:'Durable Notice Present', hardLandscaping:'Hard Landscaping Adjacent', zone25mmVisible:'25mm Inspection Zone Visible', softLandscaping:'Soft Landscaping Adjacent', zone75mmVisible:'75mm Inspection Zone Visible', antCapSoldered:'Ant Cap Joins Soldered',
     treatmentRecommended:'Treatment Recommended', treatmentType:'Treatment Type', inspectionFrequency:'Inspection Frequency', riskLevel:'Risk of Termite Attack',
@@ -9672,11 +9672,11 @@ async function _buildAndDownloadPDF() {
       doc.text(descW, bodyX, y); y += descW.length * 4.5 + 5;
     }
 
-    // Structural concern
+    // Builder / engineer referral
     if (f.structuralConcern === 'YES') {
       if (y > 268) newPage();
       y += 2;
-      const scText = 'STRUCTURAL CONCERN — The damage observed appears to affect structural elements. Engage a licensed builder or structural engineer to assess load-bearing impact before any work proceeds.';
+      const scText = 'BUILDER OR ENGINEER REFERRAL — The inspector recommends a licensed builder or structural engineer assess this damage, and any effect on the structure, before work proceeds.';
       const scLines = doc.splitTextToSize(scText, bodyW-8);
       const scH = scLines.length*4+8;
       doc.setFillColor(253,242,240); doc.roundedRect(bodyX, y, bodyW, scH, 1.5, 1.5, 'F');
