@@ -5739,6 +5739,9 @@ function showMenuPage(panelId) {
   document.getElementById('drawerTitle').textContent = title ? title.textContent : 'Menu';
   document.getElementById('drawerBack').hidden = !panel;
   sidebar.querySelector('.drawer-scroll').scrollTop = 0;
+  // The plan can change in Stripe or with a different sign-in, so Billing
+  // always shows it fresh.
+  if (panelId === 'billingPanel') loadBillingStatus();
 }
 
 function openDashboardFromMenu() {
@@ -6159,7 +6162,9 @@ async function loadBillingStatus() {
   const el = document.getElementById('billingStatusText');
   const manageBtn = document.getElementById('manageBillingBtn');
   if (!authUser) return;
+  const forUser = authUser.id;
   if (el) el.textContent = 'Loading…';
+  if (manageBtn) manageBtn.style.display = 'none';
   try {
     const res = await fetch(`${KORVA_WORKER_URL}/stripe/subscription-status`, {
       method: 'GET',
@@ -6167,6 +6172,8 @@ async function loadBillingStatus() {
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const sub = await res.json();
+    // Signed out, or into another account, while this was loading.
+    if (!authUser || authUser.id !== forUser) return;
     billingStatusCache = sub;
     const planLabel = (sub.plan || 'trial').charAt(0).toUpperCase() + (sub.plan || 'trial').slice(1);
     if (el) {
@@ -6179,6 +6186,7 @@ async function loadBillingStatus() {
     }
     if (manageBtn) manageBtn.style.display = sub.stripe_customer_id ? '' : 'none';
   } catch (e) {
+    if (!authUser || authUser.id !== forUser) return;
     // Expected right now — the Stripe Worker routes aren't deployed yet.
     // Fails quietly to a plain message rather than breaking the Billing panel.
     if (el) el.textContent = 'Billing isn\'t set up yet — check back soon.';
@@ -6575,7 +6583,7 @@ async function endSessionOnDevice() {
 // go next, through the storage API, then the account itself, then this
 // phone's copy.
 const DELETE_ACCOUNT_BLOCKERS = {
-  ACTIVE_SUBSCRIPTION: 'Your plan is still active. Cancel it in Billing › Manage first, then delete your account.',
+  ACTIVE_SUBSCRIPTION: 'Your plan is still active. Cancel it in Menu › Billing › Manage first, then delete your account.',
   HAS_TEAM: 'Other people are still on your team. Remove them in Team first, then delete your account.',
 };
 
