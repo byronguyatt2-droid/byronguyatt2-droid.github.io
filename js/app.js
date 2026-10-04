@@ -6605,13 +6605,19 @@ async function signOut() {
       }
     }
   }
-  const reportsKey = reportsStorageKey(), quotesKey = quotesStorageKey();
   try {
     await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
       method: 'POST',
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${getAuthToken()}` },
     });
   } catch(e) {}
+  await endSessionOnDevice();
+}
+
+// Clears the session and every report, quote, draft and photo from this
+// phone, then shows the sign-in screen.
+async function endSessionOnDevice() {
+  const reportsKey = reportsStorageKey(), quotesKey = quotesStorageKey();
   stopAuthAutoRefresh();
   clearSession();
   localStorage.removeItem('korva_last_user_id');
@@ -6628,6 +6634,74 @@ async function signOut() {
   document.getElementById('app').style.display       = 'none';
   document.getElementById('authScreen').style.display = 'flex';
   showAuth('authSignIn');
+}
+
+// ── DELETE MY ACCOUNT ────────────────────────────────────────────────────
+// Permanently deletes the signed-in user's account and everything stored
+// against it (see supabase/delete-account.sql). The database checks run
+// first, so nothing is removed if the account can't be deleted yet. Photos
+// go next, through the storage API, then the account itself, then this
+// phone's copy.
+const DELETE_ACCOUNT_BLOCKERS = {
+  ACTIVE_SUBSCRIPTION: 'Your plan is still active. Cancel it in Billing › Manage first, then delete your account.',
+  HAS_TEAM: 'Other people are still on your team. Remove them in Team first, then delete your account.',
+};
+
+async function deleteAccountRpc(dryRun) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_my_account`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ dry_run: dryRun }),
+  });
+  if (res.ok) return null;
+  const err = await res.json().catch(() => ({}));
+  const code = Object.keys(DELETE_ACCOUNT_BLOCKERS).find(k => (err.message || '').includes(k));
+  return code ? DELETE_ACCOUNT_BLOCKERS[code] : 'Could not delete your account. Check your connection and try again.';
+}
+
+async function deleteMyPhotos() {
+  const prefix = authUser.id + '/';
+  for (;;) {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${PHOTO_BUCKET}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ prefix, limit: 1000, offset: 0 }),
+    });
+    if (!res.ok) throw new Error('list photos ' + res.status);
+    const files = (await res.json()).filter(f => f.id).map(f => prefix + f.name);
+    if (!files.length) return;
+    const del = await fetch(`${SUPABASE_URL}/storage/v1/object/${PHOTO_BUCKET}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ prefixes: files }),
+    });
+    if (!del.ok) throw new Error('delete photos ' + del.status);
+  }
+}
+
+async function deleteMyAccount() {
+  if (!authSession || !authUser) { showToast('Sign in to delete your account', 'error'); return; }
+  if (!navigator.onLine) { showToast('You need signal to delete your account', 'error'); return; }
+  const typed = prompt(
+    'This permanently deletes your KORVUS account, every saved report and photo, ' +
+    (authBusiness && authBusiness.owner_id === authUser.id ? 'your business details, ' : '') +
+    'and everything on this phone. It cannot be undone.\n\nExport your data first if you want a copy.\n\nType DELETE to confirm.');
+  if (typed === null) return;
+  if (typed.trim().toUpperCase() !== 'DELETE') { showToast('Not deleted. Type DELETE to confirm', 'info'); return; }
+  showToast('Deleting your account…', 'info');
+  try {
+    const blocked = await deleteAccountRpc(true);
+    if (blocked) { showToast(blocked, 'error'); return; }
+    await deleteMyPhotos();
+    const failed = await deleteAccountRpc(false);
+    if (failed) { showToast(failed, 'error'); return; }
+  } catch (e) {
+    console.warn('deleteMyAccount:', e);
+    showToast('Could not delete your account. Check your connection and try again.', 'error');
+    return;
+  }
+  await endSessionOnDevice();
+  showToast('Your account and data have been deleted', 'info');
 }
 
 // Makes sure the current user has a team_members row for authBusiness.
