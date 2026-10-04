@@ -5277,12 +5277,10 @@ function openAgreementSheet() {
     refreshAgreementPreview();
   }
   document.getElementById('agreementOverlay').classList.add('open');
-  document.body.classList.add('agreement-open');
 }
 
 function closeAgreementSheet() {
   document.getElementById('agreementOverlay').classList.remove('open');
-  document.body.classList.remove('agreement-open');
 }
 
 function refreshAgreementPreview() {
@@ -8298,8 +8296,56 @@ function reportVersion() {
 
 function currentJobQuote() { return quoteForReport(currentReportId || 'draft', getFullAddress()); }
 
-// Anything that should be sorted out before the job is completed and locked.
-function reportAttentionItems() {
+// The headline results, shared by the PDF's summary page and the review
+// screen before sending. Tiles are [label, value, tone (bad | warn | good |
+// none), detail].
+function reportSummary() {
+  const fs = (reportData.findings || []).filter(f => f && f.termiteActivity);
+  const live = fs.filter(f => f.termiteActivity === 'ACTIVE');
+  const evidence = fs.filter(f => f.termiteActivity === 'INACTIVE');
+  const structural = fs.some(f => f.structuralConcern === 'YES');
+  const conducive = [];
+  if (reportData.waterLeaks === 'YES') conducive.push(`water leak${reportData.leakLocation ? ` (${reportData.leakLocation})` : ''}`);
+  else if (reportData.moistureReadings === 'YES') conducive.push('elevated moisture');
+  if (reportData.timberSoil === 'YES') conducive.push('timber in contact with soil');
+  if (reportData.weepHoles === 'BRIDGED') conducive.push('weep holes bridged');
+  if (reportData.slabEdge === 'OBSTRUCTED') conducive.push('slab edge concealed');
+  const places = list => list.map(f => f.activityLocation).filter(Boolean).join('; ');
+  const NR = 'NOT RECORDED';
+  const tiles = [
+    ['Live termites', live.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, live.length ? 'bad' : fs.length ? 'good' : 'none', places(live)],
+    ['Termite damage or old activity', evidence.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, evidence.length ? 'warn' : fs.length ? 'good' : 'none', places(evidence)],
+    ['Borers', { ACTIVE: 'ACTIVE', INACTIVE: 'OLD DAMAGE', NONE: 'NONE SEEN' }[reportData.borerActivity] || NR,
+      { ACTIVE: 'bad', INACTIVE: 'warn', NONE: 'good' }[reportData.borerActivity] || 'none', reportData.borerDetails || ''],
+    ['Wood decay (rot)', { YES: 'FOUND', NO: 'NONE SEEN' }[reportData.decayFound] || NR,
+      { YES: 'warn', NO: 'good' }[reportData.decayFound] || 'none', reportData.decayDetails || ''],
+    ['Structural concern', structural ? 'BUILDER TO ASSESS' : fs.length ? 'NONE FLAGGED' : NR, structural ? 'bad' : fs.length ? 'good' : 'none', ''],
+    ['Conducive conditions', conducive.length ? `${conducive.length} FOUND` : 'NONE RECORDED', conducive.length ? 'warn' : 'none', conducive.join('; ')],
+    ['Risk of termite attack', reportData.riskLevel || NR, { HIGH: 'bad', MEDIUM: 'warn', LOW: 'good' }[reportData.riskLevel] || 'none', ''],
+    ['Treatment recommended', { YES: 'YES', NO: 'NO' }[reportData.treatmentRecommended] || NR,
+      { YES: 'bad', NO: 'good' }[reportData.treatmentRecommended] || 'none', reportData.treatmentType || ''],
+  ];
+  // Areas the inspector couldn't fully see, and why.
+  const limitedZones = areasNotFullyInspected();
+  const limited = limitedZones.map(z => {
+    const why = ((reportData.areaReasons || {})[z] || []).join(', ');
+    return `${OBS_ZONES[z].label}: ${areaStatusOf(z) === 'NOT' ? 'not inspected' : 'partly inspected'}${why ? ` (${why})` : ''}`;
+  });
+  const next = [];
+  if (live.length || reportData.treatmentRecommended === 'YES') {
+    next.push(`Termite treatment${reportData.treatmentType ? `: ${reportData.treatmentType}` : ' (see Recommendations)'}.`);
+  }
+  if (structural) next.push('Have a licensed builder or structural engineer assess the termite damage before any repairs.');
+  if (reportData.borerActivity === 'ACTIVE') next.push('Treat the active borers and replace badly affected timbers.');
+  if (reportData.decayFound === 'YES') next.push('Have a builder repair the decayed timbers, and fix the moisture that caused the decay.');
+  if (conducive.length) next.push(`Fix the conditions that attract termites: ${conducive.join('; ')}.`);
+  if (limitedZones.length) next.push(`Provide access to ${limitedZones.map(z => OBS_ZONES[z].label.replace(/^The /, '').toLowerCase()).join(', ')} for a follow-up inspection.`);
+  next.push(`Next timber pest inspection: ${reportData.inspectionFrequency || 'within 12 months'}.`);
+  return { tiles, limited, next };
+}
+
+// Gaps in the report itself, shown before sending and before completing.
+function reportPrepItems() {
   const items = [];
   if (!document.getElementById('jobAddress').value.trim()) items.push('The job has no property address');
   const unmarked = Object.keys(OBS_ZONES).filter(z => !areaStatusOf(z)).length;
@@ -8308,6 +8354,12 @@ function reportAttentionItems() {
   if (pending) items.push(`${pending} voice note${pending === 1 ? ' is' : 's are'} still waiting for signal`);
   if (!reportData.inspectorSignature) items.push('The inspector hasn\'t signed');
   if (!reportData.agreement) items.push('No pre-inspection agreement is recorded');
+  return items;
+}
+
+// Anything that should be sorted out before the job is completed and locked.
+function reportAttentionItems() {
+  const items = reportPrepItems();
   const amending = reportData.amending;
   if (!reportData.sent) items.push('The report hasn\'t been sent to the client');
   else if (amending && reportData.sent.at < amending.startedAt) items.push('The amended report hasn\'t been sent to the client');
@@ -8508,39 +8560,101 @@ async function sendPdfsToClient({ files, to, subject, body }) {
   return true;
 }
 
-// Sends the report PDF just generated, plus this report's quote if it has one.
-async function sendReportToClient() {
+// ── CHECK BEFORE SENDING ────────────────────────────────────────────────
+// Send opens a review of exactly what the client will get: who it goes to,
+// the PDFs attached, the headline results and the message, plus any gaps
+// in the report. Sending from here is a fresh tap, which the share sheet
+// needs, so the quote PDF is built while the review opens.
+let sendReview = null;
+
+function openSendReview() {
   const blob = window.__lastPdfBlob;
   if (!blob) { showToast('Generate the PDF first', 'error'); return; }
   // The PDF must match the report as it is now, since sending is what the
   // report is locked against (see COMPLETED REPORTS).
-  const fingerprint = window.__lastPdfFingerprint, version = window.__lastPdfVersion;
-  if (fingerprint !== reportFingerprint()) {
+  if (window.__lastPdfFingerprint !== reportFingerprint()) {
     showToast('The report changed after the PDF was made. Tap Generate PDF, then Send', 'error');
     return;
   }
   const files = [{ blob, fname: window.__lastPdfName || 'KORVUS_Report.pdf' }];
-  const quote = quoteForReport(currentReportId || 'draft', getFullAddress());
-  if (quote && quote.items && quote.items.length) {
-    try { files.push(buildQuotePDF(quote)); } catch (e) { console.warn('Quote PDF failed:', e); }
+  const quote = currentJobQuote();
+  let quoteFile = null;
+  if (quoteHasItems(quote)) {
+    try { quoteFile = buildQuotePDF(quote); files.push(quoteFile); } catch (e) { console.warn('Quote PDF failed:', e); }
   }
   const address = getFullAddress();
-  const withQuote = files.length > 1;
-  const sent = await sendPdfsToClient({
-    files,
-    to: (reportData.jobClientEmail || '').trim(),
-    subject: `${withQuote ? 'Timber pest inspection report and quote' : 'Timber pest inspection report'} — ${address || 'your property'}`,
-    body: clientMessage({
-      client: document.getElementById('jobClient').value,
-      address,
-      docs: withQuote ? 'timber pest inspection report and treatment quote' : 'timber pest inspection report',
-      signOff: document.getElementById('jobInspector').value.trim(),
-    }),
-  });
-  if (sent) {
-    if (withQuote) markQuoteSent(quote);
-    recordReportSent(fingerprint, version);
+  const client = document.getElementById('jobClient').value.trim();
+  const email = (reportData.jobClientEmail || '').trim();
+  const withQuote = !!quoteFile;
+  sendReview = { files, quote: withQuote ? quote : null, fingerprint: window.__lastPdfFingerprint, version: window.__lastPdfVersion };
+
+  const esc = escapeHtml;
+  document.getElementById('sendReviewTo').innerHTML =
+    `<div class="send-review-name">${esc(client || 'No client name')}</div>` +
+    (email ? `<div class="send-review-email">${esc(email)}</div>`
+           : `<div class="send-review-warn">No client email. Add it in Job Details, or type it into your email app.</div>`);
+
+  const version = window.__lastPdfVersion || 1;
+  const attach = [`<div class="send-review-file"><div><div class="send-review-file-name">Inspection report</div>` +
+    `<div class="send-review-file-meta">${esc(ensureReportNumber())} · version ${version}</div></div>` +
+    `<button class="link-btn" onclick="previewSendFile(0)">Preview</button></div>`];
+  if (withQuote) {
+    attach.push(`<div class="send-review-file"><div><div class="send-review-file-name">Treatment quote</div>` +
+      `<div class="send-review-file-meta">${esc(quote.number || '')} · ${formatAUD(quoteTotals(quote).total)}${quote.gst !== false ? ' inc GST' : ''}</div></div>` +
+      `<button class="link-btn" onclick="previewSendFile(1)">Preview</button></div>`);
+  } else if (!reportData.noQuoteNeeded) {
+    attach.push('<div class="send-review-warn">No quote is attached.</div>');
   }
+  document.getElementById('sendReviewFiles').innerHTML = attach.join('');
+
+  const { tiles, limited } = reportSummary();
+  document.getElementById('sendReviewSummary').innerHTML =
+    '<div class="send-review-tiles">' + tiles.map(([label, value, tone]) =>
+      `<div class="send-review-tile tone-${tone}"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('') + '</div>' +
+    (limited.length ? `<div class="send-review-sub">Not fully inspected</div><ul class="send-review-list">${limited.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : '');
+
+  const gaps = reportPrepItems();
+  const gapsWrap = document.getElementById('sendReviewGaps');
+  gapsWrap.style.display = gaps.length ? '' : 'none';
+  gapsWrap.innerHTML = `<div class="send-review-label">Worth checking first</div><ul class="send-review-list">${gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul>`;
+
+  document.getElementById('sendReviewSubject').value =
+    `${withQuote ? 'Timber pest inspection report and quote' : 'Timber pest inspection report'} — ${address || 'your property'}`;
+  document.getElementById('sendReviewBody').value = clientMessage({
+    client, address,
+    docs: withQuote ? 'timber pest inspection report and treatment quote' : 'timber pest inspection report',
+    signOff: document.getElementById('jobInspector').value.trim(),
+  });
+  document.getElementById('sendReviewBtn').textContent = gaps.length ? 'Send anyway' : 'Open email to send';
+  document.getElementById('sendReviewOverlay').classList.add('open');
+}
+
+function closeSendReview() {
+  document.getElementById('sendReviewOverlay').classList.remove('open');
+  sendReview = null;
+}
+
+function previewSendFile(i) {
+  const f = sendReview && sendReview.files[i];
+  if (!f) return;
+  const url = URL.createObjectURL(f.blob);
+  if (!window.open(url, '_blank')) downloadBlob(f.blob, f.fname);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+async function confirmSendReview() {
+  const r = sendReview;
+  if (!r) return;
+  const sent = await sendPdfsToClient({
+    files: r.files,
+    to: (reportData.jobClientEmail || '').trim(),
+    subject: document.getElementById('sendReviewSubject').value.trim(),
+    body: document.getElementById('sendReviewBody').value,
+  });
+  if (!sent) return;
+  closeSendReview();
+  if (r.quote) markQuoteSent(r.quote);
+  recordReportSent(r.fingerprint, r.version);
 }
 
 function generateReport() {
@@ -9160,32 +9274,7 @@ async function _buildAndDownloadPDF() {
   startPart('Summary', true);
   sectionTitle('SUMMARY OF FINDINGS', false);
   {
-    const fs = (reportData.findings || []).filter(f => f && f.termiteActivity);
-    const live = fs.filter(f => f.termiteActivity === 'ACTIVE');
-    const evidence = fs.filter(f => f.termiteActivity === 'INACTIVE');
-    const structural = fs.some(f => f.structuralConcern === 'YES');
-    const conducive = [];
-    if (reportData.waterLeaks === 'YES') conducive.push(`water leak${reportData.leakLocation ? ` (${reportData.leakLocation})` : ''}`);
-    else if (reportData.moistureReadings === 'YES') conducive.push('elevated moisture');
-    if (reportData.timberSoil === 'YES') conducive.push('timber in contact with soil');
-    if (reportData.weepHoles === 'BRIDGED') conducive.push('weep holes bridged');
-    if (reportData.slabEdge === 'OBSTRUCTED') conducive.push('slab edge concealed');
-    const places = list => list.map(f => f.activityLocation).filter(Boolean).join('; ');
-    const NR = 'NOT RECORDED';
-    // [label, value, tone (bad | warn | good | none), detail]
-    const tiles = [
-      ['Live termites', live.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, live.length ? 'bad' : fs.length ? 'good' : 'none', places(live)],
-      ['Termite damage or old activity', evidence.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, evidence.length ? 'warn' : fs.length ? 'good' : 'none', places(evidence)],
-      ['Borers', { ACTIVE: 'ACTIVE', INACTIVE: 'OLD DAMAGE', NONE: 'NONE SEEN' }[reportData.borerActivity] || NR,
-        { ACTIVE: 'bad', INACTIVE: 'warn', NONE: 'good' }[reportData.borerActivity] || 'none', reportData.borerDetails || ''],
-      ['Wood decay (rot)', { YES: 'FOUND', NO: 'NONE SEEN' }[reportData.decayFound] || NR,
-        { YES: 'warn', NO: 'good' }[reportData.decayFound] || 'none', reportData.decayDetails || ''],
-      ['Structural concern', structural ? 'BUILDER TO ASSESS' : fs.length ? 'NONE FLAGGED' : NR, structural ? 'bad' : fs.length ? 'good' : 'none', ''],
-      ['Conducive conditions', conducive.length ? `${conducive.length} FOUND` : 'NONE RECORDED', conducive.length ? 'warn' : 'none', conducive.join('; ')],
-      ['Risk of termite attack', reportData.riskLevel || NR, { HIGH: 'bad', MEDIUM: 'warn', LOW: 'good' }[reportData.riskLevel] || 'none', ''],
-      ['Treatment recommended', { YES: 'YES', NO: 'NO' }[reportData.treatmentRecommended] || NR,
-        { YES: 'bad', NO: 'good' }[reportData.treatmentRecommended] || 'none', reportData.treatmentType || ''],
-    ];
+    const { tiles, limited, next } = reportSummary();
     const TONE = { bad: [C.danger, [253,242,240]], warn: [C.warn, [253,247,234]], good: [C.safe, [239,249,237]], none: [C.inkMuted, C.rowAlt] };
     const tileW = (CW - 4) / 2, tileH = 19;
     tiles.forEach(([label, value, tone, detail], i) => {
@@ -9206,8 +9295,6 @@ async function _buildAndDownloadPDF() {
     });
     y += Math.ceil(tiles.length / 2) * (tileH + 3) + 5;
 
-    // Areas the inspector couldn't fully see, and why.
-    const limited = areasNotFullyInspected();
     function summaryList(title, items) {
       if (!items.length) return;
       if (y + 14 > 270) newPage();
@@ -9225,21 +9312,7 @@ async function _buildAndDownloadPDF() {
       });
       y += 4;
     }
-    summaryList('AREAS NOT FULLY INSPECTED', limited.map(z => {
-      const why = ((reportData.areaReasons || {})[z] || []).join(', ');
-      return `${OBS_ZONES[z].label}: ${areaStatusOf(z) === 'NOT' ? 'not inspected' : 'partly inspected'}${why ? ` (${why})` : ''}`;
-    }));
-
-    const next = [];
-    if (live.length || reportData.treatmentRecommended === 'YES') {
-      next.push(`Termite treatment${reportData.treatmentType ? `: ${reportData.treatmentType}` : ' (see Recommendations)'}.`);
-    }
-    if (structural) next.push('Have a licensed builder or structural engineer assess the termite damage before any repairs.');
-    if (reportData.borerActivity === 'ACTIVE') next.push('Treat the active borers and replace badly affected timbers.');
-    if (reportData.decayFound === 'YES') next.push('Have a builder repair the decayed timbers, and fix the moisture that caused the decay.');
-    if (conducive.length) next.push(`Fix the conditions that attract termites: ${conducive.join('; ')}.`);
-    if (limited.length) next.push(`Provide access to ${limited.map(z => OBS_ZONES[z].label.replace(/^The /, '').toLowerCase()).join(', ')} for a follow-up inspection.`);
-    next.push(`Next timber pest inspection: ${reportData.inspectionFrequency || 'within 12 months'}.`);
+    summaryList('AREAS NOT FULLY INSPECTED', limited);
     summaryList('WHAT TO DO NEXT', next);
 
     disclaimer('This summary highlights the main results only. Read the full report, including the areas not inspected, the limitations and the terms, before relying on it.');
