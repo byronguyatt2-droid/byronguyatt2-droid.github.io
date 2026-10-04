@@ -485,6 +485,7 @@ function renderQuoteItems() {
             oninput="updateQuoteItem('${it.id}','price',this.value)" onchange="rememberQuotePrice('${it.key}', parseFloat(this.value))"></label>
           <div class="quote-item-total" id="qiTotal_${it.id}">${formatAUD(lineTotal(it))}</div>
         </div>
+        ${CHEM_CALC_KEYS.includes(it.key) && canUseChemCalc() ? `<button class="quote-link-btn quote-item-calc" onclick="openChemCalc('${it.id}')">Work out from the label</button>` : ''}
         ${it.source ? `<div class="quote-item-source">From report · ${escapeHtml(it.source)}</div>` : ''}
       </div>`).join('');
     wrap.querySelectorAll('.quote-item-desc').forEach(fitQuoteText);
@@ -914,6 +915,197 @@ function exportQuotePDF() {
 function rememberQuotePrices(q) {
   q.items.forEach(it => rememberQuotePrice(it.key, parseFloat(it.price)));
   if (q.paymentTerms !== undefined) rememberPaymentTerms(q.paymentTerms.trim());
+}
+
+// ── CHEMICAL CALCULATOR ─────────────────────────────────────────────────────
+// Prices a soil treatment line from the product label rather than a price
+// list. The application rate is entered the way the label states it, since
+// soil labels tie the volume to the treated zone, not just its length:
+//   Premise 200 SC: 1.5 L of mix per linear metre per 100 mm depth, at least
+//     5 L per linear metre;
+//   Termidor Residual: 100 L of mix per cubic metre of soil, in a zone
+//     150 mm wide.
+// So mix per metre = rate × depth (or rate × width × depth), never less than
+// the label minimum, and never less than the label rate (the label is the
+// legal document; using less is an offence under state pesticide law).
+// Concentrate = mix × the label's mL per 100 L; cost = concentrate × pack
+// price ÷ pack size; labour and markup on top. KORVUS holds no label figures
+// itself: the owner copies them from each label, once, and they're kept with
+// the business's settings (quotePriceMemory().__chemicals, synced like the
+// rest). Owners only: it shows what the business pays.
+const CHEM_CALC_KEYS = ['barrier_lm', 'barrier_job'];
+let chemCalcItemId = null;
+
+function canUseChemCalc() {
+  return typeof isBusinessOwner !== 'function' || !authBusiness || isBusinessOwner();
+}
+
+function chemCalcSettings() {
+  const mem = quotePriceMemory();
+  return {
+    products: Array.isArray(mem.__chemicals) ? mem.__chemicals : [],
+    hourlyRate: mem.__labourRate,
+    markup: mem.__markup,
+  };
+}
+
+function openChemCalc(itemId) {
+  const it = quoteState && quoteState.items.find(i => i.id === itemId);
+  if (!it) return;
+  chemCalcItemId = itemId;
+  const set = chemCalcSettings();
+  const lm = it.unit === 'lm' ? parseFloat(it.qty) : NaN;
+  const v = (id, val) => { document.getElementById(id).value = val == null || (typeof val === 'number' && !isFinite(val)) ? '' : val; };
+  v('ccMetres', lm);
+  v('ccDepth', '');
+  v('ccHours', '');
+  v('ccRate', set.hourlyRate);
+  v('ccMarkup', set.markup);
+  renderChemCalcProducts(set.products.length ? set.products[0].id : 'new');
+  document.getElementById('chemCalcOverlay').classList.add('open');
+}
+
+function closeChemCalc() {
+  document.getElementById('chemCalcOverlay').classList.remove('open');
+}
+
+function renderChemCalcProducts(selectedId) {
+  const { products } = chemCalcSettings();
+  const sel = document.getElementById('ccProduct');
+  sel.innerHTML = products.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || 'Unnamed product')}</option>`).join('') +
+    '<option value="new">Add a product…</option>';
+  sel.value = products.some(p => p.id === selectedId) ? selectedId : 'new';
+  onChemCalcProductPick();
+}
+
+function onChemCalcProductPick() {
+  const id = document.getElementById('ccProduct').value;
+  const p = chemCalcSettings().products.find(x => x.id === id) || {};
+  const v = (fid, val) => { document.getElementById(fid).value = val == null ? '' : val; };
+  v('ccName', p.name); v('ccApvma', p.apvma); v('ccMixRate', p.mlPer100L);
+  document.getElementById('ccRateForm').value = p.rateForm === 'perM3' ? 'perM3' : 'per100';
+  v('ccAppRate', p.rate); v('ccWidth', p.zoneWidthMm); v('ccMinPerMetre', p.minPerMetre);
+  v('ccPackSize', p.packLitres); v('ccPackPrice', p.packPrice);
+  document.getElementById('ccRemove').hidden = !p.id;
+  updateChemCalc();
+}
+
+function chemCalcNum(id) {
+  const n = parseFloat(document.getElementById(id).value);
+  return isFinite(n) && n >= 0 ? n : NaN;
+}
+
+const chemRound2 = n => Math.round(n * 100) / 100;
+
+// The sums, from what's on the sheet. Returns null until there's enough.
+function chemCalcResult() {
+  const perM3 = document.getElementById('ccRateForm').value === 'perM3';
+  const metres = chemCalcNum('ccMetres'), depth = chemCalcNum('ccDepth');
+  const rate = chemCalcNum('ccAppRate'), width = perM3 ? chemCalcNum('ccWidth') : 1;
+  const mixRate = chemCalcNum('ccMixRate');
+  const packLitres = chemCalcNum('ccPackSize'), packPrice = chemCalcNum('ccPackPrice');
+  if (![metres, depth, rate, width, mixRate, packLitres, packPrice].every(isFinite) ||
+      !metres || !depth || !rate || !width || !mixRate || !packLitres) return null;
+  const labelPerMetre = perM3 ? rate * (width / 1000) * (depth / 1000) : rate * depth / 100;
+  const minPerMetre = chemCalcNum('ccMinPerMetre');
+  const raisedToMin = isFinite(minPerMetre) && minPerMetre > labelPerMetre;
+  const mixPerMetre = raisedToMin ? minPerMetre : labelPerMetre;
+  const mixLitres = metres * mixPerMetre;
+  const concentrateLitres = mixLitres * mixRate / 100 / 1000; // mL per 100 L of mix
+  const chemical = concentrateLitres * packPrice / packLitres;
+  const hours = chemCalcNum('ccHours'), hourly = chemCalcNum('ccRate');
+  const labour = (isFinite(hours) ? hours : 0) * (isFinite(hourly) ? hourly : 0);
+  const markup = chemCalcNum('ccMarkup');
+  const cost = (chemical + labour) * (1 + (isFinite(markup) ? markup : 0) / 100);
+  const perMetre = chemRound2(cost / metres);
+  return {
+    metres, labelPerMetre, mixPerMetre, raisedToMin, mixLitres, concentrateLitres, chemical, labour,
+    perMetre, jobTotal: chemRound2(cost), lineTotal: chemRound2(perMetre * metres),
+  };
+}
+
+function updateChemCalc() {
+  document.getElementById('ccWidthField').style.display = document.getElementById('ccRateForm').value === 'perM3' ? '' : 'none';
+  const r = chemCalcResult();
+  const out = document.getElementById('ccResult');
+  const btn = document.getElementById('ccApply');
+  btn.disabled = !r;
+  if (!r) {
+    out.innerHTML = '<div class="cc-empty">Fill in the metres, the depth and the label figures to see the cost.</div>';
+    btn.textContent = 'Use this price';
+    return;
+  }
+  const litres = n => n >= 10 ? Math.round(n).toLocaleString('en-AU') + ' L' : chemRound2(n) + ' L';
+  const conc = r.concentrateLitres < 1 ? Math.round(r.concentrateLitres * 1000) + ' mL' : litres(r.concentrateLitres);
+  const it = quoteState && quoteState.items.find(i => i.id === chemCalcItemId);
+  const perJob = it && it.key === 'barrier_job';
+  out.innerHTML = `
+    <div><span>Mix per metre</span><strong>${litres(r.mixPerMetre)}</strong></div>
+    ${r.raisedToMin ? `<div class="cc-note">The label rate works out to ${litres(r.labelPerMetre)} per metre, so the label minimum is used instead.</div>` : ''}
+    <div><span>Mix needed</span><strong>${litres(r.mixLitres)}</strong></div>
+    <div><span>Concentrate</span><strong>${conc}</strong></div>
+    <div><span>Chemical cost</span><strong>${formatAUD(r.chemical)}</strong></div>
+    <div><span>Labour</span><strong>${formatAUD(r.labour)}</strong></div>
+    <div class="cc-total"><span>Price ex GST</span><strong>${formatAUD(perJob ? r.jobTotal : r.lineTotal)}</strong></div>
+    <div><span>Per metre</span><strong>${formatAUD(r.perMetre)}</strong></div>`;
+  btn.textContent = perJob ? `Use ${formatAUD(r.jobTotal)} for the job` : `Use ${formatAUD(r.perMetre)} per metre`;
+}
+
+// Keeps the product as typed (a new one is added), plus labour rate and
+// markup, so the next quote starts with them.
+function saveChemCalcSettings() {
+  const mem = quotePriceMemory();
+  const products = Array.isArray(mem.__chemicals) ? mem.__chemicals.slice() : [];
+  const name = document.getElementById('ccName').value.trim();
+  const sel = document.getElementById('ccProduct');
+  const rateForm = document.getElementById('ccRateForm').value === 'perM3' ? 'perM3' : 'per100';
+  const fields = {
+    name, apvma: document.getElementById('ccApvma').value.trim(), mlPer100L: chemCalcNum('ccMixRate'),
+    rateForm, rate: chemCalcNum('ccAppRate'), zoneWidthMm: rateForm === 'perM3' ? chemCalcNum('ccWidth') : null,
+    minPerMetre: chemCalcNum('ccMinPerMetre'), packLitres: chemCalcNum('ccPackSize'), packPrice: chemCalcNum('ccPackPrice'),
+  };
+  Object.keys(fields).forEach(k => { if (typeof fields[k] === 'number' && !isFinite(fields[k])) fields[k] = null; });
+  let id = sel.value;
+  if (name) {
+    const i = products.findIndex(p => p.id === id);
+    if (i >= 0) products[i] = Object.assign({}, products[i], fields);
+    else { id = 'chem_' + Date.now().toString(36); products.push(Object.assign({ id }, fields)); }
+  }
+  mem.__chemicals = products;
+  const hourly = chemCalcNum('ccRate'), markup = chemCalcNum('ccMarkup');
+  mem.__labourRate = isFinite(hourly) ? hourly : null;
+  mem.__markup = isFinite(markup) ? markup : null;
+  storeQuotePriceMemory(mem);
+  return id;
+}
+
+function removeChemCalcProduct() {
+  const id = document.getElementById('ccProduct').value;
+  const mem = quotePriceMemory();
+  mem.__chemicals = (mem.__chemicals || []).filter(p => p.id !== id);
+  storeQuotePriceMemory(mem);
+  renderChemCalcProducts(mem.__chemicals.length ? mem.__chemicals[0].id : 'new');
+}
+
+function applyChemCalc() {
+  const r = chemCalcResult();
+  const it = quoteState && quoteState.items.find(i => i.id === chemCalcItemId);
+  if (!r || !it) return;
+  saveChemCalcSettings();
+  const name = document.getElementById('ccName').value.trim();
+  if (it.key === 'barrier_job') {
+    it.qty = 1;
+    it.price = r.jobTotal;
+  } else {
+    it.qty = r.metres;
+    it.unit = 'lm';
+    it.price = r.perMetre;
+  }
+  if (name && !it.detail.trim()) it.detail = name;
+  rememberQuotePrice(it.key, parseFloat(it.price));
+  closeChemCalc();
+  renderQuoteItems();
+  scheduleQuoteSave();
 }
 
 // ── SENT AND LOCKED ─────────────────────────────────────────────────────────

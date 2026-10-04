@@ -408,6 +408,98 @@
   </div>
 </div>
 
+<div class="page-sheet-overlay" id="chemCalcOverlay">
+  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="chemCalcTitle">
+    <div class="page-sheet-header">
+      <span class="page-sheet-title" id="chemCalcTitle">Work out from the label</span>
+      <button class="voice-popover-close" onclick="closeChemCalc()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+    </div>
+    <div class="page-sheet-body">
+      <p class="quote-hint" style="margin:0">Copy the figures from the current product label. The label is the legal document: this never prices below its rate or minimum. Kept for your next quote, and only you, the owner, see this.</p>
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Linear metres</div>
+          <input class="job-input" id="ccMetres" type="number" min="0" step="any" inputmode="decimal" oninput="updateChemCalc()">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Treated depth (mm)</div>
+          <input class="job-input" id="ccDepth" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 500" oninput="updateChemCalc()">
+        </div>
+      </div>
+      <p class="quote-hint" style="margin:0">Depth is from ground level to as far below the footing as the label requires.</p>
+      <div class="job-field">
+        <div class="job-field-label">Product</div>
+        <select class="job-input" id="ccProduct" onchange="onChemCalcProductPick()"></select>
+      </div>
+      <div class="cc-product">
+        <div class="job-row">
+          <div class="job-field">
+            <div class="job-field-label">Product name</div>
+            <input class="job-input" id="ccName" list="trProductList" placeholder="e.g. Termidor Residual" oninput="updateChemCalc()">
+          </div>
+          <div class="job-field">
+            <div class="job-field-label">APVMA number</div>
+            <input class="job-input" id="ccApvma" placeholder="On the label">
+          </div>
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Concentrate per 100 L of mix (mL)</div>
+          <input class="job-input" id="ccMixRate" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 600" oninput="updateChemCalc()">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">The label gives its rate as</div>
+          <select class="job-input" id="ccRateForm" onchange="updateChemCalc()">
+            <option value="per100">Litres of mix per metre, per 100 mm depth</option>
+            <option value="perM3">Litres of mix per cubic metre of soil</option>
+          </select>
+        </div>
+        <div class="job-row">
+          <div class="job-field">
+            <div class="job-field-label">Label rate (L)</div>
+            <input class="job-input" id="ccAppRate" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 1.5" oninput="updateChemCalc()">
+          </div>
+          <div class="job-field" id="ccWidthField" style="display:none">
+            <div class="job-field-label">Zone width (mm)</div>
+            <input class="job-input" id="ccWidth" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 150" oninput="updateChemCalc()">
+          </div>
+          <div class="job-field">
+            <div class="job-field-label">Label minimum per metre (L)</div>
+            <input class="job-input" id="ccMinPerMetre" type="number" min="0" step="any" inputmode="decimal" placeholder="If stated" oninput="updateChemCalc()">
+          </div>
+        </div>
+        <div class="job-row">
+          <div class="job-field">
+            <div class="job-field-label">Pack size (L)</div>
+            <input class="job-input" id="ccPackSize" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 6" oninput="updateChemCalc()">
+          </div>
+          <div class="job-field">
+            <div class="job-field-label">You pay per pack ($)</div>
+            <input class="job-input" id="ccPackPrice" type="number" min="0" step="any" inputmode="decimal" oninput="updateChemCalc()">
+          </div>
+        </div>
+        <button class="link-btn" id="ccRemove" onclick="removeChemCalcProduct()" hidden>Remove this product</button>
+      </div>
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Labour (hours)</div>
+          <input class="job-input" id="ccHours" type="number" min="0" step="any" inputmode="decimal" oninput="updateChemCalc()">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Per hour ($)</div>
+          <input class="job-input" id="ccRate" type="number" min="0" step="any" inputmode="decimal" oninput="updateChemCalc()">
+        </div>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Markup on cost (%)</div>
+        <input class="job-input" id="ccMarkup" type="number" min="0" step="any" inputmode="decimal" oninput="updateChemCalc()">
+      </div>
+      <div class="cc-result" id="ccResult"></div>
+      <button class="extract-btn" id="ccApply" onclick="applyChemCalc()">Use this price</button>
+      <button class="link-btn send-review-cancel" onclick="closeChemCalc()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="page-sheet-overlay" id="treatmentOverlay">
   <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="treatmentTitle">
     <div class="page-sheet-header">
