@@ -855,7 +855,7 @@
         <button class="share-btn" id="quoteFromReportBtn" onclick="openQuoteFromReport()" title="Build a treatment quote from this report">
           <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>Quote
         </button>
-        <button class="share-btn" id="shareBtn" onclick="sendReportToClient()" style="display:none" title="Email the report (and quote) to the client">
+        <button class="share-btn" id="shareBtn" onclick="openSendReview()" style="display:none" title="Email the report (and quote) to the client">
           <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>Send
         </button>
       </div>
@@ -1540,15 +1540,15 @@
   </div><!-- /voicePopover -->
 
 <!-- PRE-INSPECTION AGREEMENT SHEET -->
-<div class="agreement-overlay" id="agreementOverlay">
-  <div class="agreement-sheet" role="dialog" aria-modal="true" aria-labelledby="agreementTitle">
-    <div class="agreement-sheet-header">
-      <span class="agreement-sheet-title" id="agreementTitle">Pre-Inspection Agreement</span>
+<div class="page-sheet-overlay" id="agreementOverlay">
+  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="agreementTitle">
+    <div class="page-sheet-header">
+      <span class="page-sheet-title" id="agreementTitle">Pre-Inspection Agreement</span>
       <button class="voice-popover-close" onclick="closeAgreementSheet()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
     </div>
 
     <!-- Not signed yet: job details, wording, signature -->
-    <div class="agreement-sheet-body" id="agreementEdit">
+    <div class="page-sheet-body" id="agreementEdit">
       <div class="job-row">
         <div class="job-field">
           <div class="job-field-label">Inspection Date</div>
@@ -1588,12 +1588,36 @@
     </div>
 
     <!-- Signed: what was agreed, read-only -->
-    <div class="agreement-sheet-body" id="agreementView" style="display:none">
+    <div class="page-sheet-body" id="agreementView" style="display:none">
       <div class="agreement-view-summary" id="agreementViewSummary"></div>
       <img class="agreement-view-signature" id="agreementViewSignature" alt="Client signature">
       <div class="agreement-text" id="agreementViewText"></div>
       <button class="extract-btn" onclick="shareAgreementPdf()">Send the client a copy (PDF)</button>
       <button class="link-btn agreement-other-toggle" onclick="removeAgreement()">Remove and sign again</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHECK BEFORE SENDING -->
+<div class="page-sheet-overlay" id="sendReviewOverlay">
+  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="sendReviewTitle">
+    <div class="page-sheet-header">
+      <span class="page-sheet-title" id="sendReviewTitle">Check before sending</span>
+      <button class="voice-popover-close" onclick="closeSendReview()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+    </div>
+    <div class="page-sheet-body">
+      <div class="send-review-gaps" id="sendReviewGaps" style="display:none"></div>
+      <div class="send-review-label">To</div>
+      <div class="send-review-card" id="sendReviewTo"></div>
+      <div class="send-review-label">Attached</div>
+      <div class="send-review-card" id="sendReviewFiles"></div>
+      <div class="send-review-label">What the client reads first</div>
+      <div id="sendReviewSummary"></div>
+      <div class="send-review-label">Message</div>
+      <input class="job-input" id="sendReviewSubject" aria-label="Subject">
+      <textarea class="job-input send-review-body" id="sendReviewBody" rows="9" aria-label="Message"></textarea>
+      <button class="extract-btn" id="sendReviewBtn" onclick="confirmSendReview()">Open email to send</button>
+      <button class="link-btn send-review-cancel" onclick="closeSendReview()">Not yet</button>
     </div>
   </div>
 </div>

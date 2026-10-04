@@ -2475,15 +2475,16 @@ body.report-locked #micDock { opacity: 0.4; }
   font-weight: 700;
   cursor: pointer;
 }
-.agreement-overlay {
+/* Full-screen sheets: the pre-inspection agreement and the check before sending */
+.page-sheet-overlay {
   position: fixed;
   inset: 0;
   z-index: 300;
   display: none;
   background: rgba(0,0,0,0.55);
 }
-.agreement-overlay.open { display: block; }
-.agreement-sheet {
+.page-sheet-overlay.open { display: block; }
+.page-sheet {
   position: absolute;
   inset: 0;
   max-width: 640px;
@@ -2492,15 +2493,15 @@ body.report-locked #micDock { opacity: 0.4; }
   flex-direction: column;
   background: var(--surface);
 }
-.agreement-sheet-header {
+.page-sheet-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 12px;
   border-bottom: 1px solid var(--border);
 }
-.agreement-sheet-title { font-size: 15px; font-weight: 800; color: var(--text); }
-.agreement-sheet-body {
+.page-sheet-title { font-size: 15px; font-weight: 800; color: var(--text); }
+.page-sheet-body {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -2509,7 +2510,7 @@ body.report-locked #micDock { opacity: 0.4; }
   flex-direction: column;
   gap: 10px;
 }
-.agreement-sheet-body > * { flex-shrink: 0; }
+.page-sheet-body > * { flex-shrink: 0; }
 .agreement-text {
   white-space: pre-wrap;
   font-size: 12px;
@@ -2542,6 +2543,59 @@ body.report-locked #micDock { opacity: 0.4; }
   border: 1px solid var(--border);
   border-radius: 6px;
 }
+/* Check before sending */
+.send-review-label {
+  margin-top: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+.send-review-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.send-review-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.send-review-email { font-size: 13px; color: var(--text2); word-break: break-all; }
+.send-review-warn { font-size: 12.5px; font-weight: 600; color: var(--yellow); }
+.send-review-file { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.send-review-file-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.send-review-file-meta { font-size: 12px; color: var(--text3); }
+.send-review-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.send-review-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--silver);
+  border-radius: 6px;
+  background: var(--surface2);
+}
+.send-review-tile span { font-size: 10.5px; font-weight: 600; color: var(--text3); }
+.send-review-tile strong { font-size: 12.5px; font-weight: 800; color: var(--text3); }
+.send-review-tile.tone-bad  { border-color: var(--risk);   background: #FDF2F0; }
+.send-review-tile.tone-warn { border-color: var(--yellow); background: #FDF7EA; }
+.send-review-tile.tone-good { border-color: var(--green);  background: #EFF9ED; }
+.send-review-tile.tone-bad strong  { color: var(--risk); }
+.send-review-tile.tone-warn strong { color: var(--yellow); }
+.send-review-tile.tone-good strong { color: var(--green); }
+.send-review-sub { margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--text2); }
+.send-review-list { margin: 4px 0 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; color: var(--text2); }
+.send-review-gaps {
+  padding: 10px 12px;
+  border: 1px solid var(--yellow);
+  border-radius: 10px;
+  background: #FDF7EA;
+}
+.send-review-gaps .send-review-label { margin-top: 0; color: var(--yellow); }
+.send-review-body { resize: vertical; font-size: 13px; line-height: 1.5; }
+.send-review-cancel { align-self: center; margin-top: 2px; }
 .agreement-template-input { resize: vertical; font-size: 11px; line-height: 1.5; }
 .signoff-agreement { font-size: 12px; color: var(--text3); line-height: 1.5; }
 .signoff-agreement.signed { color: var(--green); font-weight: 600; }
