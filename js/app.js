@@ -8845,9 +8845,12 @@ function drawPdfCompanyMark(doc, company) {
       return;
     } catch (e) {}
   }
+  // No logo: the business's initials (or K for KORVUS) in a teal tile.
+  const initials = (company.name || 'KORVUS').split(/\s+/).filter(w => /^[A-Za-z0-9]/.test(w))
+    .slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'K';
   doc.setFillColor(...C.accent); doc.roundedRect(14, 14, 20, 20, 3, 3, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...C.coverDark);
-  doc.text('K', 24, 27.5, { align:'center' });
+  doc.setFont('helvetica','bold'); doc.setFontSize(initials.length > 1 ? 11 : 13); doc.setTextColor(...C.white);
+  doc.text(initials, 24, 26.8, { align:'center' });
 }
 
 // Gets a finished PDF off the device. Inside the native app wrapper there is
@@ -8952,28 +8955,21 @@ async function _buildAndDownloadPDF() {
   // ── PAGE HEADER ──────────────────────────────────────────────────────────
   function compactHeader(sectionLabel) {
     pageNum++;
-    const reportTitle = 'TIMBER PEST INSPECTION REPORT';
-    // White page — thin top band in dark
-    doc.setFillColor(...C.headerBg); doc.rect(0, 0, W, 13, 'F');
-    doc.setFillColor(...C.accent);   doc.rect(0, 0, 4, 13, 'F');
-    // Report title
-    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(235,228,218);
-    doc.text(reportTitle, 9, 8.5);
-    // Address centred
+    // A light running header: who prepared it and for which property on the
+    // left, the part of the report on the right, over a thin teal rule.
+    const companyName = (getCompanyDetails().name || '').trim();
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.ink);
+    doc.text(companyName || 'Timber Pest Inspection Report', M, 10);
     const addr = getFullAddress() || '';
-    if (addr) {
-      const addrTrunc = addr.length > 52 ? addr.slice(0,51)+'…' : addr;
-      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(170,160,148);
-      doc.text(addrTrunc, W/2, 8.5, { align:'center' });
+    const sub = [companyName ? 'Timber Pest Inspection Report' : '', addr].filter(Boolean).join('   ·   ');
+    if (sub) {
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+      doc.text(sub.length > 90 ? sub.slice(0, 89) + '…' : sub, M, 14);
     }
-    // Section label + page number
-    doc.setTextColor(170,160,148); doc.setFontSize(7);
-    doc.text(sectionLabel, W-M, 8.5, { align:'right' });
-    // Thin orange rule below header
-    doc.setFillColor(...C.accent); doc.rect(0, 13, W, 0.6, 'F');
-    // Light rule below that
-    doc.setFillColor(...C.ruleLight); doc.rect(0, 13.6, W, 0.4, 'F');
-    y = 22;
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.accent);
+    doc.text(sectionLabel.toUpperCase(), W-M, 10, { align:'right' });
+    doc.setFillColor(...C.accent); doc.rect(M, 17, CW, 0.35, 'F');
+    y = 26;
   }
 
   // ── SECTION TITLE ─────────────────────────────────────────────────────────
@@ -8995,8 +8991,8 @@ async function _buildAndDownloadPDF() {
     doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(...C.ink);
     doc.text(title, titleX, y+5.5);
     // Full-width orange rule
-    doc.setFillColor(...C.accent); doc.rect(M, y+8, CW, 0.7, 'F');
-    y += 14;
+    doc.setFillColor(...C.rule); doc.rect(M, y+9, CW, 0.3, 'F');
+    y += 15;
   }
 
   // ── DATA ROW ──────────────────────────────────────────────────────────────
@@ -9006,10 +9002,12 @@ async function _buildAndDownloadPDF() {
   function row(label, value, invert) {
     const v     = String(value || '');
     const isEmpty = !value && value !== 0;
-    const LABEL_W = 60;
-    doc.setFontSize(8.5);
-    const wrapped = isEmpty ? ['—'] : doc.splitTextToSize(v, CW - LABEL_W - 6);
-    const rowH = Math.max(8, wrapped.length * 4.5 + 4);
+    // Nothing recorded: leave the row out rather than print a dash.
+    if (isEmpty) return;
+    const LABEL_W = 62;
+    doc.setFontSize(9);
+    const wrapped = doc.splitTextToSize(v, CW - LABEL_W - 6);
+    const rowH = Math.max(8.5, wrapped.length * 4.6 + 4);
     if (y + rowH > 277) { newPage(); _rowShade = false; }
 
     // Alternating shade
@@ -9020,12 +9018,9 @@ async function _buildAndDownloadPDF() {
     doc.setDrawColor(...C.ruleLight); doc.setLineWidth(0.25);
     doc.line(M, y+rowH, M+CW, y+rowH);
 
-    // Orange left indicator on filled rows
-    if (!isEmpty) { doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, rowH, 'F'); }
-
     // Label
-    doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
-    doc.text(label.toUpperCase(), M+4, y+5.5);
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+    doc.text(label.toUpperCase(), M+3, y+5.7);
 
     // Value — colour-coded
     if (isEmpty) {
@@ -9041,8 +9036,8 @@ async function _buildAndDownloadPDF() {
     } else {
       doc.setTextColor(...C.ink); doc.setFont('helvetica','normal');
     }
-    doc.setFontSize(8.5);
-    doc.text(wrapped, M+LABEL_W, y+5.5);
+    doc.setFontSize(9);
+    doc.text(wrapped, M+LABEL_W, y+5.7);
     y += rowH;
   }
 
@@ -9107,23 +9102,28 @@ async function _buildAndDownloadPDF() {
     doc.setFont('helvetica','normal');
   }
 
+  // ── CALLOUT ── a tinted note with a coloured bar: a short bold title, then
+  // plain text. tone: 'bad' | 'warn'.
+  function callout(title, body, tone, x = M, w = CW) {
+    const col = tone === 'warn' ? C.warn : C.danger;
+    const bg  = tone === 'warn' ? [253,247,234] : [253,242,240];
+    doc.setFont('helvetica','normal'); doc.setFontSize(8);
+    const lines = doc.splitTextToSize(body, w - 12);
+    const h = 11 + lines.length * 4;
+    if (y + h > 278) newPage();
+    doc.setFillColor(...bg); doc.roundedRect(x, y, w, h, 1.5, 1.5, 'F');
+    doc.setFillColor(...col); doc.rect(x, y, 1.5, h, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...col);
+    doc.text(title.toUpperCase(), x + 6, y + 6);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
+    doc.text(lines, x + 6, y + 11);
+    y += h + 4;
+    doc.setTextColor(...C.ink);
+  }
+
   // ── BUILDER / ENGINEER REFERRAL BOX ────────────────────────────────────────────────
   function referralBox() {
-    const text = 'BUILDER OR ENGINEER REFERRAL: The inspector recommends that the damage described above be assessed by a licensed builder or structural engineer. A timber pest inspection does not assess structural soundness or load-bearing capacity, and no opinion on either is given in this report.';
-    doc.setFont('helvetica','bold'); doc.setFontSize(8);
-    const lines = doc.splitTextToSize(text, CW-10);
-    const blockH = lines.length*4.2+8;
-    if (y + blockH > 280) newPage();
-    // Light red background
-    doc.setFillColor(253,242,240); doc.roundedRect(M, y, CW, blockH, 2, 2, 'F');
-    doc.setDrawColor(...C.danger); doc.setLineWidth(0.6);
-    doc.roundedRect(M, y, CW, blockH, 2, 2, 'D');
-    doc.setFillColor(...C.danger); doc.roundedRect(M, y, 4, blockH, 2, 2, 'F');
-    doc.rect(M+2, y, 2, blockH, 'F');
-    doc.setTextColor(...C.danger);
-    doc.text(lines, M+7, y+6);
-    y += blockH+4;
-    doc.setFont('helvetica','normal'); doc.setTextColor(...C.ink);
+    callout('Builder or engineer referral', 'The inspector recommends that the damage described above be assessed by a licensed builder or structural engineer. A timber pest inspection does not assess structural soundness or load-bearing capacity, and no opinion on either is given in this report.', 'bad');
   }
 
   // ── PHOTO GALLERY ─────────────────────────────────────────────────────────
@@ -9533,16 +9533,6 @@ async function _buildAndDownloadPDF() {
                         undetectedRisk.includes('MODERATE') ? [253,247,234] :
                         undetectedRisk === 'NOT ASSESSED' ? [248,246,243] : [239,249,237];
 
-  // Risk box
-  if (y + 22 > 278) newPage();
-  doc.setFillColor(...undetectedBg); doc.roundedRect(M, y, CW, 22, 2, 2, 'F');
-  doc.setDrawColor(...undetectedCol); doc.setLineWidth(0.6); doc.roundedRect(M, y, CW, 22, 2, 2, 'D');
-  doc.setFillColor(...undetectedCol); doc.roundedRect(M, y, 4, 22, 2, 2, 'F'); doc.rect(M+2, y, 2, 22, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-  doc.text('RISK OF UNDETECTED TIMBER PEST ACTIVITY', M+8, y+7);
-  doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...undetectedCol);
-  doc.text(undetectedRisk, M+8, y+17);
-  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
   const undetectedNote = undetectedRisk === 'HIGH'
     ? 'Active or inactive termites found with uninspected areas. Further invasive inspection strongly recommended.'
     : undetectedRisk === 'MODERATE-HIGH'
@@ -9552,9 +9542,20 @@ async function _buildAndDownloadPDF() {
     : undetectedRisk === 'NOT ASSESSED'
     ? 'The areas inspected were not recorded, so this risk could not be assessed.'
     : 'All readily accessible areas were inspected. Regular inspection programme should continue.';
-  const noteLines = doc.splitTextToSize(undetectedNote, CW - 80);
-  doc.text(noteLines, W-M-5, y+10, { align:'right', maxWidth: 80 });
-  y += 28;
+  // Risk box: label, rating, then what it means underneath.
+  doc.setFont('helvetica','normal'); doc.setFontSize(8);
+  const noteLines = doc.splitTextToSize(undetectedNote, CW - 16);
+  const boxH = 23 + noteLines.length * 4;
+  if (y + boxH > 278) newPage();
+  doc.setFillColor(...undetectedBg); doc.roundedRect(M, y, CW, boxH, 2, 2, 'F');
+  doc.setFillColor(...undetectedCol); doc.rect(M, y, 1.5, boxH, 'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+  doc.text('RISK OF UNDETECTED TIMBER PEST ACTIVITY', M+7, y+7);
+  doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...undetectedCol);
+  doc.text(undetectedRisk, M+7, y+15.5);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
+  doc.text(noteLines, M+7, y+21.5);
+  y += boxH + 5;
   gap(4);
   disclaimer('This rating reflects the risk of timber pest activity existing but not being detected at the time of inspection, due to access limitations. It is not an assessment of pest pressure or building susceptibility.');
   gap(6);
@@ -9649,14 +9650,11 @@ async function _buildAndDownloadPDF() {
     // Header
     const headerH = 13;
     doc.setFillColor(...actBg); doc.rect(M, y, CW, headerH, 'F');
-    doc.setFillColor(...actCol); doc.rect(M, y, 4, headerH, 'F');
-    doc.setDrawColor(...actCol); doc.setLineWidth(0.5);
-    doc.line(M, y+headerH, M+CW, y+headerH);
+    doc.setFillColor(...actCol); doc.rect(M, y, 1.5, headerH, 'F');
     doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
     doc.text(`TERMITE FINDING ${idx + 1}`, M+8, y+5.5);
     doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...actCol);
     doc.text(actLabel, M+8, y+10.5);
-    doc.setFillColor(...actCol); doc.circle(M+CW-6, y+7, 3, 'F');
     y += headerH + 5;
 
     // Species
@@ -9674,7 +9672,7 @@ async function _buildAndDownloadPDF() {
         doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...riskCol2);
         doc.text(riskTag, M+CW-bodyPad-4, y+8.5, { align:'right' });
       }
-      y += 14;
+      y += 17;
     }
 
     // Was a nest found?
@@ -9711,18 +9709,8 @@ async function _buildAndDownloadPDF() {
 
     // Builder / engineer referral
     if (f.structuralConcern === 'YES') {
-      if (y > 268) newPage();
       y += 2;
-      const scText = 'BUILDER OR ENGINEER REFERRAL — The inspector recommends a licensed builder or structural engineer assess this damage, and any effect on the structure, before work proceeds.';
-      const scLines = doc.splitTextToSize(scText, bodyW-8);
-      const scH = scLines.length*4+8;
-      doc.setFillColor(253,242,240); doc.roundedRect(bodyX, y, bodyW, scH, 1.5, 1.5, 'F');
-      doc.setDrawColor(...C.danger); doc.setLineWidth(0.5); doc.roundedRect(bodyX, y, bodyW, scH, 1.5, 1.5, 'D');
-      doc.setFillColor(...C.danger); doc.roundedRect(bodyX, y, 3, scH, 1.5, 1.5, 'F');
-      doc.rect(bodyX+1.5, y, 1.5, scH, 'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.danger);
-      doc.text(scLines, bodyX+6, y+5.5);
-      y += scH + 4;
+      callout('Builder or engineer referral', 'The inspector recommends a licensed builder or structural engineer assess this damage, and any effect on the structure, before work proceeds.', 'bad', bodyX, bodyW);
     }
 
     y += 3;
@@ -9771,16 +9759,7 @@ async function _buildAndDownloadPDF() {
     row('Location of Moisture Ingress', reportData.leakLocation);
     if (isAboveGroundLeak(reportData.leakLocation)) {
       gap(2);
-      // Above-ground leak callout — amber warning box
-      const alertText = 'ABOVE-GROUND LEAK — Subterranean termites can establish a secondary moisture-dependent colony in roof voids and wall cavities with no soil contact. Inspect timbers adjacent to this leak location specifically.';
-      const alertLines = doc.splitTextToSize(alertText, CW-10);
-      const alertH = alertLines.length*4+8;
-      if (y + alertH > 278) newPage();
-      doc.setFillColor(253,247,234); doc.roundedRect(M,y,CW,alertH,2,2,'F');
-      doc.setDrawColor(...C.warn); doc.setLineWidth(0.5); doc.roundedRect(M,y,CW,alertH,2,2,'D');
-      doc.setFillColor(...C.warn); doc.roundedRect(M,y,4,alertH,2,2,'F'); doc.rect(M+2,y,2,alertH,'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.warn);
-      doc.text(alertLines, M+7, y+5.5); y += alertH+4;
+      callout('Above-ground leak', 'Subterranean termites can establish a secondary moisture-dependent colony in roof voids and wall cavities with no soil contact. Timbers next to this leak should be checked specifically.', 'warn');
     }
   }
   gap(4);
@@ -9816,15 +9795,7 @@ async function _buildAndDownloadPDF() {
 
       if (concerns.length > 0) {
         gap(3);
-        const cText = 'SYSTEM VERIFICATION CONCERN: ' + concerns.join('. ') + '. These checks verify the system can still be properly inspected — not its effectiveness. Recommend rectification and re-inspection.';
-        const cLines = doc.splitTextToSize(cText, CW-10);
-        const cH = cLines.length*4+8;
-        if (y + cH > 278) newPage();
-        doc.setFillColor(253,242,240); doc.roundedRect(M,y,CW,cH,2,2,'F');
-        doc.setDrawColor(...C.danger); doc.setLineWidth(0.5); doc.roundedRect(M,y,CW,cH,2,2,'D');
-        doc.setFillColor(...C.danger); doc.roundedRect(M,y,4,cH,2,2,'F'); doc.rect(M+2,y,2,cH,'F');
-        doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.danger);
-        doc.text(cLines, M+7, y+5.5); y += cH+4;
+        callout('System verification concern', concerns.join('. ') + '. These checks confirm the system can still be inspected, not that it works. Rectification and re-inspection are recommended.', 'bad');
       }
     }
     gap(4);
@@ -10122,13 +10093,10 @@ async function _buildAndDownloadPDF() {
   const totalPages = doc.internal.getNumberOfPages();
   for (let p = 2; p <= totalPages; p++) {
     doc.setPage(p);
-    doc.setFillColor(...C.rowAlt); doc.rect(0, 284, W, 13, 'F');
-    doc.setFillColor(...C.accent); doc.rect(0, 284, W, 0.5, 'F');
+    doc.setFillColor(...C.rule); doc.rect(M, 284, CW, 0.3, 'F');
     doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text(`KORVUS  ·  ${reportNumber} v${version}`, M, 291);
-    doc.text(address, W/2, 291, { align:'center' });
-    doc.setFont('helvetica','bold'); doc.setTextColor(...C.inkLight);
-    doc.text(`${p-1} / ${totalPages-1}`, W-M, 291, { align:'right' });
+    doc.text(`Report ${reportNumber}  ·  Version ${version}`, M, 290);
+    doc.text(`Page ${p-1} of ${totalPages-1}`, W-M, 290, { align:'right' });
   }
 
   const fname = `KORVUS_${address.replace(/\s+/g,'_').substring(0,25)}_${today.replace(/\s+/g,'_')}.pdf`;
