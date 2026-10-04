@@ -14,6 +14,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/quote.css">
 
 </head>
 <body>
@@ -225,12 +226,94 @@
           <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </div>
       </button>
-      <!-- KORVUS Report / Quote / Field tiles removed from view until real —
-           three "Coming Soon" placeholders on the very first screen made the
-           product look unfinished to a first-time visitor. Re-add when built. -->
+      <button class="menu-tile live" onclick="openApp('quote')">
+        <div class="menu-tile-icon">
+          <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg>
+        </div>
+        <div class="menu-tile-name">Quote</div>
+        <div class="menu-tile-desc">Treatment quotes from inspection reports</div>
+        <div class="menu-tile-arrow">
+          <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </div>
+      </button>
+      <!-- KORVUS Report / Field tiles stay hidden until built — "Coming Soon"
+           placeholders on the very first screen made the product look
+           unfinished to a first-time visitor. Re-add when real. -->
     </div>
 
     <div class="menu-footer">v1.0 · Australian pest &amp; timber pest field tools<br><a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a></div>
+  </div>
+</div>
+
+<!-- QUOTE SCREEN — builds a treatment quote from an inspection report -->
+<div id="quoteScreen">
+  <div class="quote-topbar">
+    <button class="quote-back" onclick="closeQuote()" aria-label="Back">
+      <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
+    </button>
+    <div class="quote-topbar-title">Quote</div>
+    <div class="quote-save-state" id="quoteSaveState"></div>
+  </div>
+  <div class="quote-scroll">
+    <div class="quote-shell">
+      <div class="quote-card">
+        <label class="quote-label" for="quoteSource">Inspection report</label>
+        <select id="quoteSource" class="quote-input" onchange="onQuoteSourceChange()"></select>
+        <div class="quote-source-summary" id="quoteSourceSummary"></div>
+      </div>
+
+      <div class="quote-empty" id="quoteEmpty" style="display:none">
+        No inspection reports yet. Complete an inspection in KORVUS and its findings and recommendations will appear here as quote line items.
+        <button class="quote-btn primary" onclick="closeQuote(); openApp('inspect');">Start an inspection</button>
+      </div>
+
+      <div id="quoteEditor" style="display:none">
+        <div class="quote-card">
+          <div class="quote-card-title">Customer</div>
+          <div class="quote-grid">
+            <label class="quote-field"><span>Client</span><input class="quote-input" id="qClient" oninput="onQuoteFieldInput()"></label>
+            <label class="quote-field"><span>Phone</span><input class="quote-input" id="qClientPhone" inputmode="tel" oninput="onQuoteFieldInput()"></label>
+            <label class="quote-field"><span>Email</span><input class="quote-input" id="qClientEmail" type="email" oninput="onQuoteFieldInput()"></label>
+            <label class="quote-field wide"><span>Property address</span><input class="quote-input" id="qAddress" oninput="onQuoteFieldInput()"></label>
+            <label class="quote-field"><span>Quote no.</span><input class="quote-input" id="qNumber" oninput="onQuoteFieldInput()"></label>
+            <label class="quote-field"><span>Valid for (days)</span><input class="quote-input" id="qValidDays" type="number" min="1" inputmode="numeric" oninput="onQuoteFieldInput()"></label>
+          </div>
+        </div>
+
+        <div class="quote-card">
+          <div class="quote-card-head">
+            <div class="quote-card-title">Line items</div>
+            <button class="quote-link-btn" onclick="rebuildQuoteFromReport()">Rebuild from report</button>
+          </div>
+          <div id="quoteItems"></div>
+          <button class="quote-add-btn" onclick="addQuoteItem()">+ Add line</button>
+          <div class="quote-hint">Prices are ex GST. Starting prices are placeholders; KORVUS remembers the prices you set for each item type and uses them on your next quote.</div>
+        </div>
+
+        <div class="quote-card quote-totals">
+          <div class="quote-total-row"><span>Subtotal (ex GST)</span><span id="qSubtotal">$0.00</span></div>
+          <div class="quote-total-row">
+            <label class="quote-gst-toggle"><input type="checkbox" id="qGst" onchange="onQuoteFieldInput()"> Add GST (10%)</label>
+            <span id="qGstAmt">$0.00</span>
+          </div>
+          <div class="quote-total-row grand"><span>Total</span><span id="qTotal">$0.00</span></div>
+        </div>
+
+        <div class="quote-card">
+          <label class="quote-card-title" for="qExclusions">Exclusions &amp; work by others</label>
+          <div class="quote-hint" style="margin:2px 0 8px">One per line. Pre-filled from structural concerns, moisture sources and inaccessible areas in the report.</div>
+          <textarea class="quote-input quote-textarea" id="qExclusions" rows="5" oninput="onQuoteFieldInput()"></textarea>
+          <label class="quote-card-title" for="qNotes" style="margin-top:14px;display:block">Terms &amp; notes</label>
+          <textarea class="quote-input quote-textarea" id="qNotes" rows="4" oninput="onQuoteFieldInput()"></textarea>
+        </div>
+
+        <div class="quote-actions">
+          <button class="quote-btn primary" id="quotePdfBtn" onclick="exportQuotePDF()">
+            <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Export quote PDF
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -759,6 +842,9 @@
       <div class="drawer-footer">
         <button class="generate-btn" id="generateBtn" onclick="generateReport()" disabled>
           <svg class="icon " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Generate PDF
+        </button>
+        <button class="share-btn" id="quoteFromReportBtn" onclick="openQuoteFromReport()" title="Build a treatment quote from this report">
+          <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>Quote
         </button>
         <button class="share-btn" id="shareBtn" onclick="shareReport()" style="display:none">
           <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>Share
@@ -1422,6 +1508,8 @@
 </div><!-- /app -->
 
 <script src="js/app.js"></script>
+<!-- Quote builder: uses js/app.js globals (reportData, getSavedReports, jsPDF…) -->
+<script src="js/quote.js"></script>
 <!-- Activity picker bottom sheet — rendered once, reused for all finding cards -->
 <div class="activity-sheet-overlay" id="activitySheetOverlay" onclick="closeActivitySheet()">
   <div class="activity-sheet" onclick="event.stopPropagation()">
