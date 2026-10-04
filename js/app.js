@@ -1642,7 +1642,8 @@ function openApp(appName) {
     loadJobInfo();
     if (restored) lastLocalSaveAt = Date.now();
     updateSyncStatus();
-    supabaseSyncOnOpen(); // pull any cloud reports not on this device
+    // pull any cloud reports not on this device, then sort out photo storage
+    supabaseSyncOnOpen().finally(tidyPhotoStorage);
   }
 }
 
@@ -3627,12 +3628,13 @@ function pickImageFileAsBase64() {
 // it, same "AI drafts, technician confirms" model as everywhere else here.
 async function analyzeGalleryPhoto(photoId) {
   const photo = (reportData.photos || []).find(p => p.id === photoId);
-  if (!photo || !photo.dataUrl) return;
+  if (!photo) return;
 
   const btn = document.getElementById('analyzeBtn-' + photoId);
   if (btn && btn.disabled) return; // already running
 
-  const match = /^data:([^;]+);base64,(.+)$/.exec(photo.dataUrl);
+  const image = await getPhotoImage(photo);
+  const match = /^data:([^;]+);base64,(.+)$/.exec(image ? await blobToDataUrl(image) : '');
   if (!match) { showToast('Could not read that photo', 'error'); return; }
   const mediaType = match[1];
   const base64 = match[2];
@@ -4920,20 +4922,25 @@ function restoreSignaturePads() {
 }
 
 // ── PHOTO ATTACHMENTS ────────────────────────────────────────────────────
-// Raw phone photos (1-5MB+) are far too large to store in localStorage at
-// any realistic volume, so every photo is resized and re-encoded as a
-// compressed JPEG client-side before it's ever added to reportData. A hard
-// per-report cap keeps a single report from being able to exhaust the
-// shared localStorage quota on its own.
-const MAX_PHOTOS_PER_REPORT = 12;
+// Every photo is resized and re-encoded as a compressed JPEG on the phone.
+// The image itself lives outside reportData: as a Blob in IndexedDB on the
+// device (works offline, far more room than localStorage) and, once the
+// technician is signed in, as a file in the Supabase Storage bucket
+// 'report-photos' at <user id>/<photo id>.jpg. reportData only carries each
+// photo's metadata: { id, width, height, caption, path? } where path is set
+// once the upload has succeeded, so another device (or the business owner)
+// can download it. Older reports kept the image inline as p.dataUrl;
+// externalizePhotos() moves those into IndexedDB the first time they're seen.
+const MAX_PHOTOS_PER_REPORT = 100;
 const PHOTO_MAX_DIMENSION = 1280;
+const PHOTO_BUCKET = 'report-photos';
 
 function genPhotoId() {
   return 'photo_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
 }
 
-// Resizes/re-encodes a single File to a compressed JPEG dataURL, returning
-// {dataUrl, width, height} so the PDF can preserve the correct aspect ratio
+// Resizes/re-encodes a single File to a compressed JPEG Blob, returning
+// {blob, width, height} so the PDF can preserve the correct aspect ratio
 // later without needing to re-decode the image.
 function compressPhotoFile(file) {
   return new Promise((resolve, reject) => {
@@ -4952,10 +4959,12 @@ function compressPhotoFile(file) {
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
-        let dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        // Re-compress harder if a particularly busy/detailed photo still came out large
-        if (dataUrl.length > 300000) dataUrl = canvas.toDataURL('image/jpeg', 0.5);
-        resolve({ dataUrl, width: w, height: h });
+        canvas.toBlob(blob => {
+          if (!blob) { reject(new Error('Could not encode image')); return; }
+          // Re-compress harder if a particularly busy/detailed photo still came out large
+          if (blob.size <= 225000) { resolve({ blob, width: w, height: h }); return; }
+          canvas.toBlob(smaller => resolve({ blob: smaller || blob, width: w, height: h }), 'image/jpeg', 0.5);
+        }, 'image/jpeg', 0.7);
       };
       img.src = reader.result;
     };
@@ -4963,11 +4972,198 @@ function compressPhotoFile(file) {
   });
 }
 
+// ── Photo store (IndexedDB on the device, Supabase Storage in the cloud) ──
+let photoDbPromise = null;
+function photoDb() {
+  if (!photoDbPromise) {
+    photoDbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open('korvus-photos', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('photos');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => { photoDbPromise = null; reject(req.error); };
+    });
+  }
+  return photoDbPromise;
+}
+
+function photoStoreRequest(mode, fn) {
+  return photoDb().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction('photos', mode);
+    const req = fn(tx.objectStore('photos'));
+    tx.oncomplete = () => resolve(req.result);
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+const putPhotoBlob    = (id, blob) => photoStoreRequest('readwrite', st => st.put(blob, id));
+const getPhotoBlob    = (id) => photoStoreRequest('readonly', st => st.get(id));
+const deletePhotoBlob = (id) => photoStoreRequest('readwrite', st => st.delete(id));
+const listPhotoBlobIds = () => photoStoreRequest('readonly', st => st.getAllKeys());
+
+function allReportPhotos(rd) {
+  if (!rd) return [];
+  return [...(rd.photos || []), ...Object.values(rd.photosBySection || {}).flat()];
+}
+
+function dataUrlToBlob(dataUrl) {
+  const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl || '');
+  if (!m) return null;
+  const bin = atob(m[2]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: m[1] });
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+function photoObjectUrl(path) {
+  return `${SUPABASE_URL}/storage/v1/object/${PHOTO_BUCKET}/${path}`;
+}
+
+// The photo's image as a Blob: from the device, else (for an older report)
+// its inline dataUrl, else downloaded from the cloud and kept on the device.
+async function getPhotoImage(p) {
+  try {
+    const local = await getPhotoBlob(p.id);
+    if (local) return local;
+  } catch (e) {}
+  if (p.dataUrl) return dataUrlToBlob(p.dataUrl);
+  if (p.path && authSession) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/authenticated/${PHOTO_BUCKET}/${p.path}`, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${getAuthToken()}` },
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        putPhotoBlob(p.id, blob).catch(() => {});
+        return blob;
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
+// Moves any inline (legacy) photo images in rd into IndexedDB and drops
+// the dataUrl from the metadata. Returns true if rd changed.
+async function externalizePhotos(rd) {
+  let changed = false;
+  for (const p of allReportPhotos(rd)) {
+    if (!p.dataUrl) continue;
+    const blob = dataUrlToBlob(p.dataUrl);
+    if (!blob) continue;
+    try {
+      await putPhotoBlob(p.id, blob);
+      delete p.dataUrl;
+      changed = true;
+    } catch (e) { return changed; } // IndexedDB unavailable: keep the inline copy
+  }
+  return changed;
+}
+
+// Uploads every photo in rd that isn't in the cloud yet. Returns true if
+// any photo gained a path. A missing bucket or no signal just leaves the
+// photo pending, to try again on the next save.
+async function uploadPendingPhotos(rd) {
+  if (!authSession || !authUser?.id) return false;
+  let changed = false;
+  for (const p of allReportPhotos(rd)) {
+    if (p.path) continue;
+    const blob = await getPhotoImage(p);
+    if (!blob) continue;
+    const path = `${authUser.id}/${p.id}.jpg`;
+    try {
+      const res = await fetch(photoObjectUrl(path), {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${getAuthToken()}`, 'Content-Type': blob.type || 'image/jpeg', 'x-upsert': 'true' },
+        body: blob,
+      });
+      if (!res.ok) break;
+      p.path = path;
+      delete p.dataUrl;
+      changed = true;
+    } catch (e) { break; }
+  }
+  return changed;
+}
+
+function deleteCloudPhotos(paths) {
+  if (!authSession || paths.length === 0) return;
+  fetch(`${SUPABASE_URL}/storage/v1/object/${PHOTO_BUCKET}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ prefixes: paths }),
+  }).catch(() => {});
+}
+
+// Photo ids still used by the open report, the draft, or any saved report
+// on this device, for every account that has signed in here (each keeps
+// its saved reports under its own korva_saved_reports_<id> key).
+function referencedPhotoIds() {
+  const ids = new Set(allReportPhotos(reportData).map(p => p.id));
+  const add = (raw, pick) => {
+    try { pick(JSON.parse(raw || 'null')).forEach(rd => allReportPhotos(rd).forEach(p => ids.add(p.id))); } catch (e) {}
+  };
+  add(localStorage.getItem(DRAFT_KEY), d => [d && d.reportData]);
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(STORAGE_KEY)) add(localStorage.getItem(key), list => (list || []).map(r => r && r.reportData));
+  }
+  return ids;
+}
+
+// Run once when the app opens: moves older saved reports' inline photos
+// into IndexedDB, then removes device copies no report uses any more
+// (photos removed from a report, or reports deleted).
+async function tidyPhotoStorage() {
+  try {
+    const reports = getSavedReports();
+    let changed = false;
+    for (const r of reports) {
+      if (await externalizePhotos(r.reportData)) changed = true;
+    }
+    if (changed) setSavedReports(reports);
+
+    const keep = referencedPhotoIds();
+    const stored = await listPhotoBlobIds();
+    for (const id of stored) {
+      if (!keep.has(id)) await deletePhotoBlob(id);
+    }
+  } catch (e) { console.warn('Photo tidy-up skipped:', e && e.message); }
+}
+
+// Grids render each <img data-photo-id> empty, then this fills them in.
+async function hydratePhotoImages(container, photos) {
+  for (const p of photos) {
+    const img = container.querySelector(`img[data-photo-id="${p.id}"]`);
+    if (!img) continue;
+    const blob = await getPhotoImage(p);
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      img.onload = () => URL.revokeObjectURL(url);
+      img.src = url;
+    } else {
+      img.alt = 'Photo not on this device yet';
+    }
+  }
+}
+
+// After new photos are added: try to back them up now, and record their
+// cloud paths in the draft if that worked.
+function backUpNewPhotos() {
+  uploadPendingPhotos(reportData).then(changed => { if (changed) saveDraft(); });
+}
+
 // ── SECTION-AWARE PHOTO SYSTEM ─────────────────────────────────────────────
 // Photos are stored per-section in reportData.photosBySection
 // The old reportData.photos array is kept for backward compatibility (general photos tab)
 
-const MAX_SECTION_PHOTOS = 6;
+const MAX_SECTION_PHOTOS = 30;
 const SECTION_PHOTO_KEYS = ['obstructions','restrictions','findings','conducive','recommendations'];
 
 function getSectionPhotos(section) {
@@ -4991,13 +5187,16 @@ async function handleSectionPhotoFiles(fileList, section) {
 
   for (const file of toProcess) {
     try {
-      const { dataUrl, width, height } = await compressPhotoFile(file);
-      existing.push({ id: genPhotoId(), dataUrl, width, height, caption: '' });
+      const { blob, width, height } = await compressPhotoFile(file);
+      const id = genPhotoId();
+      await putPhotoBlob(id, blob);
+      existing.push({ id, width, height, caption: '' });
     } catch(e) { showToast('Could not process photo', 'error'); }
   }
   renderSectionPhotoGrid(section);
   updateProgress();
   saveDraft();
+  backUpNewPhotos();
 }
 
 function removeSectionPhoto(id, section) {
@@ -5028,7 +5227,7 @@ function renderSectionPhotoGrid(section) {
   }
   grid.innerHTML = photos.map(p => `
     <div class="section-photo-card">
-      <img src="${p.dataUrl}" alt="Photo">
+      <img data-photo-id="${p.id}" alt="Photo">
       <div class="section-photo-body">
         <input class="photo-caption-input" type="text" placeholder="Caption…"
                value="${escapeHtml(p.caption||'')}"
@@ -5037,6 +5236,7 @@ function renderSectionPhotoGrid(section) {
       </div>
     </div>
   `).join('');
+  hydratePhotoImages(grid, photos);
 }
 
 function renderAllSectionPhotoGrids() {
@@ -5057,13 +5257,16 @@ async function handlePhotoFiles(fileList) {
 
   for (const file of toProcess) {
     try {
-      const { dataUrl, width, height } = await compressPhotoFile(file);
-      reportData.photos.push({ id: genPhotoId(), dataUrl, width, height, caption: '' });
+      const { blob, width, height } = await compressPhotoFile(file);
+      const id = genPhotoId();
+      await putPhotoBlob(id, blob);
+      reportData.photos.push({ id, width, height, caption: '' });
     } catch(e) { showToast('Could not process one of the selected photos', 'error'); }
   }
   renderPhotoGrid();
   updateProgress();
   saveDraft();
+  backUpNewPhotos();
 }
 
 function removePhoto(id) {
@@ -5103,7 +5306,7 @@ function renderPhotoGrid() {
   grid.style.display = 'grid';
   grid.innerHTML = photos.map(p => `
     <div class="photo-card">
-      <img src="${p.dataUrl}" alt="Inspection photo">
+      <img data-photo-id="${p.id}" alt="Inspection photo">
       <div class="photo-card-body">
         <input class="photo-caption-input" type="text" placeholder="What does this show?"
                value="${escapeHtml(p.caption || '')}"
@@ -5115,6 +5318,7 @@ function renderPhotoGrid() {
       </div>
     </div>
   `).join('');
+  hydratePhotoImages(grid, photos);
 }
 
 // ── DRAWER & VOICE POPOVER ────────────────────────────────────────────────
@@ -6267,6 +6471,14 @@ function getDeviceId() {
 // ── SUPABASE REPORT SYNC (now auth-aware) ────────────────────────────────
 async function supabaseSave(entry) {
   if (!authSession) return; // only sync when authenticated
+  // Photos go to Storage, not into the row. Record their cloud paths on
+  // the saved copy (and the open draft, which shares the photo objects).
+  if (await uploadPendingPhotos(entry.reportData)) {
+    const reports = getSavedReports();
+    const i = reports.findIndex(r => r.id === entry.id);
+    if (i >= 0) { reports[i] = entry; setSavedReports(reports); }
+    if (currentReportId === entry.id) saveDraft();
+  }
   try {
     const row = {
       device_id:   getDeviceId(),
@@ -6500,6 +6712,7 @@ function loadDraft() {
     reportData = { ...draft.reportData };
     fieldNotes = { ...(draft.fieldNotes || {}) };
     currentReportId = draft.currentReportId || null;
+    externalizePhotos(reportData).then(changed => { if (changed) saveDraft(); });
 
     Object.keys(reportData).forEach(key => {
       const el = document.getElementById('f-' + key);
@@ -6667,6 +6880,7 @@ function loadReport(id) {
   reportData = { ...entry.reportData };
   fieldNotes = { ...(entry.fieldNotes || {}) };
   currentReportId = entry.id;
+  externalizePhotos(reportData).then(changed => { if (changed) saveDraft(); });
 
   // Re-render all fields
   Object.keys(reportData).forEach(key => {
@@ -6706,8 +6920,16 @@ function loadReport(id) {
 
 function deleteReport(id, event) {
   if (event) event.stopPropagation();
-  const reports = getSavedReports().filter(r => r.id !== id);
+  const all = getSavedReports();
+  const deleted = all.find(r => r.id === id);
+  const reports = all.filter(r => r.id !== id);
   setSavedReports(reports);
+  // Remove its cloud photos unless the open draft still uses them. Device
+  // copies are tidied up the next time the app opens.
+  if (deleted) {
+    const keep = referencedPhotoIds();
+    deleteCloudPhotos(allReportPhotos(deleted.reportData).filter(p => p.path && !keep.has(p.id)).map(p => p.path));
+  }
   if (currentReportId === id) currentReportId = null;
   renderSavedList();
   showToast('Report deleted', 'info');
@@ -6732,7 +6954,7 @@ function clearAllSavedReports() {
 // ══════════════════════════════════════════════════════════════════════════
 // DATA EXPORT / IMPORT
 // ══════════════════════════════════════════════════════════════════════════
-function exportAllData() {
+async function exportAllData() {
   try {
     const data = {};
     for (let i = 0; i < localStorage.length; i++) {
@@ -6742,11 +6964,22 @@ function exportAllData() {
       }
     }
 
+    // Photos aren't in localStorage, so add each saved report's images.
+    const photos = {};
+    for (const r of getSavedReports()) {
+      for (const p of allReportPhotos(r.reportData)) {
+        if (photos[p.id]) continue;
+        const blob = await getPhotoImage(p);
+        if (blob) photos[p.id] = await blobToDataUrl(blob);
+      }
+    }
+
     const backup = {
       app: 'KORVUS',
       exportedAt: new Date().toISOString(),
       version: 1,
       data,
+      photos,
     };
 
     const json = JSON.stringify(backup, null, 2);
@@ -6819,8 +7052,12 @@ function importAllData(file) {
     }
 
     try {
-      // Restore saved reports
+      // Restore saved reports, and their photos into the device photo store
       setSavedReports(finalReports);
+      Object.entries(backup.photos || {}).forEach(([id, dataUrl]) => {
+        const blob = dataUrlToBlob(dataUrl);
+        if (blob) putPhotoBlob(id, blob).catch(() => {});
+      });
 
       // Restore preferences (accessibility, panel states) but not the in-progress draft,
       // to avoid overwriting work the user has open right now
@@ -7544,6 +7781,14 @@ async function deliverPdfBlob(blob, fname, { title, text, readyToast }) {
 }
 
 async function _buildAndDownloadPDF() {
+  // Photos live outside reportData (see PHOTO ATTACHMENTS), so read them all
+  // up front; the drawing code below is synchronous.
+  const photoSrc = {};
+  for (const p of allReportPhotos(reportData)) {
+    const blob = await getPhotoImage(p);
+    if (blob) photoSrc[p.id] = await blobToDataUrl(blob);
+  }
+
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210, M = 15, CW = W - M * 2;
   const address   = getFullAddress() || 'Address Not Set';
@@ -7746,8 +7991,10 @@ async function _buildAndDownloadPDF() {
       if (y + photoH + 18 > 278) { newPage(); rowStartY = y; col = 0; }
 
       try {
-        const fmt = p.dataUrl.includes('data:image/png') ? 'PNG' : 'JPEG';
-        doc.addImage(p.dataUrl, fmt, x, y, photoW, photoH, undefined, 'FAST');
+        const src = photoSrc[p.id];
+        if (!src) throw new Error('Photo not available');
+        const fmt = src.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+        doc.addImage(src, fmt, x, y, photoW, photoH, undefined, 'FAST');
         doc.setDrawColor(...C.rule); doc.setLineWidth(0.3);
         doc.rect(x, y, photoW, photoH, 'D');
         if (p.caption && p.caption.trim()) {
@@ -7800,7 +8047,7 @@ async function _buildAndDownloadPDF() {
         const colX = M + idx * (colW + gutter);
         const box = boxes[idx];
         const imgX = colX + (colW - box.w) / 2;
-        try { doc.addImage(p.dataUrl, 'JPEG', imgX, y, box.w, box.h); } catch(e) {}
+        try { doc.addImage(photoSrc[p.id], 'JPEG', imgX, y, box.w, box.h); } catch(e) {}
         doc.setDrawColor(...C.rule); doc.setLineWidth(0.3);
         doc.rect(imgX, y, box.w, box.h, 'D');
         doc.setFont('helvetica','italic'); doc.setFontSize(7.5); doc.setTextColor(...C.inkMuted);

@@ -8,6 +8,7 @@ This repository hosts the web build (served via GitHub Pages) that also forms th
 - `css/app.css` — the app's styles
 - `js/app.js` — the app's logic (a plain script, no build step)
 - `css/quote.css`, `js/quote.js` — the Quote screen (treatment quotes built from an inspection report); loaded after `app.css` / `app.js`
+- `supabase/report-photos.sql` — creates the private `report-photos` Storage bucket and its access rules; run once in the Supabase SQL Editor
 - `privacy.html` — Privacy Policy (draft, not yet legally reviewed)
 - `terms.html` — Terms of Service (draft, not yet legally reviewed)
 - `manifest.json`, `service-worker.js`, `icon-*.png` — PWA support files
