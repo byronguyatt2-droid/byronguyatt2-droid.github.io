@@ -286,184 +286,186 @@ const OBS_ZONES = {
     ],
   },
 };
-let obsSelectedZones  = {};
-let obsNoObstructions = false;
+// Each area gets a status, which AS 4349.3 reports must state:
+// INSPECTED (fully), PARTIAL (partly, reasons below), NOT (not inspected,
+// reasons below) or NA (not present at this property, e.g. no subfloor on a
+// slab). All of it lives in reportData so it saves, loads and resets with
+// the report:
+//   reportData.areaStatus  { zoneId: 'INSPECTED'|'PARTIAL'|'NOT'|'NA' }
+//   reportData.areaReasons { zoneId: [obstruction items] }
+// reportData.obstructions / restrictedAccess are kept as the derived
+// plain-text summary (areas not fully inspected, and why) for the AI and
+// older code paths.
+const AREA_STATUSES = [
+  ['INSPECTED', 'Inspected'],
+  ['PARTIAL',   'Partly'],
+  ['NOT',       'Not inspected'],
+  ['NA',        'N/A'],
+];
 
-function toggleNoObstructions() {
-  obsNoObstructions = !obsNoObstructions;
-  const btn   = document.getElementById('obsNoneBtn');
-  const label = document.getElementById('obsNoneLabel');
-  const wrap  = document.getElementById('obsZoneWrap');
-  const items = document.getElementById('obsItemsWrap');
-  if (obsNoObstructions) {
-    obsSelectedZones = {};
-    label.textContent = 'No obstructions — all areas accessible ✓';
-    btn.style.background = 'rgba(var(--accent-rgb),0.12)';
-    btn.style.borderColor = 'rgba(var(--accent-rgb),0.4)';
-    btn.style.color = 'var(--accent2)';
-    wrap.style.opacity = '0.3'; wrap.style.pointerEvents = 'none';
-    if (items) items.innerHTML = '';
-    reportData.obstructions    = 'NIL — No obstructions were noted at the time of inspection.';
-    reportData.restrictedAccess = '';
-  } else {
-    label.textContent = 'No obstructions — all areas accessible';
-    btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = '';
-    wrap.style.opacity = ''; wrap.style.pointerEvents = '';
-    reportData.obstructions = ''; reportData.restrictedAccess = '';
-  }
-  document.querySelectorAll('[id^="obsZone-"]').forEach(b => b.classList.remove('active'));
-  updateProgress(); flushDraftSave();
+// Other ways inspectors name an area, for matching dictated text.
+const AREA_ALIASES = {
+  roofvoid: ['roof space', 'manhole', 'ceiling space', 'ceiling cavity'],
+  subfloor: ['sub floor', 'underfloor', 'under the house'],
+  outbuildings: ['shed', 'carport'],
+  site: ['yard', 'grounds', 'garden'],
+  fences: ['fence'],
+  retainingwalls: ['retaining wall'],
+  landscapingtimbers: ['sleepers', 'landscaping timber'],
+};
+
+function areaStatusOf(zoneId) { return (reportData.areaStatus || {})[zoneId] || null; }
+
+// Areas that weren't fully inspected, i.e. the ones with obstructions.
+function areasNotFullyInspected() {
+  return Object.keys(OBS_ZONES).filter(z => ['PARTIAL', 'NOT'].includes(areaStatusOf(z)));
 }
 
-function toggleObsZone(zoneId) {
-  if (obsNoObstructions) return;
-  const btn = document.getElementById('obsZone-' + zoneId);
-  if (obsSelectedZones[zoneId]) { delete obsSelectedZones[zoneId]; btn.classList.remove('active'); }
-  else { obsSelectedZones[zoneId] = []; btn.classList.add('active'); }
-  renderObsItemPanels();
+function setAreaStatus(zoneId, status) {
+  if (!reportData.areaStatus) reportData.areaStatus = {};
+  reportData.areaStatus[zoneId] = status;
+  if (!['PARTIAL', 'NOT'].includes(status) && reportData.areaReasons) delete reportData.areaReasons[zoneId];
+  syncObstructionData();
+}
+
+function markRemainingAreasInspected() {
+  if (!reportData.areaStatus) reportData.areaStatus = {};
+  Object.keys(OBS_ZONES).forEach(z => { if (!reportData.areaStatus[z]) reportData.areaStatus[z] = 'INSPECTED'; });
   syncObstructionData();
 }
 
 function toggleObsItem(zoneId, item) {
-  if (!obsSelectedZones[zoneId]) obsSelectedZones[zoneId] = [];
-  const idx = obsSelectedZones[zoneId].indexOf(item);
-  if (idx >= 0) obsSelectedZones[zoneId].splice(idx, 1);
-  else obsSelectedZones[zoneId].push(item);
-  renderObsItemPanels();
+  if (!reportData.areaReasons) reportData.areaReasons = {};
+  const list = reportData.areaReasons[zoneId] || (reportData.areaReasons[zoneId] = []);
+  const idx = list.indexOf(item);
+  if (idx >= 0) list.splice(idx, 1); else list.push(item);
   syncObstructionData();
 }
 
-function renderObsItemPanels() {
-  const wrap = document.getElementById('obsItemsWrap');
+function renderAreaChecklist() {
+  const wrap = document.getElementById('areaChecklist');
   if (!wrap) return;
-  const activeZones = Object.keys(obsSelectedZones);
-  if (activeZones.length === 0) { wrap.innerHTML = ''; return; }
-  wrap.innerHTML = '<div class="obs-panels-wrap">' +
-    activeZones.map(zoneId => {
-      const zone = OBS_ZONES[zoneId]; if (!zone) return '';
-      const selected = obsSelectedZones[zoneId] || [];
-      const itemBtns = zone.items.map(item => {
+  migrateLegacyObstructions();
+  wrap.innerHTML = Object.entries(OBS_ZONES).map(([zoneId, zone]) => {
+    const status = areaStatusOf(zoneId);
+    const statusBtns = AREA_STATUSES.map(([val, label]) =>
+      `<button class="obs-zone-btn area-status-btn${status === val ? ' active status-' + val.toLowerCase() : ''}"
+        onclick="setAreaStatus('${zoneId}','${val}')">${label}</button>`).join('');
+    let reasons = '';
+    if (status === 'PARTIAL' || status === 'NOT') {
+      const selected = (reportData.areaReasons || {})[zoneId] || [];
+      reasons = '<div class="obs-items">' + zone.items.map(item => {
         const safe = item.replace(/'/g, '&#39;');
         return `<button class="obs-item-btn${selected.includes(item) ? ' selected' : ''}"
           onclick="toggleObsItem('${zoneId}','${safe}')">${item}</button>`;
-      }).join('');
-      return `<div class="obs-zone-panel"><div class="obs-zone-panel-header">${zone.label}</div><div class="obs-items">${itemBtns}</div></div>`;
-    }).join('') + '</div>';
+      }).join('') + '</div>';
+    }
+    return `<div class="obs-zone-panel"><div class="obs-zone-panel-header">${zone.label}</div>
+      <div class="area-status">${statusBtns}</div>${reasons}</div>`;
+  }).join('');
 }
 
 function syncObstructionData() {
-  const activeZones = Object.keys(obsSelectedZones);
-  if (activeZones.length === 0) {
-    reportData.obstructions = ''; reportData.restrictedAccess = '';
-    updateProgress(); flushDraftSave(); return;
-  }
-  const zones = activeZones.map(id => OBS_ZONES[id]?.label).filter(Boolean).join(', ');
-  const details = activeZones.map(zoneId => {
-    const zone = OBS_ZONES[zoneId]; const items = obsSelectedZones[zoneId];
-    if (!zone) return '';
-    return items && items.length > 0 ? `${zone.label}: ${items.join(', ')}` : zone.label;
-  }).filter(Boolean).join('. ');
-  reportData.obstructions     = zones;
-  reportData.restrictedAccess = details;
+  const notFull = areasNotFullyInspected();
+  const reasons = reportData.areaReasons || {};
+  reportData.obstructions = notFull.map(z => OBS_ZONES[z].label + (areaStatusOf(z) === 'PARTIAL' ? ' (partly inspected)' : '')).join(', ');
+  reportData.restrictedAccess = notFull.map(z => {
+    const items = reasons[z] || [];
+    return items.length ? `${OBS_ZONES[z].label}: ${items.join(', ')}` : OBS_ZONES[z].label;
+  }).join('. ');
+  renderAreaChecklist();
   updateProgress(); flushDraftSave();
 }
 
-function restoreObsState() {
-  if (!reportData.obstructions) return;
+// Reports saved before area statuses existed only have the zone labels in
+// reportData.obstructions ("NIL — ..." meant nothing was obstructed).
+// Those zones become "Not inspected" with the same reasons; the rest are
+// left for the inspector to mark.
+function migrateLegacyObstructions() {
+  if (reportData.areaStatus || !reportData.obstructions) return;
+  reportData.areaStatus = {};
+  reportData.areaReasons = {};
   if (reportData.obstructions.startsWith('NIL')) {
-    obsNoObstructions = true;
-    const btn = document.getElementById('obsNoneBtn');
-    const label = document.getElementById('obsNoneLabel');
-    const wrap = document.getElementById('obsZoneWrap');
-    if (btn) { btn.style.background='rgba(var(--accent-rgb),0.12)'; btn.style.borderColor='rgba(var(--accent-rgb),0.4)'; btn.style.color='var(--accent2)'; }
-    if (label) label.textContent = 'No obstructions — all areas accessible ✓';
-    if (wrap) { wrap.style.opacity='0.3'; wrap.style.pointerEvents='none'; }
+    Object.keys(OBS_ZONES).forEach(z => { reportData.areaStatus[z] = 'INSPECTED'; });
     return;
   }
-  const storedZones  = (reportData.obstructions || '').split(', ');
+  const storedZones  = reportData.obstructions.split(', ');
   const storedNature = (reportData.restrictedAccess || '').split('. ');
   Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
     if (!storedZones.includes(zone.label)) return;
-    obsSelectedZones[zoneId] = [];
-    const btn = document.getElementById('obsZone-' + zoneId);
-    if (btn) btn.classList.add('active');
+    reportData.areaStatus[zoneId] = 'NOT';
     const detail = storedNature.find(n => n.startsWith(zone.label + ':'));
-    if (detail) {
-      const items = detail.replace(zone.label + ': ', '').split(', ');
-      obsSelectedZones[zoneId] = items.filter(i => zone.items.includes(i));
-    }
+    if (detail) reportData.areaReasons[zoneId] = detail.replace(zone.label + ': ', '').split(', ').filter(i => zone.items.includes(i));
   });
-  renderObsItemPanels();
 }
 
 // Called from populateFields() after a voice/AI extraction. The AI returns
-// obstructions/restrictedAccess as free text (it has no knowledge of our
-// fixed zone-chip taxonomy), so this does a best-effort match of that text
-// against OBS_ZONES' zone labels and item names and auto-selects whatever
-// it can confidently match — same "AI drafts, technician can always edit"
-// model used elsewhere (compliance plate scan, photo ID): it pre-fills the
-// chips, but every chip stays a normal toggle the technician can correct.
-// Matching is deliberately scoped to just the AI's own obstructions/
-// restrictedAccess text (not the whole transcript), which keeps false
-// positives from generic words like "stored" very unlikely.
+// areaStatus for any area the technician mentioned, plus obstructions /
+// restrictedAccess as free text. Statuses the AI gives are applied as-is.
+// The free text is then used two ways: (1) only when the AI gave no
+// statuses at all, an area named in it is marked partly inspected; (2) for
+// areas marked partly / not inspected, an obstruction reason is ticked when
+// a phrase about that area contains all of that reason's words (so "stored
+// articles in subfloor" ticks the subfloor's Stored Articles, but a lone
+// "stored" doesn't tick every reason that mentions storage). Every button stays a normal
+// toggle the technician can correct.
 function applyObstructionExtraction(data) {
-  const obsText = (data.obstructions || '').trim();
-  const detailText = (data.restrictedAccess || '').trim();
-  const combinedText = [obsText, detailText].filter(Boolean).join('. ');
-  if (!combinedText) return;
-
-  // The prompt is instructed to leave these null when nothing was
-  // mentioned, so an explicit "nil/none" from the AI is rare — but don't
-  // try to zone-match it if it happens.
-  if (/^\s*(nil|none|no obstructions|n\/a)\b/i.test(combinedText)) return;
-
-  if (obsNoObstructions) {
-    // Technician went on to describe a real obstruction after previously
-    // toggling "No obstructions" — trust the newer, more specific info.
-    obsNoObstructions = false;
-    const btn = document.getElementById('obsNoneBtn');
-    const label = document.getElementById('obsNoneLabel');
-    const wrap = document.getElementById('obsZoneWrap');
-    if (btn) { btn.style.background=''; btn.style.borderColor=''; btn.style.color=''; }
-    if (label) label.textContent = 'No obstructions — all areas accessible';
-    if (wrap) { wrap.style.opacity=''; wrap.style.pointerEvents=''; }
-  }
-
-  const lower = combinedText.toLowerCase();
-  let matchedAny = false;
-
-  Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
-    let zoneHit = false;
-    zone.items.forEach(item => {
-      const words = item.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4);
-      if (words.length && words.some(w => lower.includes(w))) {
-        if (!obsSelectedZones[zoneId]) obsSelectedZones[zoneId] = [];
-        if (!obsSelectedZones[zoneId].includes(item)) obsSelectedZones[zoneId].push(item);
-        zoneHit = true;
-      }
-    });
-    const zoneWords = zone.label.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4 && w !== 'the');
-    if (!zoneHit && zoneWords.some(w => lower.includes(w))) {
-      if (!obsSelectedZones[zoneId]) obsSelectedZones[zoneId] = [];
-      zoneHit = true;
-    }
-    if (zoneHit) {
-      matchedAny = true;
-      const btn = document.getElementById('obsZone-' + zoneId);
-      if (btn) btn.classList.add('active');
-    }
+  const VALID = new Set(AREA_STATUSES.map(([v]) => v));
+  let changed = false;
+  const aiStatus = (data.areaStatus && typeof data.areaStatus === 'object') ? data.areaStatus : {};
+  Object.entries(aiStatus).forEach(([z, st]) => {
+    if (!OBS_ZONES[z] || !VALID.has(st)) return;
+    if (!reportData.areaStatus) reportData.areaStatus = {};
+    reportData.areaStatus[z] = st;
+    changed = true;
   });
 
-  if (matchedAny) {
-    renderObsItemPanels();
-    syncObstructionData();
-    showToast('Obstruction zones auto-selected from voice — check they match what you described', 'info');
-  } else {
-    // Nothing in our fixed zone list matched what was said. There's no
-    // freeform field to stash this in without inventing new UI, so surface
-    // it rather than silently losing it — the technician selects manually.
-    showToast(`Obstruction mentioned but not auto-matched: "${combinedText.slice(0, 120)}" — select the zone manually`, 'info');
+  const combinedText = [data.obstructions, data.restrictedAccess].map(t => (t || '').trim()).filter(Boolean).join('. ');
+  if (combinedText && !/^\s*(nil|none|no obstructions|n\/a)\b/i.test(combinedText)) {
+    const sigWords = t => t.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4 && w !== 'the');
+    const names = zoneId => [sigWords(OBS_ZONES[zoneId].label), ...(AREA_ALIASES[zoneId] || []).map(a => a.split(' '))];
+    const namesZone = (phrase, zoneId) => names(zoneId).some(words => words.every(w => phrase.includes(w)));
+    // Split into short phrases and give each one to the area it names, or
+    // to the last area named earlier in the same sentence.
+    const phrasesByZone = {}; const unassigned = [];
+    combinedText.toLowerCase().split(/[.;]/).forEach(sentence => {
+      let current = [];
+      sentence.split(',').map(x => x.trim()).filter(Boolean).forEach(phrase => {
+        const named = Object.keys(OBS_ZONES).filter(z => namesZone(phrase, z));
+        if (named.length) current = named;
+        if (!current.length) { unassigned.push(phrase); return; }
+        current.forEach(z => (phrasesByZone[z] = phrasesByZone[z] || []).push(phrase));
+      });
+    });
+    let matchedAny = false;
+
+    Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
+      const own = phrasesByZone[zoneId] || [];
+      if (Object.keys(aiStatus).length === 0 && !areaStatusOf(zoneId) && own.length) {
+        if (!reportData.areaStatus) reportData.areaStatus = {};
+        reportData.areaStatus[zoneId] = own.some(x => /no access|not access|not inspect|couldn.?t|could not|locked/.test(x)) ? 'NOT' : 'PARTIAL';
+        matchedAny = true;
+      }
+      if (!['PARTIAL', 'NOT'].includes(areaStatusOf(zoneId))) return;
+      // Text that names no area can only be about this one when it's the
+      // only area not fully inspected.
+      const scope = own.length ? own : (areasNotFullyInspected().length === 1 ? unassigned : []);
+      zone.items.filter(item => { const w = sigWords(item); return w.length && scope.some(x => w.every(v => x.includes(v))); }).forEach(item => {
+        if (!reportData.areaReasons) reportData.areaReasons = {};
+        const list = reportData.areaReasons[zoneId] || (reportData.areaReasons[zoneId] = []);
+        if (!list.includes(item)) { list.push(item); matchedAny = true; }
+      });
+    });
+    if (matchedAny || changed) {
+      changed = true;
+      showToast('Areas updated from voice — check they match what you described', 'info');
+    } else {
+      // Nothing in our fixed area list matched — surface it rather than
+      // silently losing it, so the technician marks the area manually.
+      showToast(`Obstruction mentioned but not auto-matched: "${combinedText.slice(0, 120)}" — mark the area manually`, 'info');
+    }
   }
+  if (changed) syncObstructionData();
 }
 
 function setRestrictedAccess(hasRestrictions) {
@@ -1373,7 +1375,7 @@ function lookupSpecies(raw) {
 
 const SECTIONS = {
   property:        { fields:['structureType','height','occupancyStatus','weatherConditions','wallConstruction','roofType','floorType','facadeDirection','constructionEra','standard'], total:10 },
-  obstructions:    { fields:['obstructions','restrictedAccess','highRiskAreas'], total:3 },
+  obstructions:    { fields:['areaStatus','highRiskAreas'], total:2 },
   restrictions:    { fields:['hinderedAreas','hinderedAreasDetail'], total:2 },
   findings:        { fields:['findings','borerActivity','decayFound'], total:3 },
   conducive:       { fields:['waterLeaks','moistureReadings','leakLocation','timberSoil','slabEdge','weepHoles'], total:6 },
@@ -1404,7 +1406,7 @@ Construction era materials (for constructionEra field):
 Direct decade references map the same way even without material descriptions, e.g. "built in the 70s", "early 2000s", "looks like a 90s build", "probably 1950s era" — map the stated or implied decade to the matching era range above.
 
 Fields (null if not mentioned):
-{"propertyStreetAddress":string,"propertySuburb":string,"propertyState":"NSW" or "VIC" or "QLD" or "WA" or "SA" or "TAS" or "ACT" or "NT","propertyPostcode":string,"clientName":string,"structureType":string,"wallConstruction":string,"floorType":string,"roofType":string,"height":string,"facadeDirection":string,"occupancyStatus":string,"weatherConditions":string,"constructionEra":"Pre-1920s" or "1920s-1940s" or "1945-1965" or "1965-1985" or "1985-2003" or "Post-2003","hinderedAreas":string(readily accessible areas inspected),"obstructions":string(areas not inspected),"restrictedAccess":string(physical obstructions preventing inspection),"hinderedAreasDetail":string(restrictions limiting inspection),"highRiskAreas":string(areas that could NOT be accessed or inspected and should be prioritised for a follow-up inspection once access becomes available — this is never a location where termite activity was actually found, inspected, and already captured in findings[]),"findings":[{"termiteActivity":"ACTIVE" or "INACTIVE" or "NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES" or "NO","structuralConcern":"YES" or "NO"}],"waterLeaks":"YES" or "NO","leakLocation":string,"moistureReadings":"YES" or "NO","timberSoil":"YES" or "NO","slabEdge":"CLEAR" or "OBSTRUCTED","weepHoles":"CLEAR" or "BRIDGED","existingSystem":string,"durableNoticePresent":"YES" or "NO","hardLandscaping":"YES" or "NO","zone25mmVisible":"YES" or "NO","softLandscaping":"YES" or "NO","zone75mmVisible":"YES" or "NO","antCapSoldered":"YES" or "NO" or "N/A","treatmentRecommended":"YES" or "NO","treatmentType":string,"inspectionFrequency":string,"riskLevel":"LOW" or "MEDIUM" or "HIGH","borerActivity":"ACTIVE" or "INACTIVE" or "NONE","borerDetails":string,"decayFound":"YES" or "NO","decayDetails":string}
+{"propertyStreetAddress":string,"propertySuburb":string,"propertyState":"NSW" or "VIC" or "QLD" or "WA" or "SA" or "TAS" or "ACT" or "NT","propertyPostcode":string,"clientName":string,"structureType":string,"wallConstruction":string,"floorType":string,"roofType":string,"height":string,"facadeDirection":string,"occupancyStatus":string,"weatherConditions":string,"constructionEra":"Pre-1920s" or "1920s-1940s" or "1945-1965" or "1965-1985" or "1985-2003" or "Post-2003","hinderedAreas":string(readily accessible areas inspected),"areaStatus":{"interior"|"exterior"|"subfloor"|"roofvoid"|"outbuildings"|"site"|"fences"|"retainingwalls"|"landscapingtimbers": "INSPECTED" or "PARTIAL" or "NOT" or "NA"},"obstructions":string(areas not inspected),"restrictedAccess":string(physical obstructions preventing inspection),"hinderedAreasDetail":string(restrictions limiting inspection),"highRiskAreas":string(areas that could NOT be accessed or inspected and should be prioritised for a follow-up inspection once access becomes available — this is never a location where termite activity was actually found, inspected, and already captured in findings[]),"findings":[{"termiteActivity":"ACTIVE" or "INACTIVE" or "NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES" or "NO","structuralConcern":"YES" or "NO"}],"waterLeaks":"YES" or "NO","leakLocation":string,"moistureReadings":"YES" or "NO","moistureMeterReadings":[{"location":string,"reading":string}],"timberSoil":"YES" or "NO","slabEdge":"CLEAR" or "OBSTRUCTED","weepHoles":"CLEAR" or "BRIDGED","existingSystem":string,"durableNoticePresent":"YES" or "NO","hardLandscaping":"YES" or "NO","zone25mmVisible":"YES" or "NO","softLandscaping":"YES" or "NO","zone75mmVisible":"YES" or "NO","antCapSoldered":"YES" or "NO" or "N/A","treatmentRecommended":"YES" or "NO","treatmentType":string,"inspectionFrequency":string,"riskLevel":"LOW" or "MEDIUM" or "HIGH","borerActivity":"ACTIVE" or "INACTIVE" or "NONE","borerDetails":string,"decayFound":"YES" or "NO","decayDetails":string}
 
 Rules:
 - Return ONLY the JSON. No other text.
@@ -1416,8 +1418,14 @@ Rules:
 - Only set constructionEra if the technician gives enough information to infer it (construction type, age mentioned, or specific materials like fibro)
 - existingSystem captures any termite management system already installed and identified via durable notice (e.g. HomeGuard Blue, Kordon, Termimesh). If the technician says there is no existing system, no barrier, or nothing installed, leave existingSystem as null — do NOT write "No", "None", "Nil", "N/A" or similar into this field. Only fill it with an actual system name or description.
 - leakLocation: only relevant when waterLeaks is "YES". Capture WHERE the leak or moisture source is — this is not limited to ground level/slab. Listen for leaks anywhere in the structure: roof, ceiling, wall cavity, bathroom/wet area plumbing, hot water system, gutters, as well as subfloor or perimeter sources. This matters because subterranean termites can establish above-ground secondary colonies near a roof or wall-cavity leak with zero soil contact — a ground-level-only leak check would miss this. Leave null if waterLeaks is "YES" but no location was mentioned.
+- moistureMeterReadings: one entry per moisture meter reading the technician states, with where it was taken and the value as said (e.g. {"location":"base of shower wall, main bathroom","reading":"28%"}). Leave null if no readings are stated. A reading on its own doesn't make moistureReadings "YES"; only one the technician calls high or elevated does.
 - moistureReadings and waterLeaks normally move together — a leak is a moisture source. Whenever waterLeaks is "YES", or the technician otherwise describes damp/wet timber, elevated moisture meter readings, or dampness of any kind, set moistureReadings to "YES" as well. Only leave moistureReadings "NO" or null despite a leak being mentioned if the technician explicitly distinguishes the two (e.g. confirms a leaking tap exists but the surrounding timber tested dry on the meter).
 - highRiskAreas is strictly about areas the technician could NOT access or inspect, that are worth prioritising once access is available (e.g. a locked shed, an obstructed subfloor section, dense vegetation blocking a fence line). It must NEVER duplicate a location already captured in findings[].activityLocation — a room or area where termite activity was actually found and reported is a finding, not a "high risk area". Leave highRiskAreas null unless the technician clearly describes somewhere they couldn't get to.
+
+AREA STATUS (AS 4349.3 requires every area's inspection status):
+- areaStatus holds ONLY the areas the technician actually mentions. Keys: interior, exterior, subfloor, roofvoid (roof void / roof space / ceiling cavity), outbuildings (sheds, garages detached from the house), site (yard, grounds), fences, retainingwalls, landscapingtimbers.
+- "INSPECTED": they inspected it with no limitation ("roof void was fine, full access"). "PARTIAL": inspected but partly obstructed ("subfloor partly blocked by stored goods"). "NOT": couldn't access or inspect it at all ("no access to the roof void", "shed was locked"). "NA": the area doesn't exist at this property ("slab on ground, no subfloor", "skillion roof, no roof void", "no outbuildings").
+- If they say everything was fully accessible, set every area they don't say is absent to "INSPECTED". Otherwise leave out areas not mentioned; never guess.
 
 BORERS AND WOOD DECAY (the other AS 4349.3 timber pests — never put these in findings[], which is termites only):
 - borerActivity: borers of seasoned timber (e.g. furniture beetle / Anobium, Queensland pine beetle, powderpost / Lyctus, European house borer). "ACTIVE" only if the technician describes fresh frass, fresh/bright exit holes or live beetles. "INACTIVE" for old or dark exit holes, old borer damage, or borer evidence with nothing fresh. "NONE" if they say no borers or no borer activity. Leave null if borers aren't mentioned.
@@ -1618,11 +1626,9 @@ function openApp(appName) {
     renderSavedList();
     const restored = loadDraft();
     restoreSignaturePads(); restoreLicenceField();
-    renderPhotoGrid();
     renderFindingsUI();
-    restoreObsState();
     restoreResState();
-    renderAllSectionPhotoGrids();
+    renderReportWidgets();
     // Restore conditional field visibility
     if (reportData.moistureReadings === 'YES') {
       const wrap = document.getElementById('waterLeakWrap');
@@ -3805,16 +3811,19 @@ function populateFields(data) {
     renderFindingsUI();
   }
 
-  // Obstructions/restrictedAccess have no plain field-val element of their
-  // own — the Obstructions section represents them entirely through the
-  // zone-chip selector (obsSelectedZones -> syncObstructionData()). The
-  // generic field loop below only ever writes into an element with id
-  // 'f-'+key, so without this block the AI's obstructions/restrictedAccess
-  // text was silently dropped on the floor every time: never written to
-  // reportData, and the chips never got selected. This was the root cause
-  // of a real voice test showing zero obstruction chips selected even
-  // though the technician clearly described obstructed areas.
+  // areaStatus / obstructions / restrictedAccess have no plain field-val
+  // element of their own — the Areas section shows them through the
+  // per-area status buttons (reportData.areaStatus / areaReasons). The
+  // generic field loop below only writes into 'f-'+key elements, so they
+  // are applied here instead.
   applyObstructionExtraction(data);
+
+  // Moisture meter readings spoken by the technician are added as rows.
+  if (Array.isArray(data.moistureMeterReadings)) {
+    data.moistureMeterReadings.forEach(r => {
+      if (r && (r.location || r.reading)) addMoistureReading(String(r.location || ''), String(r.reading || ''));
+    });
+  }
 
   // Job/client details spoken by the technician (e.g. the address at the
   // start of a recording) — separate from reportData, mapped onto the Job
@@ -4139,8 +4148,7 @@ function checkHighRiskPrompt() {
   const hasActivity = findings.some(f =>
     f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE'
   );
-  const hasObstructions = !!(reportData.obstructions && reportData.obstructions.trim() &&
-    !reportData.obstructions.includes('N/A'));
+  const hasObstructions = areasNotFullyInspected().length > 0;
   const hasHighRisk = !!(reportData.highRiskAreas && reportData.highRiskAreas.trim() &&
     !reportData.highRiskAreas.includes('N/A'));
 
@@ -4236,6 +4244,53 @@ function checkSecondaryColonyFlag() {
   if (!banner) return;
   banner.style.display = isAboveGroundLeak(reportData.leakLocation) ? 'flex' : 'none';
 }
+
+// ── MOISTURE METER READINGS ─────────────────────────────────────────────
+// reportData.moistureTable is a list of { id, location, reading } rows,
+// e.g. { location: 'Base of shower wall, bathroom', reading: '28%' }.
+// Typed in the Conducive section or filled from voice.
+const MAX_MOISTURE_READINGS = 30;
+
+function getMoistureTable() {
+  if (!Array.isArray(reportData.moistureTable)) reportData.moistureTable = [];
+  return reportData.moistureTable;
+}
+
+function addMoistureReading(location = '', reading = '') {
+  const rows = getMoistureTable();
+  if (rows.length >= MAX_MOISTURE_READINGS) return;
+  rows.push({ id: 'mr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), location, reading });
+  renderMoistureTable();
+  saveDraft();
+}
+
+function updateMoistureReading(id, key, value) {
+  const row = getMoistureTable().find(r => r.id === id);
+  if (row) { row[key] = value; saveDraft(); }
+}
+
+function removeMoistureReading(id) {
+  reportData.moistureTable = getMoistureTable().filter(r => r.id !== id);
+  renderMoistureTable();
+  saveDraft();
+}
+
+function renderMoistureTable() {
+  const list = document.getElementById('moistureTableRows');
+  if (!list) return;
+  const rows = getMoistureTable();
+  list.innerHTML = rows.length === 0
+    ? '<div class="section-photo-empty">No readings recorded</div>'
+    : rows.map(r => `
+      <div class="moisture-row">
+        <input class="photo-caption-input" type="text" placeholder="Location" value="${escapeHtml(r.location || '')}"
+               oninput="updateMoistureReading('${r.id}','location',this.value)">
+        <input class="photo-caption-input moisture-reading" type="text" inputmode="decimal" placeholder="Reading" value="${escapeHtml(r.reading || '')}"
+               oninput="updateMoistureReading('${r.id}','reading',this.value)">
+        <button class="photo-remove-btn" onclick="removeMoistureReading('${r.id}')" aria-label="Remove reading">✕</button>
+      </div>`).join('');
+}
+
 
 const HIGH_ASBESTOS_ERAS = ['1945-1965', '1965-1985'];
 const MODERATE_ASBESTOS_ERAS = ['1920s-1940s', '1985-2003'];
@@ -5241,6 +5296,15 @@ function renderSectionPhotoGrid(section) {
 
 function renderAllSectionPhotoGrids() {
   SECTION_PHOTO_KEYS.forEach(s => renderSectionPhotoGrid(s));
+}
+
+// Re-draws the parts of the report that aren't plain fields, after a
+// report is loaded, restored or reset.
+function renderReportWidgets() {
+  renderPhotoGrid();
+  renderAllSectionPhotoGrids();
+  renderAreaChecklist();
+  renderMoistureTable();
 }
 
 // ── LEGACY GENERAL PHOTOS (Photos tab) ─────────────────────────────────────
@@ -6730,7 +6794,7 @@ function loadDraft() {
     checkSystemVerify();
     checkSecondaryColonyFlag();
     restoreSignaturePads(); restoreLicenceField();
-    renderPhotoGrid();
+    renderReportWidgets();
     renderFindingsUI();
 
     // FIX: this was a third independent copy of the same plain-presence
@@ -6801,6 +6865,10 @@ function isFieldFilled(key) {
   if (key === 'findings') {
     return Array.isArray(reportData.findings) &&
       reportData.findings.some(f => f && (f.termiteActivity || f.species || f.damageDescription || f.activityLocation));
+  }
+  if (key === 'areaStatus') {
+    // Every area needs a status (Inspected / Partly / Not inspected / N/A).
+    return Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
   }
   if (key === 'standard') {
     // resetReportState()/loadReport() force reportData.standard to
@@ -6901,7 +6969,7 @@ function loadReport(id) {
   checkSecondaryColonyFlag();
   restoreSignaturePads(); restoreLicenceField();
   loadJobInfo();
-  renderPhotoGrid();
+  renderReportWidgets();
 
   // Reveal the section with the most data, default to property
   let bestSection = 'property', bestCount = -1;
@@ -7203,7 +7271,7 @@ function resetReportState() {
   checkSystemVerify();
   checkSecondaryColonyFlag();
   clearAllSignaturePads();
-  renderPhotoGrid();
+  renderReportWidgets();
   renderFindingsUI();
   setStandard('AS 3660.2-2017');
 }
@@ -8309,7 +8377,7 @@ async function _buildAndDownloadPDF() {
   sectionTitle('UNDETECTED TIMBER PEST RISK ASSESSMENT', '3');
   resetRowShade();
 
-  const hasObstruction = !!(reportData.obstructions && reportData.restrictedAccess);
+  const hasObstruction = areasNotFullyInspected().length > 0;
   const hasRestriction = !!(reportData.hinderedAreas && !reportData.hinderedAreas.includes('N/A'));
   const hasActivity    = (reportData.findings || []).some(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
   const risk           = reportData.riskLevel || 'NOT ASSESSED';
@@ -8350,11 +8418,19 @@ async function _buildAndDownloadPDF() {
 
   // ── OBSTRUCTIONS ──────────────────────────────────────────────────────
   newPage();
-  compactHeader('Obstructions & Restrictions');
+  compactHeader('Areas Inspected, Obstructions & Restrictions');
   resetRowShade();
-  sectionTitle('OBSTRUCTIONS', '4');
+  sectionTitle('AREAS INSPECTED & OBSTRUCTIONS', '4');
   resetRowShade();
-  const noObstructions = !reportData.obstructions && !reportData.restrictedAccess && !reportData.highRiskAreas;
+  // Every area with its status; partly / not inspected areas list why.
+  const AREA_STATUS_TEXT = { INSPECTED:'Inspected', PARTIAL:'PARTLY INSPECTED', NOT:'NOT INSPECTED', NA:'Not present' };
+  Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
+    const st = areaStatusOf(zoneId);
+    const why = ((reportData.areaReasons || {})[zoneId] || []).join(', ');
+    row(zone.label, st ? AREA_STATUS_TEXT[st] + (why ? ' — ' + why : '') : '');
+  });
+  gap(4);
+  const noObstructions = areasNotFullyInspected().length === 0;
   // Question row
   if (y + 14 > 278) newPage();
   doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, 12, 'F');
@@ -8367,8 +8443,6 @@ async function _buildAndDownloadPDF() {
   doc.text(obsAns, W-M-4, y+8, { align:'right' });
   y += 14;
   if (!noObstructions) {
-    row('Areas Not Inspected', reportData.obstructions);
-    row('Nature of Obstruction', reportData.restrictedAccess);
     if (reportData.highRiskAreas) row('High Risk Areas — Access Recommended', reportData.highRiskAreas);
     gap(3);
     disclaimer('A further, more invasive inspection is strongly recommended of all obstructed areas once access is provided or obstructions are removed. It must be assumed that timber pest activity may exist in these areas.');
@@ -8551,7 +8625,8 @@ async function _buildAndDownloadPDF() {
   resetRowShade();
 
   // ── Moisture group ─────────────────────────────────────────────────────
-  const hasMoisture = reportData.waterLeaks || reportData.moistureReadings || reportData.leakLocation;
+  const meterReadings = (reportData.moistureTable || []).filter(r => r.location || r.reading);
+  const hasMoisture = reportData.waterLeaks || reportData.moistureReadings || reportData.leakLocation || meterReadings.length;
   if (hasMoisture) {
     if (y > 250) newPage();
     doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
@@ -8560,6 +8635,7 @@ async function _buildAndDownloadPDF() {
   }
   row('Water Leaks', reportData.waterLeaks);
   row('Moisture Detected', reportData.moistureReadings);
+  meterReadings.forEach(r => row('Moisture Meter Reading', [r.reading, r.location].filter(Boolean).join(' — ')));
   if (reportData.waterLeaks === 'YES' || reportData.leakLocation) {
     row('Location of Moisture Ingress', reportData.leakLocation);
     if (isAboveGroundLeak(reportData.leakLocation)) {
