@@ -107,15 +107,24 @@ function defaultPaymentTerms() {
 }
 function rememberPaymentTerms(text) {
   const mem = quotePriceMemory();
+  if (mem.__paymentTerms === (text || '')) return;
   mem.__paymentTerms = text || '';
-  try { localStorage.setItem(quotePricesStorageKey(), JSON.stringify(mem)); } catch (e) {}
+  storeQuotePriceMemory(mem);
 }
 
 function rememberQuotePrice(key, price) {
   if (!key || key === 'custom' || !isFinite(price)) return;
   const mem = quotePriceMemory();
+  if (mem[key] === price) return;
   mem[key] = price;
-  try { localStorage.setItem(quotePricesStorageKey(), JSON.stringify(mem)); } catch (e) {}
+  storeQuotePriceMemory(mem);
+}
+
+// Stamped, so the account copy knows which is newer (see js/business-sync.js).
+function storeQuotePriceMemory(mem) {
+  mem.__updatedAt = Date.now();
+  try { localStorage.setItem(quotePricesStorageKey(), JSON.stringify(mem)); } catch (e) { return; }
+  scheduleBusinessSync();
 }
 
 function persistQuote() {

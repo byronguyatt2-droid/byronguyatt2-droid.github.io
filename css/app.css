@@ -3998,3 +3998,8 @@ button:focus-visible,
 /* ══════════════════════════════════════════════════════════════════════
    MOBILE LAYOUT
    ══════════════════════════════════════════════════════════════════════ */
+
+/* Company details a technician sees but can't change (js/business-sync.js) */
+.company-team-note { color: var(--accent2); font-weight: 600; margin: 0 0 10px; }
+.company-team-note[hidden] { display: none; }
+[data-company-setting]:disabled { opacity: 0.6; cursor: not-allowed; }
