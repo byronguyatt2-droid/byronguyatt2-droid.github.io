@@ -121,7 +121,7 @@ select.quote-input { cursor: pointer; }
   margin-bottom: 8px;
   background: var(--surface);
 }
-.quote-item-desc { font-weight: 600; padding-right: 40px; }
+.quote-item-desc { font-weight: 600; width: calc(100% - 44px); resize: none; overflow: hidden; line-height: 1.35; min-height: 40px; display: block; font-family: inherit; }
 .quote-item-detail { margin-top: 6px; font-size: 13px; color: var(--text2); }
 .quote-item-remove {
   position: absolute;
@@ -168,6 +168,19 @@ select.quote-input { cursor: pointer; }
 }
 .quote-add-btn { width: 100%; padding: 10px; }
 .quote-link-btn { border-style: solid; padding: 6px 10px; font-size: 12px; }
+.quote-card-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.quote-terms-field { margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
+.quote-company-gaps {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin: 0 0 12px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid rgba(212,146,10,0.4); background: rgba(212,146,10,0.07);
+  color: var(--text2); font-size: 12.5px; line-height: 1.45;
+}
+.quote-company-gaps .quote-link-btn { flex-shrink: 0; }
+.quote-price-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); }
+.quote-price-row span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.quote-price-row small { font-size: 11px; color: var(--text3); }
+.quote-price-row .quote-input { width: 96px; flex-shrink: 0; text-align: right; }
 .quote-add-btn:hover, .quote-link-btn:hover { background: rgba(var(--accent-rgb), 0.12); }
 .quote-hint { font-size: 12px; color: var(--text3); line-height: 1.45; margin-top: 10px; }
 

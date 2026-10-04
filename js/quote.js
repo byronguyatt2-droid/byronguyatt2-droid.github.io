@@ -17,8 +17,9 @@
 // quote restored from the cloud on another device shows up here too.
 // ══════════════════════════════════════════════════════════════════════════
 
-// Starting prices (AUD, ex GST) used until the business sets its own. Each
-// price the user types is remembered per item type (see quotePriceMemory).
+// Starting prices (AUD, ex GST) used until the business sets its own, either
+// in Your prices (openQuotePriceList) or by changing a price on a quote. Both
+// go into the same per-business memory (see quotePriceMemory).
 const QUOTE_CATALOGUE = {
   barrier_lm:    { desc: 'Chemical soil treatment (termite barrier)', unit: 'lm', price: 28 },
   barrier_job:   { desc: 'Chemical soil treatment (termite barrier)', unit: 'job', price: 2400 },
@@ -37,8 +38,9 @@ const QUOTE_CATALOGUE = {
 
 const QUOTE_DEFAULT_NOTES =
   'All treatments are carried out by a licensed pest technician in accordance with AS 3660.2-2017 and the product label directions.\n' +
-  'Treatment does not repair existing timber damage.\n' +
-  'Payment is due on completion unless otherwise agreed.';
+  'Treatment does not repair existing timber damage.';
+
+const QUOTE_DEFAULT_PAYMENT_TERMS = 'Payment is due on completion of the work.';
 
 let quoteState = null;        // the quote being edited
 let quoteSources = [];        // reports the quote can be built from
@@ -96,6 +98,18 @@ function storeQuoteOnReport(q, cloud) {
   if (setSavedReports(reports) && cloud) supabaseSave(entry);
 }
 function quotePriceMemory() { return readJSON(quotePricesStorageKey(), {}); }
+
+// The payment terms on the business's last quote become the default for
+// its next one, kept with its prices.
+function defaultPaymentTerms() {
+  const t = quotePriceMemory().__paymentTerms;
+  return typeof t === 'string' ? t : QUOTE_DEFAULT_PAYMENT_TERMS;
+}
+function rememberPaymentTerms(text) {
+  const mem = quotePriceMemory();
+  mem.__paymentTerms = text || '';
+  try { localStorage.setItem(quotePricesStorageKey(), JSON.stringify(mem)); } catch (e) {}
+}
 
 function rememberQuotePrice(key, price) {
   if (!key || key === 'custom' || !isFinite(price)) return;
@@ -307,6 +321,7 @@ function createQuoteFromSource(src) {
     gst: true,
     items: buildQuoteItemsFromReport(rd),
     exclusions: buildQuoteExclusions(rd).join('\n'),
+    paymentTerms: defaultPaymentTerms(),
     notes: QUOTE_DEFAULT_NOTES,
   };
 }
@@ -377,6 +392,7 @@ function onQuoteSourceChange() {
   renderQuoteEditor();
   renderQuoteLock();
   editor.style.display = 'flex';
+  editor.querySelectorAll('.quote-item-desc').forEach(fitQuoteText);
 }
 
 function renderQuoteSourceSummary(src) {
@@ -408,8 +424,30 @@ function renderQuoteEditor() {
   document.getElementById('qValidDays').value = q.validDays || '';
   document.getElementById('qGst').checked = q.gst !== false;
   document.getElementById('qExclusions').value = q.exclusions || '';
+  document.getElementById('qPaymentTerms').value = q.paymentTerms || '';
   document.getElementById('qNotes').value = q.notes || '';
   renderQuoteItems();
+  renderQuoteCompanyGaps();
+}
+
+// What's missing from Company details, which every quote's header shows.
+function renderQuoteCompanyGaps() {
+  const gaps = companyDetailGaps();
+  const el = document.getElementById('quoteCompanyGaps');
+  el.style.display = gaps.length ? '' : 'none';
+  el.innerHTML = gaps.length
+    ? `<div>Your quote won't show your ${escapeHtml(joinWithAnd(gaps))}. Clients and insurers look for these.</div>` +
+      '<button class="quote-link-btn" onclick="openCompanyDetailsFromQuote()">Add them</button>'
+    : '';
+}
+function openCompanyDetailsFromQuote() {
+  closeQuote();
+  if (quoteReturnTo !== 'app') openApp('inspect');
+  const wrap = document.getElementById('companyPanelWrap');
+  if (wrap && wrap.classList.contains('collapsed')) togglePanel('companyPanel', 'korva_companypanel_collapsed');
+  const sidebar = document.getElementById('sidebarPanel');
+  if (sidebar && !sidebar.classList.contains('open')) toggleDrawer();
+  if (wrap) setTimeout(() => wrap.scrollIntoView({ block: 'start', behavior: 'smooth' }), 250);
 }
 
 function renderQuoteItems() {
@@ -419,8 +457,8 @@ function renderQuoteItems() {
   } else {
     wrap.innerHTML = quoteState.items.map(it => `
       <div class="quote-item" data-id="${it.id}">
-        <input class="quote-input quote-item-desc" value="${escapeHtml(it.desc)}" placeholder="Description" aria-label="Description"
-          oninput="updateQuoteItem('${it.id}','desc',this.value)">
+        <textarea class="quote-input quote-item-desc" rows="1" placeholder="Description" aria-label="Description"
+          oninput="fitQuoteText(this); updateQuoteItem('${it.id}','desc',this.value)">${escapeHtml(it.desc)}</textarea>
         <button class="quote-item-remove" onclick="removeQuoteItem('${it.id}')" aria-label="Remove line" title="Remove line">✕</button>
         <input class="quote-input quote-item-detail" value="${escapeHtml(it.detail)}" placeholder="Details (optional)" aria-label="Details"
           oninput="updateQuoteItem('${it.id}','detail',this.value)">
@@ -435,8 +473,16 @@ function renderQuoteItems() {
         </div>
         ${it.source ? `<div class="quote-item-source">From report · ${escapeHtml(it.source)}</div>` : ''}
       </div>`).join('');
+    wrap.querySelectorAll('.quote-item-desc').forEach(fitQuoteText);
   }
   renderQuoteTotals();
+}
+
+// Grows a line's description box to fit its text, so long names wrap
+// instead of being cut off on a phone.
+function fitQuoteText(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 2 + 'px';
 }
 
 function lineTotal(it) {
@@ -469,6 +515,7 @@ function onQuoteFieldInput() {
   q.validDays = parseInt(document.getElementById('qValidDays').value, 10) || '';
   q.gst = document.getElementById('qGst').checked;
   q.exclusions = document.getElementById('qExclusions').value;
+  q.paymentTerms = document.getElementById('qPaymentTerms').value;
   q.notes = document.getElementById('qNotes').value;
   renderQuoteTotals();
   scheduleQuoteSave();
@@ -544,6 +591,34 @@ function exportQuotePDF() {
 // that goes to a client becomes the business's price list for next time.
 function rememberQuotePrices(q) {
   q.items.forEach(it => rememberQuotePrice(it.key, parseFloat(it.price)));
+  if (q.paymentTerms !== undefined) rememberPaymentTerms(q.paymentTerms.trim());
+}
+
+// ── YOUR PRICES ─────────────────────────────────────────────────────────────
+// The business's usual price for each item KORVUS quotes, so the first quote
+// is right. New lines use these; lines already on a quote keep their price.
+function openQuotePriceList() {
+  const mem = quotePriceMemory();
+  document.getElementById('quotePriceRows').innerHTML = Object.keys(QUOTE_CATALOGUE)
+    .filter(k => k !== 'custom')
+    .map(k => {
+      const cat = QUOTE_CATALOGUE[k];
+      const price = (k in mem) ? mem[k] : cat.price;
+      return `<label class="quote-price-row"><span>${escapeHtml(cat.desc)}<small>per ${escapeHtml(cat.unit)}</small></span>` +
+        `<input class="quote-input" type="number" min="0" step="any" inputmode="decimal" value="${price}" data-key="${k}" aria-label="${escapeHtml(cat.desc)} price"></label>`;
+    }).join('');
+  document.getElementById('quotePriceOverlay').classList.add('open');
+}
+function saveQuotePriceList() {
+  document.querySelectorAll('#quotePriceRows input[data-key]').forEach(inp => {
+    const v = parseFloat(inp.value);
+    if (isFinite(v) && v >= 0) rememberQuotePrice(inp.dataset.key, v);
+  });
+  closeQuotePriceList();
+  showToast('Prices saved. New quote lines will use them', 'success');
+}
+function closeQuotePriceList() {
+  document.getElementById('quotePriceOverlay').classList.remove('open');
 }
 
 // ── SENT AND LOCKED ─────────────────────────────────────────────────────────
@@ -662,22 +737,23 @@ function buildQuotePDF(q) {
   if (company.phone) sub.push(company.phone);
   if (company.abn) sub.push(`ABN: ${company.abn}`);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(160, 150, 138);
-  doc.text(sub.length ? sub.join('   ·   ') : 'Intelligent Inspection Platform', 40, 29);
+  if (sub.length) doc.text(sub.join('   ·   '), 40, 29);
+  if (company.email) doc.text(company.email, 40, 34);
   doc.setFontSize(8);
   doc.text(today, W - 8, 22, { align: 'right' });
 
   // ── TITLE ──
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
-  doc.text('TIMBER PEST', M, 62);
-  doc.setFontSize(28); doc.setTextColor(...C.ink);
-  doc.text('TREATMENT QUOTE', M, 75);
-  doc.setFillColor(...C.accent); doc.rect(M, 78, 32, 2, 'F');
+  doc.text('TIMBER PEST', M, 57);
+  doc.setFontSize(24); doc.setTextColor(...C.ink);
+  doc.text('TREATMENT QUOTE', M, 67);
+  doc.setFillColor(...C.accent); doc.rect(M, 70, 32, 2, 'F');
 
   // ── DETAILS CARD: prepared for | quote details ──
   const left = [
     ['PREPARED FOR', q.client || 'Not specified'],
     ['PROPERTY ADDRESS', q.address || 'Not specified'],
-    ['PHONE', q.clientPhone], ['EMAIL', q.clientEmail],
+    ['CONTACT', [q.clientPhone, q.clientEmail].map(v => (v || '').trim()).filter(Boolean).join('  ·  ')],
   ].filter(([, v]) => v);
   const right = [
     ['QUOTE NO.', q.number],
@@ -686,26 +762,35 @@ function buildQuotePDF(q) {
     ['REPORT DATE', q.inspectionDate ? fmtDate(q.inspectionDate) : ''],
     ['INSPECTOR', q.inspector],
   ].filter(([, v]) => v);
-  const colW = (CW - 16) / 2;
-  const cardY = 88;
-  const measure = rows => rows.reduce((h, [, v]) => h + 6 + doc.splitTextToSize(String(v), colW - 4).length * 4.2, 0);
+  // Client details on the left; quote details in a two-by-two grid on the
+  // right, which keeps the card short enough for a one-page quote.
+  const leftW = (CW - 16) * 0.48, rightX = M + 12 + leftW, cellW = (M + CW - 4 - rightX) / 2;
+  const cardY = 77;
+  const measure = (rows, w) => rows.map(([, v]) => 6 + doc.splitTextToSize(String(v), w - 3).length * 4.2);
   doc.setFontSize(9);
-  const cardH = Math.max(measure(left), measure(right)) + 8;
+  const leftH = measure(left, leftW).reduce((a, b) => a + b, 0);
+  const rightHs = measure(right, cellW);
+  let rightH = 0;
+  for (let i = 0; i < rightHs.length; i += 2) rightH += Math.max(rightHs[i], rightHs[i + 1] || 0);
+  const cardH = Math.max(leftH, rightH) + 8;
   doc.setFillColor(235, 232, 228); doc.roundedRect(M + 1, cardY + 1, CW, cardH, 3, 3, 'F');
   doc.setFillColor(...C.white); doc.roundedRect(M, cardY, CW, cardH, 3, 3, 'F');
   doc.setDrawColor(...C.rule); doc.setLineWidth(0.5); doc.roundedRect(M, cardY, CW, cardH, 3, 3, 'D');
   doc.setFillColor(...C.accent); doc.roundedRect(M, cardY, 4, cardH, 3, 3, 'F'); doc.rect(M + 2, cardY, 2, cardH, 'F');
-  [[left, M + 8], [right, M + 8 + colW + 4]].forEach(([rows, x]) => {
-    let cy = cardY + 8;
-    rows.forEach(([label, val]) => {
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(6); doc.setTextColor(...C.inkMuted);
-      doc.text(label, x, cy);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-      const lines = doc.splitTextToSize(String(val), colW - 4);
-      doc.text(lines, x, cy + 4.5);
-      cy += 6 + lines.length * 4.2;
-    });
-  });
+  const cell = (label, val, x, cy, w) => {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6); doc.setTextColor(...C.inkMuted);
+    doc.text(label, x, cy);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
+    doc.text(doc.splitTextToSize(String(val), w - 3), x, cy + 4.5);
+  };
+  let ly = cardY + 8;
+  left.forEach(([label, val]) => { cell(label, val, M + 8, ly, leftW); ly += measure([[label, val]], leftW)[0]; });
+  let ry = cardY + 8;
+  for (let i = 0; i < right.length; i += 2) {
+    cell(right[i][0], right[i][1], rightX, ry, cellW);
+    if (right[i + 1]) cell(right[i + 1][0], right[i + 1][1], rightX + cellW, ry, cellW);
+    ry += Math.max(rightHs[i], rightHs[i + 1] || 0);
+  }
   y = cardY + cardH + 6;
 
   // ── 1. SCOPE OF WORKS ──
@@ -771,6 +856,13 @@ function buildQuotePDF(q) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.white);
   doc.text(q.gst !== false ? 'TOTAL (inc GST)' : 'TOTAL', bx + 5, ty + 3.4);
   doc.text(formatAUD(totals.total), bx + boxW - 4, ty + 3.4, { align: 'right' });
+  const terms = (q.paymentTerms || '').trim();
+  if (terms) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
+    doc.text('PAYMENT TERMS', M, y + 6.5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+    doc.text(doc.splitTextToSize(terms, CW - boxW - 10).slice(0, 5), M, y + 11);
+  }
   y += boxH + 4;
 
   // ── 2. EXCLUSIONS ──
@@ -804,19 +896,24 @@ function buildQuotePDF(q) {
     });
   }
 
-  // ── ACCEPTANCE ──
-  sectionTitle('ACCEPTANCE', sectionNum++);
-  ensure(44);
+  // ── ACCEPTANCE ── (kept together, and compact so most quotes fit one page)
+  ensure(36);
+  y += 2;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...C.ink);
+  doc.text('ACCEPTANCE', M, y + 3);
+  doc.setFillColor(...C.accent); doc.rect(M, y + 5, CW, 0.5, 'F');
+  y += 11;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
   doc.text(doc.splitTextToSize(`I accept this quote of ${formatAUD(totals.total)}${q.gst !== false ? ' (inc GST)' : ''} and authorise the work described above.`, CW), M, y);
-  y += 12;
+  y += 10;
   doc.setTextColor(...C.ink); doc.setFontSize(9);
   doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
-  [['Client Name:'], ['Client Signature:'], ['Date:']].forEach(([label]) => {
-    doc.text(label, M, y);
-    doc.line(M + 38, y + 1, M + CW, y + 1);
-    y += 11;
-  });
+  const half = (CW - 10) / 2;
+  doc.text('Client name:', M, y); doc.line(M + 22, y + 1, M + half, y + 1);
+  doc.text('Date:', M + half + 10, y); doc.line(M + half + 20, y + 1, M + CW, y + 1);
+  y += 11;
+  doc.text('Client signature:', M, y); doc.line(M + 29, y + 1, M + CW, y + 1);
+  y += 6;
 
   // ── PAGE FOOTERS ──
   const pages = doc.internal.getNumberOfPages();
