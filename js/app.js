@@ -7760,6 +7760,15 @@ function restoreA11ySettings() {
   } catch (e) {}
 }
 
+// A new job starts with the inspector from the most recent saved report on
+// this account, so the sign-off name isn't typed again on every job.
+function lastInspectorName() {
+  const latest = getSavedReports()
+    .filter(r => r.inspector)
+    .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
+  return latest ? latest.inspector : '';
+}
+
 function newReport() {
   resetReportState();
   document.getElementById('jobAddress').value = '';
@@ -7767,7 +7776,7 @@ function newReport() {
   document.getElementById('jobState').value = '';
   document.getElementById('jobPostcode').value = '';
   document.getElementById('jobClient').value = '';
-  document.getElementById('jobInspector').value = '';
+  document.getElementById('jobInspector').value = lastInspectorName();
   updateJob();
   currentReportId = null;
   clearDraft();
