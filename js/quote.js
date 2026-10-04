@@ -1,0 +1,698 @@
+// ══════════════════════════════════════════════════════════════════════════
+// QUOTE BUILDER
+// Turns an inspection report's findings, conducive conditions and
+// recommendations into an editable treatment quote, and exports it as a PDF in
+// the same visual style as the inspection report.
+//
+// Loaded after js/app.js and relies on its globals:
+// appInitialised, currentReportId, authUser, authBusiness, DRAFT_KEY,
+// flushDraftSave, getSavedReports, getCompanyDetails, formatAddress, jsPDF,
+// ensureJsPDFLoaded, PDF_COLORS, drawPdfCompanyMark, deliverPdfBlob,
+// showToast, escapeHtml, toggleDrawer.
+// ══════════════════════════════════════════════════════════════════════════
+
+// Starting prices (AUD, ex GST) used until the business sets its own. Each
+// price the user types is remembered per item type (see quotePriceMemory).
+const QUOTE_CATALOGUE = {
+  barrier_lm:    { desc: 'Chemical soil treatment (termite barrier)', unit: 'lm', price: 28 },
+  barrier_job:   { desc: 'Chemical soil treatment (termite barrier)', unit: 'job', price: 2400 },
+  bait_install:  { desc: 'Termite baiting system: supply and install stations', unit: 'station', price: 165 },
+  bait_monitor:  { desc: 'Bait station monitoring and servicing (12 months)', unit: 'year', price: 480 },
+  system_topup:  { desc: 'Top-up / re-treatment of existing termite management system', unit: 'job', price: 1500 },
+  treatment:     { desc: 'Termite management treatment', unit: 'job', price: 1800 },
+  direct:        { desc: 'Direct treatment of active termite workings', unit: 'area', price: 380 },
+  timber_soil:   { desc: 'Remove timber-to-soil contact', unit: 'job', price: 220 },
+  weep_holes:    { desc: 'Clear bridged weep holes', unit: 'job', price: 180 },
+  slab_edge:     { desc: 'Expose concealed slab edge for inspection', unit: 'job', price: 250 },
+  followup:      { desc: 'Follow-up timber pest inspection', unit: 'visit', price: 280 },
+  custom:        { desc: '', unit: 'job', price: 0 },
+};
+
+const QUOTE_DEFAULT_NOTES =
+  'All treatments are carried out by a licensed pest technician in accordance with AS 3660.2-2017 and the product label directions.\n' +
+  'Treatment does not repair existing timber damage.\n' +
+  'Payment is due on completion unless otherwise agreed.';
+
+let quoteState = null;        // the quote being edited
+let quoteSources = [];        // reports the quote can be built from
+let quoteReturnTo = 'menu';   // 'menu' | 'app' — where Back goes
+let quoteSaveTimer = null;
+
+// ── STORAGE ─────────────────────────────────────────────────────────────────
+function quotesStorageKey() {
+  return (authUser && authUser.id) ? `korva_quotes_${authUser.id}` : 'korva_quotes';
+}
+function quotePricesStorageKey() {
+  const owner = (authBusiness && authBusiness.id) || (authUser && authUser.id) || 'local';
+  return `korva_quote_prices_${owner}`;
+}
+function readJSON(key, fallback) {
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+  catch (e) { return fallback; }
+}
+function getSavedQuotes() { return readJSON(quotesStorageKey(), {}); }
+function quotePriceMemory() { return readJSON(quotePricesStorageKey(), {}); }
+
+function rememberQuotePrice(key, price) {
+  if (!key || key === 'custom' || !isFinite(price)) return;
+  const mem = quotePriceMemory();
+  mem[key] = price;
+  try { localStorage.setItem(quotePricesStorageKey(), JSON.stringify(mem)); } catch (e) {}
+}
+
+function persistQuote() {
+  if (!quoteState) return;
+  quoteState.updatedAt = Date.now();
+  const all = getSavedQuotes();
+  all[quoteState.reportKey] = quoteState;
+  try {
+    localStorage.setItem(quotesStorageKey(), JSON.stringify(all));
+    setQuoteSaveState('Saved');
+  } catch (e) {
+    setQuoteSaveState('Not saved');
+    showToast('Could not save the quote — device storage may be full', 'error');
+  }
+}
+function scheduleQuoteSave() {
+  setQuoteSaveState('Saving…');
+  clearTimeout(quoteSaveTimer);
+  quoteSaveTimer = setTimeout(persistQuote, 400);
+}
+function setQuoteSaveState(text) {
+  const el = document.getElementById('quoteSaveState');
+  if (el) el.textContent = text;
+}
+
+// ── REPORT SOURCES ──────────────────────────────────────────────────────────
+function hasReportContent(rd) {
+  if (!rd) return false;
+  const findings = Array.isArray(rd.findings) ? rd.findings : [];
+  return !!(rd.treatmentRecommended || rd.treatmentType || rd.riskLevel ||
+    findings.some(f => f && (f.termiteActivity || f.species || f.activityLocation)));
+}
+
+// The in-progress report (the autosaved draft) first, then saved reports.
+// A saved report that is open as the draft is listed once, as the draft,
+// since the draft carries its newest edits.
+function collectQuoteSources() {
+  // Only flush when the inspection app has run its setup: before that the job
+  // inputs are empty and flushing would overwrite the stored draft.
+  if (appInitialised) { try { flushDraftSave(); } catch (e) {} }
+  const sources = [];
+  const draft = readJSON(DRAFT_KEY, null);
+  const draftHasJob = draft && (draft.jobAddress || hasReportContent(draft.reportData));
+  if (draftHasJob) {
+    sources.push({
+      key: draft.currentReportId || 'draft',
+      label: 'Current report',
+      address: formatAddress(draft.jobAddress, draft.jobSuburb, draft.jobState, draft.jobPostcode),
+      client: draft.jobClient || '',
+      inspector: draft.jobInspector || '',
+      reportData: draft.reportData || {},
+      date: draft.savedAt,
+    });
+  }
+  getSavedReports()
+    .slice()
+    .sort((a, b) => b.savedAt - a.savedAt)
+    .forEach(r => {
+      if (draftHasJob && draft.currentReportId === r.id) return;
+      sources.push({
+        key: r.id,
+        label: '',
+        address: r.address || formatAddress(r.jobAddress, r.jobSuburb, r.jobState, r.jobPostcode),
+        client: r.client || '',
+        inspector: r.inspector || '',
+        reportData: r.reportData || {},
+        date: r.savedAt,
+      });
+    });
+  return sources;
+}
+
+// ── LINE ITEMS FROM A REPORT ────────────────────────────────────────────────
+function classifyTreatment(text) {
+  const t = (text || '').toLowerCase();
+  if (/exterra|sentricon|trelona|bait/.test(t)) return 'bait';
+  if (/homeguard|kordon|termimesh|reticulation|physical|existing system|top.?up/.test(t)) return 'system';
+  if (/termidor|altriset|phantom|premise|fipronil|chlorantraniliprole|bifenthrin|biflex|talstar|maxxthor|chemical|barrier|soil treat/.test(t)) return 'barrier';
+  return 'generic';
+}
+
+function newQuoteItem(key, overrides) {
+  const cat = QUOTE_CATALOGUE[key] || QUOTE_CATALOGUE.custom;
+  const mem = quotePriceMemory();
+  return Object.assign({
+    id: 'qi_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    key,
+    desc: cat.desc,
+    detail: '',
+    qty: 1,
+    unit: cat.unit,
+    price: (key in mem) ? mem[key] : cat.price,
+    source: '',
+  }, overrides || {});
+}
+
+function buildQuoteItemsFromReport(rd) {
+  rd = rd || {};
+  const items = [];
+  const findings = (Array.isArray(rd.findings) ? rd.findings : []).filter(f => f && f.termiteActivity);
+  const active = findings.filter(f => f.termiteActivity === 'ACTIVE');
+  const treatmentType = (rd.treatmentType || '').trim();
+  const wantsTreatment = rd.treatmentRecommended === 'YES' || (treatmentType && rd.treatmentRecommended !== 'NO') || active.length > 0;
+
+  // Active workings get a direct treatment each, so the client sees every
+  // location the report found live termites at.
+  active.forEach((f, i) => {
+    const bits = [];
+    if (f.activityLocation) bits.push(f.activityLocation);
+    if (f.species) bits.push(f.species);
+    if (f.nestLocated === 'YES') bits.push('nest located — includes nest treatment');
+    items.push(newQuoteItem('direct', {
+      detail: bits.join(' · '),
+      source: `Finding ${findings.indexOf(f) + 1}: active termites`,
+    }));
+  });
+
+  if (wantsTreatment) {
+    const kind = classifyTreatment(treatmentType);
+    const src = treatmentType ? `Recommendation: ${treatmentType}` : 'Recommendation: treatment';
+    if (kind === 'barrier') {
+      const lm = treatmentType.match(/(\d+(?:\.\d+)?)\s*(?:linear\s*)?(?:lm|m|metres|meters)\b/i);
+      items.push(lm
+        ? newQuoteItem('barrier_lm', { detail: treatmentType, qty: parseFloat(lm[1]), source: src })
+        : newQuoteItem('barrier_job', { detail: treatmentType, source: src }));
+    } else if (kind === 'bait') {
+      const st = treatmentType.match(/(\d+)\s*(?:bait\s*)?stations?/i);
+      items.push(newQuoteItem('bait_install', { detail: treatmentType, qty: st ? parseInt(st[1], 10) : 12, source: src }));
+      items.push(newQuoteItem('bait_monitor', { source: src }));
+    } else if (kind === 'system') {
+      items.push(newQuoteItem('system_topup', { detail: treatmentType || rd.existingSystem || '', source: src }));
+    } else {
+      items.push(newQuoteItem('treatment', { detail: treatmentType, source: src }));
+    }
+  }
+
+  if (rd.timberSoil === 'YES') {
+    items.push(newQuoteItem('timber_soil', { source: 'Conducive condition: timber-to-soil contact' }));
+  }
+  if (rd.weepHoles === 'BRIDGED') {
+    items.push(newQuoteItem('weep_holes', { source: 'Conducive condition: weep holes bridged' }));
+  }
+  if (rd.slabEdge === 'OBSTRUCTED') {
+    items.push(newQuoteItem('slab_edge', { source: 'Conducive condition: slab edge concealed' }));
+  }
+  if (rd.inspectionFrequency) {
+    items.push(newQuoteItem('followup', { detail: `Recommended frequency: ${rd.inspectionFrequency}`, source: 'Recommendation: inspection frequency' }));
+  }
+  return items;
+}
+
+function buildQuoteExclusions(rd) {
+  rd = rd || {};
+  const out = [];
+  const findings = Array.isArray(rd.findings) ? rd.findings : [];
+  if (findings.some(f => f && f.structuralConcern === 'YES')) {
+    out.push('Structural assessment and repair of termite-damaged timbers, to be carried out by a licensed builder or structural engineer.');
+  } else if (findings.some(f => f && f.damageDescription)) {
+    out.push('Repair or replacement of termite-damaged timbers.');
+  }
+  if (rd.waterLeaks === 'YES') {
+    out.push(`Repair of the moisture source${rd.leakLocation ? ` (${rd.leakLocation})` : ''} by a licensed plumber or builder.`);
+  }
+  if (rd.highRiskAreas) {
+    out.push(`Areas not accessible at inspection (${rd.highRiskAreas}) unless access is provided.`);
+  }
+  return out;
+}
+
+function newQuoteNumber() {
+  const d = new Date();
+  const ymd = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+  return `Q-${ymd}-${Math.floor(Math.random() * 9000 + 1000)}`;
+}
+
+function createQuoteFromSource(src) {
+  const rd = src.reportData || {};
+  return {
+    reportKey: src.key,
+    number: newQuoteNumber(),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    client: src.client,
+    clientPhone: rd.jobClientPhone || '',
+    clientEmail: rd.jobClientEmail || '',
+    address: src.address,
+    inspector: src.inspector,
+    inspectionDate: src.date || null,
+    validDays: 30,
+    gst: true,
+    items: buildQuoteItemsFromReport(rd),
+    exclusions: buildQuoteExclusions(rd).join('\n'),
+    notes: QUOTE_DEFAULT_NOTES,
+  };
+}
+
+// ── NAVIGATION ──────────────────────────────────────────────────────────────
+function openQuote(from, preferKey) {
+  quoteReturnTo = from || 'menu';
+  document.getElementById('mainMenu').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('quoteScreen').classList.add('open');
+  quoteSources = collectQuoteSources();
+  renderQuoteSourceOptions(preferKey);
+  onQuoteSourceChange();
+}
+
+function openQuoteFromReport() {
+  const sidebar = document.getElementById('sidebarPanel');
+  if (sidebar && sidebar.classList.contains('open')) toggleDrawer();
+  openQuote('app', currentReportId || 'draft');
+}
+
+function closeQuote() {
+  clearTimeout(quoteSaveTimer);
+  if (quoteState) persistQuote();
+  document.getElementById('quoteScreen').classList.remove('open');
+  if (quoteReturnTo === 'app') document.getElementById('app').style.display = 'flex';
+  else document.getElementById('mainMenu').style.display = 'flex';
+}
+
+// ── RENDERING ───────────────────────────────────────────────────────────────
+function formatAUD(n) {
+  const v = isFinite(n) ? n : 0;
+  return v.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+}
+
+function renderQuoteSourceOptions(preferKey) {
+  const sel = document.getElementById('quoteSource');
+  const hasSources = quoteSources.length > 0;
+  document.getElementById('quoteEmpty').style.display = hasSources ? 'none' : 'flex';
+  sel.parentElement.style.display = hasSources ? '' : 'none';
+  sel.innerHTML = quoteSources.map(s => {
+    const date = s.date ? new Date(s.date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '';
+    const text = [s.label, s.address || 'Untitled property', date].filter(Boolean).join(' · ');
+    return `<option value="${escapeHtml(s.key)}">${escapeHtml(text)}</option>`;
+  }).join('');
+  if (preferKey && quoteSources.some(s => s.key === preferKey)) sel.value = preferKey;
+}
+
+function currentQuoteSource() {
+  const key = document.getElementById('quoteSource').value;
+  return quoteSources.find(s => s.key === key) || null;
+}
+
+function onQuoteSourceChange() {
+  if (quoteState) { clearTimeout(quoteSaveTimer); persistQuote(); }
+  const src = currentQuoteSource();
+  const editor = document.getElementById('quoteEditor');
+  if (!src) { quoteState = null; editor.style.display = 'none'; return; }
+  const saved = getSavedQuotes()[src.key];
+  quoteState = saved || createQuoteFromSource(src);
+  if (!saved) persistQuote();
+  else setQuoteSaveState('Saved');
+  renderQuoteSourceSummary(src);
+  renderQuoteEditor();
+  editor.style.display = 'flex';
+}
+
+function renderQuoteSourceSummary(src) {
+  const rd = src.reportData || {};
+  const findings = (Array.isArray(rd.findings) ? rd.findings : []).filter(f => f && f.termiteActivity);
+  const chips = [];
+  if (rd.riskLevel) chips.push([`${rd.riskLevel} risk`, rd.riskLevel.toLowerCase()]);
+  const active = findings.filter(f => f.termiteActivity === 'ACTIVE').length;
+  const inactive = findings.filter(f => f.termiteActivity === 'INACTIVE').length;
+  if (active) chips.push([`${active} active finding${active > 1 ? 's' : ''}`, 'high']);
+  if (inactive) chips.push([`${inactive} inactive finding${inactive > 1 ? 's' : ''}`, 'medium']);
+  if (rd.treatmentType) chips.push([rd.treatmentType, '']);
+  else if (rd.treatmentRecommended === 'YES') chips.push(['Treatment recommended', '']);
+  if (!chips.length) chips.push(['No findings or recommendations recorded yet', '']);
+  document.getElementById('quoteSourceSummary').innerHTML =
+    chips.map(([t, cls]) => `<span class="quote-chip ${cls}">${escapeHtml(t)}</span>`).join('');
+}
+
+function renderQuoteEditor() {
+  const q = quoteState;
+  document.getElementById('qClient').value = q.client || '';
+  document.getElementById('qClientPhone').value = q.clientPhone || '';
+  document.getElementById('qClientEmail').value = q.clientEmail || '';
+  document.getElementById('qAddress').value = q.address || '';
+  document.getElementById('qNumber').value = q.number || '';
+  document.getElementById('qValidDays').value = q.validDays || '';
+  document.getElementById('qGst').checked = q.gst !== false;
+  document.getElementById('qExclusions').value = q.exclusions || '';
+  document.getElementById('qNotes').value = q.notes || '';
+  renderQuoteItems();
+}
+
+function renderQuoteItems() {
+  const wrap = document.getElementById('quoteItems');
+  if (!quoteState.items.length) {
+    wrap.innerHTML = '<div class="quote-items-empty">No line items. The report has no findings or recommendations that call for work. Add a line to quote manually.</div>';
+  } else {
+    wrap.innerHTML = quoteState.items.map(it => `
+      <div class="quote-item" data-id="${it.id}">
+        <input class="quote-input quote-item-desc" value="${escapeHtml(it.desc)}" placeholder="Description" aria-label="Description"
+          oninput="updateQuoteItem('${it.id}','desc',this.value)">
+        <button class="quote-item-remove" onclick="removeQuoteItem('${it.id}')" aria-label="Remove line" title="Remove line">✕</button>
+        <input class="quote-input quote-item-detail" value="${escapeHtml(it.detail)}" placeholder="Details (optional)" aria-label="Details"
+          oninput="updateQuoteItem('${it.id}','detail',this.value)">
+        <div class="quote-item-nums">
+          <label>Qty<input class="quote-input" type="number" min="0" step="any" inputmode="decimal" value="${it.qty}"
+            oninput="updateQuoteItem('${it.id}','qty',this.value)"></label>
+          <label>Unit<input class="quote-input" value="${escapeHtml(it.unit)}"
+            oninput="updateQuoteItem('${it.id}','unit',this.value)"></label>
+          <label>Unit price $<input class="quote-input" type="number" min="0" step="any" inputmode="decimal" value="${it.price}"
+            oninput="updateQuoteItem('${it.id}','price',this.value)" onchange="rememberQuotePrice('${it.key}', parseFloat(this.value))"></label>
+          <div class="quote-item-total" id="qiTotal_${it.id}">${formatAUD(lineTotal(it))}</div>
+        </div>
+        ${it.source ? `<div class="quote-item-source">From report · ${escapeHtml(it.source)}</div>` : ''}
+      </div>`).join('');
+  }
+  renderQuoteTotals();
+}
+
+function lineTotal(it) {
+  const qty = parseFloat(it.qty), price = parseFloat(it.price);
+  return (isFinite(qty) ? qty : 0) * (isFinite(price) ? price : 0);
+}
+
+function quoteTotals(q) {
+  const subtotal = q.items.reduce((sum, it) => sum + lineTotal(it), 0);
+  const gst = q.gst !== false ? Math.round(subtotal * 10) / 100 : 0;
+  return { subtotal, gst, total: subtotal + gst };
+}
+
+function renderQuoteTotals() {
+  const t = quoteTotals(quoteState);
+  document.getElementById('qSubtotal').textContent = formatAUD(t.subtotal);
+  document.getElementById('qGstAmt').textContent = formatAUD(t.gst);
+  document.getElementById('qTotal').textContent = formatAUD(t.total);
+}
+
+// ── EDITING ─────────────────────────────────────────────────────────────────
+function onQuoteFieldInput() {
+  const q = quoteState;
+  if (!q) return;
+  q.client = document.getElementById('qClient').value;
+  q.clientPhone = document.getElementById('qClientPhone').value;
+  q.clientEmail = document.getElementById('qClientEmail').value;
+  q.address = document.getElementById('qAddress').value;
+  q.number = document.getElementById('qNumber').value;
+  q.validDays = parseInt(document.getElementById('qValidDays').value, 10) || '';
+  q.gst = document.getElementById('qGst').checked;
+  q.exclusions = document.getElementById('qExclusions').value;
+  q.notes = document.getElementById('qNotes').value;
+  renderQuoteTotals();
+  scheduleQuoteSave();
+}
+
+function updateQuoteItem(id, field, value) {
+  const it = quoteState && quoteState.items.find(i => i.id === id);
+  if (!it) return;
+  it[field] = value;
+  if (field === 'qty' || field === 'price') {
+    const cell = document.getElementById('qiTotal_' + id);
+    if (cell) cell.textContent = formatAUD(lineTotal(it));
+    renderQuoteTotals();
+  }
+  scheduleQuoteSave();
+}
+
+function addQuoteItem() {
+  if (!quoteState) return;
+  quoteState.items.push(newQuoteItem('custom'));
+  renderQuoteItems();
+  scheduleQuoteSave();
+  const rows = document.querySelectorAll('#quoteItems .quote-item-desc');
+  if (rows.length) rows[rows.length - 1].focus();
+}
+
+function removeQuoteItem(id) {
+  if (!quoteState) return;
+  quoteState.items = quoteState.items.filter(i => i.id !== id);
+  renderQuoteItems();
+  scheduleQuoteSave();
+}
+
+function rebuildQuoteFromReport() {
+  const src = currentQuoteSource();
+  if (!src || !quoteState) return;
+  if (quoteState.items.length && !confirm('Replace the line items and exclusions with fresh ones from the report? Your edits to them will be lost.')) return;
+  quoteState.items = buildQuoteItemsFromReport(src.reportData);
+  quoteState.exclusions = buildQuoteExclusions(src.reportData).join('\n');
+  document.getElementById('qExclusions').value = quoteState.exclusions;
+  renderQuoteSourceSummary(src);
+  renderQuoteItems();
+  scheduleQuoteSave();
+  showToast('Line items rebuilt from the report', 'success');
+}
+
+// ── PDF EXPORT ──────────────────────────────────────────────────────────────
+function exportQuotePDF() {
+  if (!quoteState) return;
+  clearTimeout(quoteSaveTimer);
+  persistQuote();
+  // Remember every line's price, not just ones edited this session, so the
+  // exported quote becomes the business's price list for next time.
+  quoteState.items.forEach(it => rememberQuotePrice(it.key, parseFloat(it.price)));
+  const btn = document.getElementById('quotePdfBtn');
+  btn.disabled = true;
+  setTimeout(() => {
+    ensureJsPDFLoaded()
+      .then(() => buildQuotePDF(quoteState))
+      .then(({ blob, fname }) => deliverPdfBlob(blob, fname, {
+        title: 'KORVUS Quote',
+        text: `Treatment quote — ${quoteState.address || 'Property'}`,
+        readyToast: 'Quote ready — choose where to save or send it',
+      }))
+      .catch(e => {
+        console.error('Quote PDF failed:', e);
+        showToast((e && e.message) || 'Could not generate the PDF — check your connection and try again', 'error');
+      })
+      .finally(() => { btn.disabled = false; });
+  }, 50);
+}
+
+function buildQuotePDF(q) {
+  const C = PDF_COLORS;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = 210, M = 15, CW = W - M * 2, BOTTOM = 276;
+  const fmtDate = d => new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+  const today = fmtDate(Date.now());
+  const validDays = parseInt(q.validDays, 10) || 30;
+  const validUntil = fmtDate(Date.now() + validDays * 86400000);
+  const company = getCompanyDetails();
+  const totals = quoteTotals(q);
+  let y = 0;
+
+  function pageTopBand() {
+    doc.setFillColor(...C.headerBg); doc.rect(0, 0, W, 13, 'F');
+    doc.setFillColor(...C.accent); doc.rect(0, 0, 4, 13, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(235, 228, 218);
+    doc.text('TREATMENT QUOTE', 9, 8.5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(170, 160, 148);
+    doc.text(q.number || '', W - M, 8.5, { align: 'right' });
+    doc.setFillColor(...C.accent); doc.rect(0, 13, W, 0.6, 'F');
+    y = 22;
+  }
+  function ensure(h) { if (y + h > BOTTOM) { doc.addPage(); pageTopBand(); } }
+  function sectionTitle(title, num) {
+    ensure(20);
+    y += 4;
+    doc.setFillColor(...C.accent); doc.roundedRect(M, y, 7, 7, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...C.white);
+    doc.text(String(num), M + 3.5, y + 5.2, { align: 'center' });
+    doc.setFontSize(10.5); doc.setTextColor(...C.ink);
+    doc.text(title, M + 10, y + 5.5);
+    doc.setFillColor(...C.accent); doc.rect(M, y + 8, CW, 0.7, 'F');
+    y += 14;
+  }
+
+  // ── HEADER BAND (as on the report cover) ──
+  doc.setFillColor(...C.coverDark); doc.rect(0, 0, W, 48, 'F');
+  doc.setFillColor(...C.accent); doc.rect(0, 0, W, 3, 'F');
+  doc.setFillColor(...C.accent); doc.rect(0, 0, 4, 48, 'F');
+  drawPdfCompanyMark(doc, company);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(240, 234, 224);
+  doc.text(company.name || 'KORVUS', 40, 22);
+  const sub = [];
+  if (company.licence) sub.push(`Lic: ${company.licence}`);
+  if (company.phone) sub.push(company.phone);
+  if (company.abn) sub.push(`ABN: ${company.abn}`);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(160, 150, 138);
+  doc.text(sub.length ? sub.join('   ·   ') : 'Intelligent Inspection Platform', 40, 29);
+  doc.setFontSize(8);
+  doc.text(today, W - 8, 22, { align: 'right' });
+
+  // ── TITLE ──
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
+  doc.text('TIMBER PEST', M, 62);
+  doc.setFontSize(28); doc.setTextColor(...C.ink);
+  doc.text('TREATMENT QUOTE', M, 75);
+  doc.setFillColor(...C.accent); doc.rect(M, 78, 32, 2, 'F');
+
+  // ── DETAILS CARD: prepared for | quote details ──
+  const left = [
+    ['PREPARED FOR', q.client || 'Not specified'],
+    ['PROPERTY ADDRESS', q.address || 'Not specified'],
+    ['PHONE', q.clientPhone], ['EMAIL', q.clientEmail],
+  ].filter(([, v]) => v);
+  const right = [
+    ['QUOTE NO.', q.number],
+    ['DATE', today],
+    ['VALID UNTIL', validUntil],
+    ['REPORT DATE', q.inspectionDate ? fmtDate(q.inspectionDate) : ''],
+    ['INSPECTOR', q.inspector],
+  ].filter(([, v]) => v);
+  const colW = (CW - 16) / 2;
+  const cardY = 88;
+  const measure = rows => rows.reduce((h, [, v]) => h + 6 + doc.splitTextToSize(String(v), colW - 4).length * 4.2, 0);
+  doc.setFontSize(9);
+  const cardH = Math.max(measure(left), measure(right)) + 8;
+  doc.setFillColor(235, 232, 228); doc.roundedRect(M + 1, cardY + 1, CW, cardH, 3, 3, 'F');
+  doc.setFillColor(...C.white); doc.roundedRect(M, cardY, CW, cardH, 3, 3, 'F');
+  doc.setDrawColor(...C.rule); doc.setLineWidth(0.5); doc.roundedRect(M, cardY, CW, cardH, 3, 3, 'D');
+  doc.setFillColor(...C.accent); doc.roundedRect(M, cardY, 4, cardH, 3, 3, 'F'); doc.rect(M + 2, cardY, 2, cardH, 'F');
+  [[left, M + 8], [right, M + 8 + colW + 4]].forEach(([rows, x]) => {
+    let cy = cardY + 8;
+    rows.forEach(([label, val]) => {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(6); doc.setTextColor(...C.inkMuted);
+      doc.text(label, x, cy);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
+      const lines = doc.splitTextToSize(String(val), colW - 4);
+      doc.text(lines, x, cy + 4.5);
+      cy += 6 + lines.length * 4.2;
+    });
+  });
+  y = cardY + cardH + 6;
+
+  // ── 1. SCOPE OF WORKS ──
+  sectionTitle('SCOPE OF WORKS', 1);
+  const X_QTY = M + CW - 66, X_PRICE = M + CW - 30, X_AMT = M + CW - 3;
+  const DESC_W = X_QTY - M - 22;
+  function tableHead() {
+    doc.setFillColor(...C.headerBg); doc.rect(M, y, CW, 8, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(235, 228, 218);
+    doc.text('DESCRIPTION', M + 4, y + 5.3);
+    doc.text('QTY', X_QTY, y + 5.3, { align: 'right' });
+    doc.text('UNIT PRICE', X_PRICE, y + 5.3, { align: 'right' });
+    doc.text('AMOUNT', X_AMT, y + 5.3, { align: 'right' });
+    y += 8;
+  }
+  tableHead();
+  const items = q.items.filter(it => (it.desc || '').trim() || lineTotal(it));
+  if (!items.length) {
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(...C.inkMuted);
+    doc.text('No line items.', M + 4, y + 6); y += 10;
+  }
+  items.forEach((it, i) => {
+    doc.setFontSize(9);
+    const descLines = doc.splitTextToSize((it.desc || '').trim() || 'Item', DESC_W);
+    doc.setFontSize(7.5);
+    const detailLines = (it.detail || '').trim() ? doc.splitTextToSize(it.detail.trim(), DESC_W) : [];
+    const rowH = Math.max(9, descLines.length * 4.4 + detailLines.length * 3.6 + 5);
+    if (y + rowH > BOTTOM) { doc.addPage(); pageTopBand(); tableHead(); }
+    if (i % 2 === 1) { doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, rowH, 'F'); }
+    doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, rowH, 'F');
+    doc.setDrawColor(...C.ruleLight); doc.setLineWidth(0.25); doc.line(M, y + rowH, M + CW, y + rowH);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...C.ink);
+    doc.text(descLines, M + 4, y + 5.5);
+    if (detailLines.length) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
+      doc.text(detailLines, M + 4, y + 5.5 + descLines.length * 4.4);
+    }
+    const qty = parseFloat(it.qty);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+    doc.text(`${isFinite(qty) ? +qty.toFixed(2) : 0} ${it.unit || ''}`.trim(), X_QTY, y + 5.5, { align: 'right' });
+    doc.text(formatAUD(parseFloat(it.price)), X_PRICE, y + 5.5, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatAUD(lineTotal(it)), X_AMT, y + 5.5, { align: 'right' });
+    y += rowH;
+  });
+
+  // Totals box, right-aligned under the table
+  const totalRows = [['Subtotal (ex GST)', totals.subtotal]];
+  if (q.gst !== false) totalRows.push(['GST (10%)', totals.gst]);
+  const boxW = 80, boxH = totalRows.length * 6.5 + 14;
+  ensure(boxH + 6);
+  y += 5;
+  const bx = M + CW - boxW;
+  doc.setFillColor(...C.rowAlt); doc.roundedRect(bx, y, boxW, boxH, 2, 2, 'F');
+  let ty = y + 6.5;
+  totalRows.forEach(([label, val]) => {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
+    doc.text(label, bx + 5, ty);
+    doc.setTextColor(...C.ink); doc.text(formatAUD(val), bx + boxW - 4, ty, { align: 'right' });
+    ty += 6.5;
+  });
+  doc.setFillColor(...C.accent); doc.rect(bx, ty - 3, boxW, 10, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.white);
+  doc.text(q.gst !== false ? 'TOTAL (inc GST)' : 'TOTAL', bx + 5, ty + 3.4);
+  doc.text(formatAUD(totals.total), bx + boxW - 4, ty + 3.4, { align: 'right' });
+  y += boxH + 4;
+
+  // ── 2. EXCLUSIONS ──
+  let sectionNum = 2;
+  const exclusions = (q.exclusions || '').split('\n').map(s => s.trim()).filter(Boolean);
+  if (exclusions.length) {
+    sectionTitle('EXCLUSIONS & WORK BY OTHERS', sectionNum++);
+    exclusions.forEach(ex => {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      const lines = doc.splitTextToSize(ex, CW - 8);
+      ensure(lines.length * 4.2 + 2);
+      doc.setFillColor(...C.accent); doc.circle(M + 1.6, y - 1.1, 0.8, 'F');
+      doc.setTextColor(...C.ink); doc.text(lines, M + 5, y);
+      y += lines.length * 4.2 + 2;
+    });
+    y += 2;
+  }
+
+  // ── TERMS & NOTES ──
+  const notes = (q.notes || '').trim();
+  if (notes) {
+    sectionTitle('TERMS & NOTES', sectionNum++);
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(...C.inkMuted);
+    notes.split('\n').map(s => s.trim()).filter(Boolean).forEach(p => {
+      const lines = doc.splitTextToSize(p, CW - 5);
+      const h = lines.length * 4 + 3;
+      ensure(h);
+      doc.setFillColor(...C.ruleLight); doc.rect(M, y - 3, 1.5, h - 2, 'F');
+      doc.text(lines, M + 4, y);
+      y += h;
+    });
+  }
+
+  // ── ACCEPTANCE ──
+  sectionTitle('ACCEPTANCE', sectionNum++);
+  ensure(44);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
+  doc.text(doc.splitTextToSize(`I accept this quote of ${formatAUD(totals.total)}${q.gst !== false ? ' (inc GST)' : ''} and authorise the work described above.`, CW), M, y);
+  y += 12;
+  doc.setTextColor(...C.ink); doc.setFontSize(9);
+  doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
+  [['Client Name:'], ['Client Signature:'], ['Date:']].forEach(([label]) => {
+    doc.text(label, M, y);
+    doc.line(M + 38, y + 1, M + CW, y + 1);
+    y += 11;
+  });
+
+  // ── PAGE FOOTERS ──
+  const pages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFillColor(...C.rowAlt); doc.rect(0, 284, W, 13, 'F');
+    doc.setFillColor(...C.accent); doc.rect(0, 284, W, 0.5, 'F');
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+    doc.text(company.name ? `Prepared by ${company.name}` : 'Generated via KORVUS', M, 291);
+    const addr = q.address || '';
+    doc.text(addr.length > 60 ? addr.slice(0, 59) + '…' : addr, W / 2, 291, { align: 'center' });
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.inkLight);
+    doc.text(`${p} / ${pages}`, W - M, 291, { align: 'right' });
+  }
+
+  const safe = (q.address || 'Property').replace(/[^\w]+/g, '_').substring(0, 25);
+  return { blob: doc.output('blob'), fname: `KORVUS_Quote_${(q.number || '').replace(/[^\w-]+/g, '')}_${safe}.pdf` };
+}

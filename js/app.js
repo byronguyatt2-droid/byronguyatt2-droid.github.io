@@ -1596,7 +1596,8 @@ window.addEventListener('load', () => {
 
 // ── PLATFORM NAVIGATION ─────────────────────────────────────────────────
 function openApp(appName) {
-  if (appName !== 'inspect') return; // only this module is live for now
+  if (appName === 'quote') { openQuote('menu'); return; }
+  if (appName !== 'inspect') return;
 
   const menu = document.getElementById('mainMenu');
   const app = document.getElementById('app');
@@ -2310,17 +2311,14 @@ function buildTranscriptionVocabHint() {
 // pattern as AI cleanup above, for the same reason: this has never run in
 // real field conditions, and silently swapping out a transcript the
 // technician can already see and trust is a bigger risk than a wording fix.
-// On ANY failure (network error, non-2xx, endpoint not deployed yet, bad
+// On ANY failure (network error, non-2xx, Worker AI error, bad
 // response shape) this fails completely silently — console.warn only — so
 // the Web Speech transcript already in the box remains exactly as if this
 // feature didn't exist.
 //
-// NOTE: the /transcribe route below does not exist on the Worker yet (see
-// this session's note on the stale korva-worker-CLEAN-v3.js file — the
-// currently-deployed Worker source is still needed before that route can be
-// added safely). Calls will 404 until then; that is expected and handled
-// here exactly like any other failure, which is also why this is safe to
-// ship ahead of the Worker change.
+// Served by the Worker's /transcribe route (worker/worker.js, v7+), which
+// expects multipart `audio` + optional `initial_prompt` and returns
+// { transcript }.
 async function tryServerSideTranscription(blob) {
   if (!blob) return;
   try {
@@ -2338,7 +2336,7 @@ async function tryServerSideTranscription(blob) {
     if (!data || typeof data.transcript !== 'string' || !data.transcript.trim()) throw new Error('Unexpected response shape');
     showServerTranscriptionSuggestion(data.transcript.trim());
   } catch (err) {
-    console.warn('Server-side transcription unavailable this recording (expected until the Worker /transcribe endpoint is deployed) — keeping the on-device transcript:', err && err.message);
+    console.warn('Server-side transcription unavailable this recording — keeping the on-device transcript:', err && err.message);
   }
 }
 
@@ -5185,11 +5183,14 @@ function initMobileView() {
 }
 
 function getFullAddress() {
-  const street = document.getElementById('jobAddress').value.trim();
-  const suburb = document.getElementById('jobSuburb').value.trim();
-  const state = document.getElementById('jobState').value.trim();
-  const postcode = document.getElementById('jobPostcode').value.trim();
+  return formatAddress(
+    document.getElementById('jobAddress').value.trim(),
+    document.getElementById('jobSuburb').value.trim(),
+    document.getElementById('jobState').value.trim(),
+    document.getElementById('jobPostcode').value.trim());
+}
 
+function formatAddress(street, suburb, state, postcode) {
   const line2 = [suburb, [state, postcode].filter(Boolean).join(' ')].filter(Boolean).join(' ');
   return [street, line2].filter(Boolean).join(', ');
 }
@@ -7429,6 +7430,93 @@ function generateReport() {
   }, 50);
 }
 
+// ── SHARED PDF PIECES ── used by the inspection report and the quote PDF
+// (js/quote.js) so both documents carry the same brand.
+const PDF_COLORS = {
+  white:       [255, 255, 255],
+  pageBg:      [250, 251, 252],
+  // Text
+  ink:         [12,  18,  28],
+  inkLight:    [55,  70,  88],
+  inkMuted:    [115, 130, 148],
+  // Accent — Prometho metallic teal
+  accent:      [13,  148, 136],
+  accentDark:  [8,   100,  92],
+  accentLight: [200, 238, 234],
+  // Structure
+  rule:        [208, 218, 228],
+  ruleLight:   [230, 237, 244],
+  rowAlt:      [245, 248, 251],
+  headerBg:    [10,  15,  22],
+  // Status
+  danger:      [192,  48,  38],
+  warn:        [175, 112,  16],
+  safe:        [40,  148,  72],
+  // Cover
+  coverDark:   [10,  15,  22],
+  coverMid:    [20,  30,  46],
+};
+
+// Logo mark for the dark header band: the uploaded company logo on a white
+// tile, falling back to the default K mark.
+function drawPdfCompanyMark(doc, company) {
+  const C = PDF_COLORS;
+  if (company.logo) {
+    try {
+      const boxX = 12, boxY = 12, boxW = 24, boxH = 24, pad = 3;
+      doc.setFillColor(...C.white); doc.roundedRect(boxX, boxY, boxW, boxH, 3, 3, 'F');
+      const natW = company.logoWidth || 1, natH = company.logoHeight || 1;
+      const maxW = boxW - pad*2, maxH = boxH - pad*2;
+      let drawW = maxW, drawH = maxW * (natH / natW);
+      if (drawH > maxH) { drawH = maxH; drawW = maxH * (natW / natH); }
+      doc.addImage(company.logo, 'PNG', boxX + (boxW-drawW)/2, boxY + (boxH-drawH)/2, drawW, drawH, undefined, 'FAST');
+      return;
+    } catch (e) {}
+  }
+  doc.setFillColor(...C.accent); doc.roundedRect(14, 14, 20, 20, 3, 3, 'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...C.coverDark);
+  doc.text('K', 24, 27.5, { align:'center' });
+}
+
+// Gets a finished PDF off the device. Inside the native app wrapper there is
+// no Downloads folder for a browser-style <a download> click to land in — it
+// silently does nothing — so go straight to the native Share sheet there.
+// Browsers / PWA get a Safari-compatible blob download.
+async function deliverPdfBlob(blob, fname, { title, text, readyToast }) {
+  const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+  if (isNative) {
+    const file = new File([blob], fname, { type: 'application/pdf' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ title, text, files: [file] });
+        showToast(readyToast, 'success');
+      } catch(e) {
+        if (e.name !== 'AbortError') showToast('Share cancelled', 'info');
+      }
+    } else {
+      showToast('PDF ready — tap Share to save or send it', 'info');
+    }
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 300);
+    showToast('PDF downloaded', 'success');
+  } catch(e) {
+    // Fallback — open PDF in new tab
+    window.open(url, '_blank');
+    showToast('PDF opened in new tab — save from there', 'info');
+  }
+}
+
 async function _buildAndDownloadPDF() {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210, M = 15, CW = W - M * 2;
@@ -7451,31 +7539,8 @@ async function _buildAndDownloadPDF() {
   const standardName = STANDARD_NAMES[standard] || '';
   const standardLabel = standardName ? `${standard} — ${standardName}` : standard;
 
-  // ── COLOUR PALETTE ──────────────────────────────────────────────────────
-  const C = {
-    white:       [255, 255, 255],
-    pageBg:      [250, 251, 252],
-    // Text
-    ink:         [12,  18,  28],
-    inkLight:    [55,  70,  88],
-    inkMuted:    [115, 130, 148],
-    // Accent — Prometho metallic teal
-    accent:      [13,  148, 136],
-    accentDark:  [8,   100,  92],
-    accentLight: [200, 238, 234],
-    // Structure
-    rule:        [208, 218, 228],
-    ruleLight:   [230, 237, 244],
-    rowAlt:      [245, 248, 251],
-    headerBg:    [10,  15,  22],
-    // Status
-    danger:      [192,  48,  38],
-    warn:        [175, 112,  16],
-    safe:        [40,  148,  72],
-    // Cover
-    coverDark:   [10,  15,  22],
-    coverMid:    [20,  30,  46],
-  };
+  const C = PDF_COLORS;
+
 
   function newPage() { doc.addPage(); y = 20; }
   function gap(n=5) { y += n; }
@@ -7768,26 +7833,7 @@ async function _buildAndDownloadPDF() {
 
   const company = getCompanyDetails();
 
-  // Company name + logo mark in header — uses the uploaded company logo
-  // when there is one, falling back to the default K mark otherwise
-  let logoDrawn = false;
-  if (company.logo) {
-    try {
-      const boxX = 12, boxY = 12, boxW = 24, boxH = 24, pad = 3;
-      doc.setFillColor(...C.white); doc.roundedRect(boxX, boxY, boxW, boxH, 3, 3, 'F');
-      const natW = company.logoWidth || 1, natH = company.logoHeight || 1;
-      const maxW = boxW - pad*2, maxH = boxH - pad*2;
-      let drawW = maxW, drawH = maxW * (natH / natW);
-      if (drawH > maxH) { drawH = maxH; drawW = maxH * (natW / natH); }
-      doc.addImage(company.logo, 'PNG', boxX + (boxW-drawW)/2, boxY + (boxH-drawH)/2, drawW, drawH, undefined, 'FAST');
-      logoDrawn = true;
-    } catch (e) { logoDrawn = false; }
-  }
-  if (!logoDrawn) {
-    doc.setFillColor(...C.accent); doc.roundedRect(14, 14, 20, 20, 3, 3, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...C.coverDark);
-    doc.text('K', 24, 27.5, { align:'center' });
-  }
+  drawPdfCompanyMark(doc, company);
 
   if (company.name) {
     doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(240,234,224);
@@ -8603,47 +8649,9 @@ async function _buildAndDownloadPDF() {
   const shareBtn = document.getElementById('shareBtn');
   if (shareBtn) shareBtn.style.display = 'flex';
 
-  const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
-
-  if (isNative) {
-    // Inside the native app wrapper there is no Downloads folder for a browser-style
-    // <a download> click to land in — it silently does nothing. Go straight to the native
-    // Share sheet instead, which is the only reliable way to get the file out of the WebView.
-    const file = new File([pdfBlob], fname, { type: 'application/pdf' });
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          title: 'KORVUS Inspection Report',
-          text: `Timber Pest Inspection Report — ${getFullAddress() || 'Property'}`,
-          files: [file],
-        });
-        showToast('Report ready — choose where to save or send it', 'success');
-      } catch(e) {
-        if (e.name !== 'AbortError') showToast('Share cancelled', 'info');
-      }
-    } else {
-      showToast('PDF ready — tap Share to save or send it', 'info');
-    }
-    return;
-  }
-
-  // Browser / PWA path — Safari-compatible download using blob URL
-  try {
-    const url = URL.createObjectURL(pdfBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fname;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 300);
-    showToast('PDF downloaded', 'success');
-  } catch(e) {
-    // Fallback — open PDF in new tab
-    const dataUri = doc.output('datauristring');
-    window.open(dataUri, '_blank');
-    showToast('PDF opened in new tab — save from there', 'info');
-  }
+  await deliverPdfBlob(pdfBlob, fname, {
+    title: 'KORVUS Inspection Report',
+    text: `Timber Pest Inspection Report — ${getFullAddress() || 'Property'}`,
+    readyToast: 'Report ready — choose where to save or send it',
+  });
 }
