@@ -113,17 +113,19 @@
   </div>
 
   <div class="draft-note">
-    <strong>Draft — not yet legally reviewed.</strong> This policy is a starting point prepared with general reference to the Australian Privacy Act 1988 (Cth), current as of June 2026. It has not been reviewed by a qualified solicitor and should be treated as provisional pending that review.
+    <strong>Draft — not yet legally reviewed.</strong> This policy was prepared with general reference to the Australian Privacy Act 1988 (Cth) and the Australian Privacy Principles. It has not been reviewed by a qualified solicitor and should be treated as provisional pending that review.
   </div>
 
   <h1>Privacy Policy</h1>
-  <div class="updated">Last updated: 23 September 2026</div>
+  <div class="updated">Last updated: 4 October 2026 · Version 2</div>
 
   <p>KORVUS Inspect ("Korvus," "we," "us") is a voice-to-report tool used by licensed timber pest and termite inspectors in Australia to record inspection findings and generate compliant inspection reports. This policy explains what personal information the app collects, how it is used, who it is shared with, and how you can contact us about it.</p>
 
   <p>This policy applies to personal information collected through the KORVUS Inspect application, including information about property owners, occupants, and clients whose properties are the subject of an inspection ("clients"), as well as information about the inspectors using the app ("technicians").</p>
 
-  <p>Korvus is currently operated as an individual project, with formal business registration planned for the future.</p>
+  <h2>Who we are, and who is responsible</h2>
+  <p>KORVUS Inspect is operated by [BUSINESS NAME] (ABN [ABN]), [ADDRESS].</p>
+  <p>The inspector or inspection business using the app decides what client information to collect and what goes in each report. Korvus stores and processes that information on their behalf, to provide the app. Clients with a question about their report should contact their inspector first. They can also contact us using the details at the end of this policy.</p>
 
   <h2>What information we collect</h2>
   <p>Depending on how the app is used, we may collect:</p>
@@ -133,9 +135,10 @@
     <li><strong>Inspection findings</strong>, including descriptions of termite or pest activity, damage observations, conducive conditions, and recommendations, as entered or dictated by the technician.</li>
     <li><strong>Photographs of the property</strong>, where the photo capture feature is in use, which may incidentally include identifiable people, vehicles, or other personal property.</li>
     <li><strong>Signatures</strong>, captured digitally from the technician and, where applicable, the client, as part of the inspection sign-off process.</li>
-    <li><strong>Technician information</strong>, including the inspector's name and any notes they enter while using the app.</li>
+    <li><strong>Technician information</strong>, including the inspector's name, email address, business details, licence number and any notes they enter while using the app.</li>
+    <li><strong>Billing information</strong> for paid plans. Card details are entered directly with Stripe, our payment processor. We don't see or store full card details.</li>
   </ul>
-  <p>We do not knowingly collect health information, financial information, or government identifiers (such as tax file numbers) through the app.</p>
+  <p>We do not knowingly collect health information, bank account details, or government identifiers (such as tax file numbers) through the app.</p>
 
   <h2>How we collect it</h2>
   <p>Information is collected directly through the technician's use of the app during an inspection — primarily through voice dictation, manual field entry, and (where enabled) photo capture and digital signatures. Clients do not interact with the app directly; their information is entered by the technician on their behalf, in the course of the inspection the client has engaged us to carry out.</p>
@@ -147,34 +150,33 @@
   <p>We collect this information to generate an accurate, structured pest inspection report for the client, allow the technician to review and finalise findings before the report is issued, maintain a record of past inspections for the technician's own reference, and support compliance with the relevant Australian Standards governing timber pest inspections (AS 3660.2 and AS 4349.3).</p>
 
   <h2>How your information is processed, including by AI</h2>
-  <p>Voice dictation is first converted from audio to text on your device. On the iOS app, this is done using Apple's built-in speech recognition service — this is governed by Apple's own privacy policy, not this one. If Korvus is used through a web browser instead (for example, on Android or desktop), the browser's own speech-to-text feature is used — for Chrome, this sends audio to Google's servers for transcription, governed by Google's privacy policy instead. Either way, this conversion happens before the transcript reaches Korvus.</p>
-  <p>The resulting text transcript is sent to a proxy server we operate (hosted on Cloudflare), which forwards it to Anthropic's Claude API, a third-party artificial intelligence service, to convert it into structured report fields, and returns the result. This is an automated processing step performed by software, not a human reviewer. Cloudflare provides the infrastructure this proxy runs on but does not otherwise retain the transcript.</p>
-  <p>Some relevant facts about these steps, based on the relevant providers' published terms as at September 2026:</p>
-  <ul>
-    <li>Data sent to the Claude API under commercial/API terms is <strong>not used to train Anthropic's AI models</strong>. API request data is retained briefly by Anthropic for abuse-prevention and operational purposes, after which it is deleted.</li>
-    <li>Speech-to-text processing is governed by whichever provider performs it on your platform — Apple on the iOS app, or your browser vendor (e.g. Google, for Chrome) elsewhere — under that provider's own privacy policy, not this one.</li>
-    <li>Because these providers' infrastructure may process data outside Australia, using the app involves an <strong>overseas disclosure of personal information</strong> to the United States or other jurisdictions in which these providers operate.</li>
-  </ul>
+  <p><strong>Speech to text.</strong> KORVUS Inspect is a web app that runs in the device's browser. When the technician dictates, the browser's built-in speech recognition turns the audio into text. In Safari (iPhone and iPad) this is Apple's speech recognition, and in Chrome it is Google's. Depending on the device, the audio may be sent to Apple's or Google's servers for this. That step is covered by Apple's or Google's own privacy policy, not this one.</p>
+  <p><strong>Optional audio transcription.</strong> If the technician turns on "Experimental: AI Audio Transcription" (off by default), a copy of the recorded audio is also sent through our server to Cloudflare Workers AI, which runs a speech-to-text model and returns a transcript. We don't store the audio.</p>
+  <p><strong>Turning notes into a report.</strong> The text transcript is sent to a server we operate on Cloudflare, which forwards it to Anthropic's Claude API. Claude turns it into report fields and suggested wording, and the result comes back to the app. We don't store transcripts on that server.</p>
+  <p><strong>The inspector decides.</strong> AI only drafts. The technician reviews every field, can change anything, and signs the report. No decision about a client is made by software alone.</p>
+  <p>Data sent to the Claude API under Anthropic's commercial terms is <strong>not used to train Anthropic's AI models</strong>. Anthropic keeps API data for a limited time for safety and operational purposes, then deletes it.</p>
 
   <h2>Where your information is stored</h2>
-  <p>Inspection data — including drafts, saved reports, and any signatures captured — is stored locally on the technician's device, and is also synced to a cloud database (hosted by Supabase) so that reports are backed up and remain accessible if the device is lost, damaged, or replaced. This cloud sync means client and inspection data is held outside the technician's device, on infrastructure operated by Supabase and hosted in Sydney, Australia. Finished reports are provided to the client as a PDF document; once issued, the client is responsible for their own copy.</p>
+  <p>Inspection data — including drafts, saved reports, photos and any signatures captured — is stored locally on the technician's device, and is also synced to a cloud database (hosted by Supabase) so that reports are backed up and remain accessible if the device is lost, damaged, or replaced. This cloud sync means client and inspection data is held outside the technician's device, on infrastructure operated by Supabase and hosted in Sydney, Australia. Photos are kept in private storage linked to the technician's account, not on a public link. Finished reports are provided to the client as a PDF document; once issued, the client is responsible for their own copy.</p>
 
   <h2>Who we share information with</h2>
-  <p>We share personal information with:</p>
+  <p>We use these service providers to run the app. Each one only receives what it needs for its job.</p>
   <ul>
-    <li><strong>Anthropic</strong>, to convert dictated transcripts into structured report fields.</li>
-    <li><strong>Apple</strong> (on the iOS app, via its built-in speech recognition), or <strong>your browser vendor</strong> (e.g. Google, via Chrome's built-in speech recognition, if used through a browser instead), to convert spoken audio into text.</li>
-    <li><strong>Cloudflare</strong>, which hosts the proxy server that relays transcripts to Anthropic and back.</li>
-    <li><strong>Supabase</strong>, which hosts the cloud database used to store and sync inspection data.</li>
-    <li><strong>The client</strong>, who receives the finished inspection report containing their own property and contact information.</li>
+    <li><strong>Supabase</strong> (database and photo storage, hosted in Sydney, Australia), to store and sync inspection data.</li>
+    <li><strong>Anthropic</strong> (United States), to turn dictated transcripts into report fields.</li>
+    <li><strong>Cloudflare</strong> (global network, including the United States), which hosts our server and, when it's turned on, the optional audio transcription.</li>
+    <li><strong>Apple</strong> or <strong>Google</strong> (United States), through the browser's built-in speech recognition, to turn spoken audio into text.</li>
+    <li><strong>Stripe</strong> (United States and other countries), to process plan payments. Stripe receives the account holder's billing details, not client or inspection information.</li>
+    <li><strong>The client</strong>, who receives the finished report containing their own property and contact information.</li>
   </ul>
-  <p>We do not sell personal information, and we do not share it with any other third party for marketing purposes.</p>
+  <p>Because Anthropic, Cloudflare, Apple, Google and Stripe may process data outside Australia, mainly in the United States, using the app involves disclosing personal information overseas.</p>
+  <p>We do not sell personal information, and we do not share it with anyone for marketing.</p>
 
   <h2>How long we keep information</h2>
   <p>Technicians may retain saved inspection reports, both on-device and in the cloud database, for as long as is useful for their records. We recommend technicians periodically review and delete reports that are no longer needed, particularly once a client relationship has concluded. A technician can permanently delete their account at any time from Menu › Data &amp; backups › Delete My Account. This removes their login, every report and photo stored in the cloud database, and everything stored on the device. A business owner must first cancel any active plan and remove other team members.</p>
 
   <h2>Security</h2>
-  <p>Information captured through KORVUS Inspect is stored on the technician's device and in a cloud database operated by Supabase, which provides encryption in transit and at rest. Account-level sign-in is required to use the app, and access to cloud-stored data is restricted at the database level so that each technician's account can only reach its own data. When a technician signs out, their reports, photos and signatures are backed up to their account and then removed from the device. Technicians are also responsible for keeping their own device secure while signed in, since a lost or compromised device could expose locally stored inspection data.</p>
+  <p>Information captured through KORVUS Inspect is stored on the technician's device and in a cloud database operated by Supabase, which provides encryption in transit and at rest. Sign-in is required to use the app, and access to cloud-stored data is restricted at the database level so that each technician's account can only reach its own data. When a technician signs out, their reports, photos and signatures are backed up to their account and then removed from the device. Technicians are also responsible for keeping their own device secure while signed in, since a lost or compromised device could expose locally stored inspection data.</p>
 
   <h2>Your rights</h2>
   <p>If you are a client and would like to access the personal information we hold about you, correct it, or ask a question about how it has been handled, you can contact us using the details below. We will respond to reasonable requests as promptly as we can.</p>
@@ -186,7 +188,7 @@
   <p>KORVUS Inspect is a professional tool used by licensed pest inspection technicians and is not directed at or designed for use by children.</p>
 
   <h2>Changes to this policy</h2>
-  <p>We may update this policy from time to time, including as Korvus's business structure, technical features, or applicable law changes. The "Last updated" date at the top of this policy reflects the most recent revision.</p>
+  <p>We may update this policy when the app or the law changes. We will tell technicians about important changes in the app or by email before they take effect. The "Last updated" date at the top shows the latest version.</p>
 
   <h2>Contact us</h2>
   <p>If you have any questions about this policy or how your information is handled, you can contact us at:</p>
@@ -198,7 +200,7 @@
   <a class="back-link" href="terms.html">Terms of Service →</a>
 
   <footer>
-    This policy was last reviewed on 23 September 2026 and is marked as a draft pending legal review. It should be revisited once Korvus is formally registered as a business, and again if the planned reforms to the Australian Privacy Act's small business exemption are legislated.
+    This policy is marked as a draft pending legal review. It should be revisited if the planned reforms to the Privacy Act's small business exemption are passed.
   </footer>
 
 </div>
