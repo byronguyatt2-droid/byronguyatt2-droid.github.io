@@ -64,9 +64,9 @@ function treatmentSourceReport() {
   return (src.key === (currentReportId || 'draft') ? reportData : src.reportData) || {};
 }
 
-// Months to the next inspection, from the report's recommendation
+// Months between inspections, from the report's recommendation
 // ("three months after treatment, then every 12 months"), else 12.
-function treatmentNextInspectionMonths(rd) {
+function inspectionFrequencyMonths(rd) {
   const words = { one: 1, two: 2, three: 3, four: 4, six: 6, twelve: 12 };
   const m = String(rd.inspectionFrequency || '').match(/(\d+|one|two|three|four|six|twelve)\s*months?/i);
   if (!m) return 12;
@@ -76,7 +76,7 @@ function treatmentNextInspectionMonths(rd) {
 function addMonthsIso(iso, months) {
   const d = new Date(iso + 'T00:00:00');
   d.setMonth(d.getMonth() + months);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 
 // A first record, filled in from the quote, booking and report.
@@ -115,7 +115,7 @@ function draftTreatment(q) {
     notice: 'new',
     noticeWhere: 'Meter box',
     cautions: TREATMENT_DEFAULT_CAUTIONS,
-    nextInspection: addMonthsIso(date, treatmentNextInspectionMonths(rd)),
+    nextInspection: addMonthsIso(date, inspectionFrequencyMonths(rd)),
     warranty: '',
     notes: '',
   };
