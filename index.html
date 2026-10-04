@@ -268,6 +268,7 @@
       </div>
 
       <div id="quoteEditor" style="display:none">
+        <div class="quote-lock-note" id="quoteLockNote" style="display:none">This job is complete, so the quote is locked. Amend the job from its report to change it.</div>
         <div class="quote-card">
           <div class="quote-card-title">Customer</div>
           <div class="quote-grid">
@@ -919,6 +920,10 @@
       </div><!-- /sectionTabs -->
 
       <div class="report-body" id="reportBody">
+
+        <!-- Job completion: sent, complete, locked, amending (see COMPLETED
+             JOBS in js/app.js) -->
+        <div class="issue-banner" id="issueBanner" style="display:none"></div>
 
         <!-- Pre-inspection agreement: signed before the job (see the
              PRE-INSPECTION AGREEMENT block in js/app.js) -->

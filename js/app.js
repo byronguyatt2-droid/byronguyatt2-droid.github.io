@@ -1622,6 +1622,7 @@ function openApp(appName) {
     appInitialised = true;
     initMobileView();
     initSignaturePads();
+    installReportLockGuard();
     enhanceFieldsWithNotes();
     renderSavedList();
     const restored = loadDraft();
@@ -3613,7 +3614,7 @@ function renderPendingNotes() {
 // the signal drops again or a different report is opened part-way through,
 // so a note can only ever fill in the report it was dictated on.
 async function processPendingNotes(manual) {
-  if (pendingNotesRunning || !getPendingNotes().length) return;
+  if (pendingNotesRunning || !getPendingNotes().length || isReportLocked()) return;
   if (!navigator.onLine) {
     if (manual) showToast('Still no signal — the notes will fill in when you\'re back online', 'info');
     return;
@@ -4491,6 +4492,7 @@ function autoReveal(data) {
 
 // ── EDIT MODE ─────────────────────────────────────────────────────────────
 function toggleEdit() {
+  if (!editOn && isReportLocked()) { showToast('This job is complete and locked. Tap Amend to change it', 'info'); return; }
   editOn = !editOn;
   const body = document.getElementById('reportBody');
   const btn = document.getElementById('editBtn');
@@ -5329,6 +5331,7 @@ function signAgreement(method) {
 }
 
 function removeAgreement() {
+  if (isReportLocked()) { showToast('This job is complete and locked. Tap Amend to change it', 'info'); return; }
   if (!confirm('Remove the signed agreement from this report? The client will need to sign again.')) return;
   delete reportData.agreement;
   saveDraft();
@@ -5724,6 +5727,7 @@ function renderReportWidgets() {
   renderAreaChecklist();
   renderMoistureTable();
   renderPendingNotes();
+  renderIssueState();
 }
 
 // ── LEGACY GENERAL PHOTOS (Photos tab) ─────────────────────────────────────
@@ -5877,6 +5881,7 @@ function applyPanelCollapseStates() {
 }
 
 function toggleVoicePopover() {
+  if (isReportLocked()) return;
   const popover = document.getElementById('voicePopover');
   const fab = document.getElementById('micFab');
   const isOpen = popover.classList.toggle('open');
@@ -6597,7 +6602,33 @@ async function forgotPassword() {
 }
 
 // ── SIGN OUT ─────────────────────────────────────────────────────────────
+// Client details, signatures and photos leave the phone with the account, so
+// a shared or lost phone doesn't hold them. Everything is backed up to the
+// account first; signing back in restores the reports from there (see
+// supabaseSyncOnOpen) and photos download again as they're viewed. If the
+// backup can't finish (no signal), the inspector chooses whether to wait.
 async function signOut() {
+  if (authSession) {
+    const reports = getSavedReports();
+    let failed = 0;
+    if (reports.length) showToast('Backing up your reports before signing out…', 'info');
+    for (const entry of reports) {
+      const ok = await supabaseSave(entry, true);
+      if (!ok || allReportPhotos(entry.reportData).some(p => !p.path)) failed++;
+    }
+    const unsaved = !currentReportId && hasReportContent(reportData);
+    if (failed || unsaved) {
+      const lost = [
+        failed ? `${failed} saved report${failed === 1 ? '' : 's'} couldn't be backed up (no signal?)` : '',
+        unsaved ? 'The open report hasn\'t been saved' : '',
+      ].filter(Boolean).join('. ');
+      if (!confirm(`${lost}.\n\nSigning out removes reports from this phone. Sign out anyway and lose them?`)) {
+        showToast('Still signed in. Your reports are safe on this phone', 'info');
+        return;
+      }
+    }
+  }
+  const reportsKey = reportsStorageKey(), quotesKey = quotesStorageKey();
   try {
     await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
       method: 'POST',
@@ -6607,11 +6638,15 @@ async function signOut() {
   stopAuthAutoRefresh();
   clearSession();
   localStorage.removeItem('korva_last_user_id');
-  // Saved reports are scoped per-account now (reportsStorageKey()) and stay
-  // put under their own key when you sign out - exactly like company
-  // details already did - so they're instantly there again next time you
-  // sign back in, with no dependency on a fresh cloud pull landing in time.
-  localStorage.removeItem(DRAFT_KEY);
+  [reportsKey, quotesKey, DRAFT_KEY].forEach(k => localStorage.removeItem(k));
+  try { await photoStoreRequest('readwrite', st => st.clear()); } catch (e) {}
+  currentReportId = null;
+  if (appInitialised) {
+    resetReportState();
+    ['jobAddress','jobSuburb','jobState','jobPostcode','jobClient','jobInspector'].forEach(id => { document.getElementById(id).value = ''; });
+    updateJob();
+    renderSavedList();
+  }
   document.getElementById('mainMenu').style.display  = 'none';
   document.getElementById('app').style.display       = 'none';
   document.getElementById('authScreen').style.display = 'flex';
@@ -6964,8 +6999,9 @@ function getDeviceId() {
 }
 
 // ── SUPABASE REPORT SYNC (now auth-aware) ────────────────────────────────
-async function supabaseSave(entry) {
-  if (!authSession) return; // only sync when authenticated
+// Returns true once the report is in the account. quiet: no error toast.
+async function supabaseSave(entry, quiet) {
+  if (!authSession) return false; // only sync when authenticated
   // Photos go to Storage, not into the row. Record their cloud paths on
   // the saved copy (and the open draft, which shares the photo objects).
   if (await uploadPendingPhotos(entry.reportData)) {
@@ -7009,6 +7045,7 @@ async function supabaseSave(entry) {
     if (!res.ok) {
       const detail = await res.text();
       console.warn('Supabase save failed:', detail);
+      if (quiet) return false;
       // FIX: this used to fail completely silently - "Report saved" already
       // showed from the local save, so a rejected cloud sync (e.g. RLS
       // blocking a write to a report row that doesn't belong to the current
@@ -7017,11 +7054,15 @@ async function supabaseSave(entry) {
       // "saved on this device only, and the server said no."
       showToast('Saved on this device, but could not sync to your account', 'error');
       updateSyncStatus('cloud_error');
+      return false;
     }
+    return true;
   } catch(e) {
     console.warn('Supabase sync error:', e.message);
+    if (quiet) return false;
     showToast('Saved on this device, but could not sync to your account', 'error');
     updateSyncStatus('cloud_error');
+    return false;
   }
 }
 
@@ -7677,6 +7718,8 @@ function resetReportState() {
   pendingSpeciesMatch = null;
   window.__lastPdfBlob = null;
   window.__lastPdfName = null;
+  window.__lastPdfFingerprint = null;
+  window.__lastPdfVersion = null;
   const shareBtn = document.getElementById('shareBtn');
   if (shareBtn) shareBtn.style.display = 'none';
   clearJobInfo();
@@ -8098,6 +8141,9 @@ function renderSavedList() {
     const risk = r.reportData.riskLevel || 'none';
     const addr = r.address || 'Untitled property';
     const pending = (r.reportData.pendingNotes || []).length;
+    const issue = r.reportData.issue;
+    const issueTag = issue
+      ? `<span class="saved-item-issued">${r.reportData.amending ? 'Amending' : 'Complete'} v${issue.version}</span>` : '';
     return `
       <div class="saved-item" onclick="loadReport('${r.id}')">
         <div class="saved-item-info">
@@ -8106,6 +8152,7 @@ function renderSavedList() {
             <span>${dateStr}</span>
             <span class="saved-item-risk ${risk}">${risk === 'none' ? 'N/A' : risk}</span>
             <span class="saved-item-pct">${r.completion}%</span>
+            ${issueTag}
             ${pending ? `<span class="saved-item-pending">${pending} note${pending !== 1 ? 's' : ''} to fill in</span>` : ''}
           </div>
         </div>
@@ -8146,6 +8193,273 @@ function showToast(msg, type = 'default') {
   t._timeout = setTimeout(() => t.classList.remove('show'), 2800);
 }
 
+// ── COMPLETED JOBS ────────────────────────────────────────────────────────
+// Nothing locks until the whole job is done: the report is signed and sent,
+// the quote is sent (or marked not needed), and the inspector taps "Complete
+// job". Then the report and its quote lock together, so what's saved always
+// matches what the client received. Changing anything afterwards means
+// "Amend" with a reason; sending again and completing again makes it
+// version 2, and the PDF lists every version with its reason.
+//   reportData.reportNumber  stable reference printed on every PDF
+//   reportData.sent          { at, fingerprint, version } - last send
+//   reportData.issue         { version, completedAt, completedBy, fingerprint, fieldHashes }
+//   reportData.issueHistory  [{ version, completedAt, completedBy, reason, changed[], fingerprint }]
+//   reportData.amending      { reason, startedAt } - unlocked for an amendment
+//   reportData.noQuoteNeeded true when the job needs no quote
+// The quote's own sent state lives on the quote (see SENT AND LOCKED in js/quote.js).
+const ISSUE_META_KEYS = ['reportNumber', 'sent', 'issue', 'issueHistory', 'amending', 'pendingNotes', 'noQuoteNeeded'];
+const ISSUE_SECTION_NAMES = { job:'Job details', quote:'Quote', property:'Property', obstructions:'Areas', restrictions:'Restrictions',
+  findings:'Findings', conducive:'Conducive', recommendations:'Recommendations', photos:'Photos', signoff:'Sign-off' };
+
+function isReportLocked() { return !!(reportData.issue && !reportData.amending); }
+
+// SHA-256 (synchronous, so Send can check the PDF is current without losing
+// the tap the share sheet needs).
+function sha256Hex(str) {
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const bytes = new TextEncoder().encode(str);
+  const len = bytes.length, padded = new Uint8Array(((len + 9 + 63) >> 6) << 6);
+  padded.set(bytes); padded[len] = 0x80;
+  const dv = new DataView(padded.buffer);
+  dv.setUint32(padded.length - 4, len * 8 >>> 0); dv.setUint32(padded.length - 8, Math.floor(len / 0x20000000));
+  const h = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const w = new Uint32Array(64), rot = (x, n) => (x >>> n) | (x << (32 - n));
+  for (let off = 0; off < padded.length; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rot(w[i-15], 7) ^ rot(w[i-15], 18) ^ (w[i-15] >>> 3);
+      const s1 = rot(w[i-2], 17) ^ rot(w[i-2], 19) ^ (w[i-2] >>> 10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) >>> 0;
+    }
+    let [a, b, c, d, e, f, g, hh] = h;
+    for (let i = 0; i < 64; i++) {
+      const t1 = (hh + (rot(e, 6) ^ rot(e, 11) ^ rot(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) >>> 0;
+      const t2 = ((rot(a, 2) ^ rot(a, 13) ^ rot(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      hh = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    [a, b, c, d, e, f, g, hh].forEach((v, i) => { h[i] = (h[i] + v) >>> 0; });
+  }
+  return h.map(v => v.toString(16).padStart(8, '0')).join('');
+}
+
+// JSON with sorted keys, so the same content always gives the same hash.
+function stableJson(v) {
+  if (Array.isArray(v)) return '[' + v.map(stableJson).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined)
+    .map(k => JSON.stringify(k) + ':' + stableJson(v[k])).join(',') + '}';
+  return JSON.stringify(v === undefined ? null : v);
+}
+
+// The report's content, keyed by field, plus the job details from the menu.
+function reportContentParts() {
+  const parts = {};
+  Object.keys(reportData).forEach(k => { if (!ISSUE_META_KEYS.includes(k)) parts[k] = reportData[k]; });
+  parts.job = ['jobAddress','jobSuburb','jobState','jobPostcode','jobClient','jobInspector']
+    .map(id => (document.getElementById(id) || {}).value || '');
+  return parts;
+}
+function reportFingerprint() { return sha256Hex(stableJson(reportContentParts())); }
+function formatFingerprint(fp) { return (fp || '').slice(0, 16).toUpperCase().match(/.{4}/g).join('-'); }
+function reportFieldHashes() {
+  const parts = reportContentParts(), out = {};
+  Object.keys(parts).forEach(k => { out[k] = sha256Hex(stableJson(parts[k])).slice(0, 12); });
+  return out;
+}
+
+// Section names whose content differs between two sets of field hashes.
+function changedSections(before, after) {
+  const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+  const names = new Set();
+  keys.forEach(k => {
+    if ((before || {})[k] === (after || {})[k]) return;
+    let sec = (k === 'job' || k === 'quote') ? k : Object.keys(SECTIONS).find(s => SECTIONS[s].fields.includes(k));
+    if (!sec) {
+      const el = document.getElementById('f-' + k);
+      const section = el && el.closest('.report-section');
+      sec = section ? section.id.replace('section-', '') : null;
+    }
+    names.add(ISSUE_SECTION_NAMES[sec] || 'Other details');
+  });
+  return [...names];
+}
+
+function ensureReportNumber() {
+  if (!reportData.reportNumber) {
+    reportData.reportNumber = 'KV-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.floor(Math.random()*9000+1000);
+  }
+  return reportData.reportNumber;
+}
+// The version the next PDF carries: the locked version, or the one being made.
+function reportVersion() {
+  const issue = reportData.issue;
+  return issue ? issue.version + (reportData.amending ? 1 : 0) : 1;
+}
+
+function currentJobQuote() { return quoteForReport(currentReportId || 'draft', getFullAddress()); }
+
+// Anything that should be sorted out before the job is completed and locked.
+function reportAttentionItems() {
+  const items = [];
+  if (!document.getElementById('jobAddress').value.trim()) items.push('The job has no property address');
+  const unmarked = Object.keys(OBS_ZONES).filter(z => !areaStatusOf(z)).length;
+  if (unmarked) items.push(`${unmarked} area${unmarked === 1 ? ' has' : 's have'} no inspection status`);
+  const pending = (reportData.pendingNotes || []).length;
+  if (pending) items.push(`${pending} voice note${pending === 1 ? ' is' : 's are'} still waiting for signal`);
+  if (!reportData.inspectorSignature) items.push('The inspector hasn\'t signed');
+  if (!reportData.agreement) items.push('No pre-inspection agreement is recorded');
+  const amending = reportData.amending;
+  if (!reportData.sent) items.push('The report hasn\'t been sent to the client');
+  else if (amending && reportData.sent.at < amending.startedAt) items.push('The amended report hasn\'t been sent to the client');
+  else if (reportData.sent.fingerprint !== reportFingerprint()) items.push('The report changed after it was sent. Generate the PDF and send it again');
+  const quote = currentJobQuote();
+  if (quoteHasItems(quote)) {
+    if (!quote.sentAt) items.push('The quote hasn\'t been sent to the client');
+    else if (quote.sentHash !== quoteContentHash(quote)) items.push('The quote changed after it was sent. Send it again');
+  } else if (!reportData.noQuoteNeeded) {
+    items.push('No quote yet. Make one, or tap "No quote needed"');
+  }
+  return items;
+}
+
+function setNoQuoteNeeded(on) {
+  if (on) reportData.noQuoteNeeded = true; else delete reportData.noQuoteNeeded;
+  saveDraft();
+  renderIssueState();
+}
+
+function inspectorDisplayName() {
+  return (document.getElementById('jobInspector').value || '').trim() || (authUser && authUser.email) || 'Inspector';
+}
+
+// Called after the share sheet or email opens with the report attached.
+function recordReportSent(fingerprint, version) {
+  reportData.sent = { at: Date.now(), fingerprint, version };
+  if (document.getElementById('jobAddress').value.trim()) saveCurrentReport(true); else saveDraft();
+  renderIssueState();
+}
+
+function markReportComplete() {
+  if (isReportLocked()) return;
+  const items = reportAttentionItems();
+  if (items.length) { renderIssueState(); showToast(items[0], 'error'); return; }
+  const fingerprint = reportFingerprint(), fieldHashes = reportFieldHashes();
+  const quote = currentJobQuote();
+  if (quoteHasItems(quote)) fieldHashes.quote = quote.sentHash.slice(0, 12);
+  const prev = reportData.issue, amending = reportData.amending;
+  const version = reportVersion();
+  const entry = { version, completedAt: Date.now(), completedBy: inspectorDisplayName(), fingerprint };
+  if (amending) {
+    entry.reason = amending.reason;
+    entry.changed = changedSections(prev && prev.fieldHashes, fieldHashes);
+  }
+  reportData.issueHistory = [...(reportData.issueHistory || []), entry];
+  reportData.issue = { version, completedAt: entry.completedAt, completedBy: entry.completedBy, fingerprint, fieldHashes };
+  delete reportData.amending;
+  saveCurrentReport(true);
+  renderIssueState();
+  showToast(version > 1 ? `Version ${version} complete. Report and quote locked` : 'Job complete. Report and quote locked', 'success');
+}
+
+function openAmendForm() {
+  const form = document.getElementById('issueAmendForm');
+  if (!form) return;
+  form.style.display = '';
+  document.getElementById('issueAmendReason').focus();
+}
+function closeAmendForm() {
+  const form = document.getElementById('issueAmendForm');
+  if (form) form.style.display = 'none';
+}
+function startAmendment() {
+  const reason = document.getElementById('issueAmendReason').value.trim();
+  if (!reason) { showToast('Say why the report is being changed', 'error'); return; }
+  reportData.amending = { reason, startedAt: Date.now() };
+  saveCurrentReport(true);
+  renderIssueState();
+  showToast(`Unlocked. Changes become version ${reportVersion()}`, 'info');
+}
+// Back out of an amendment, only while nothing has been changed.
+function cancelAmendment() {
+  if (!reportData.amending || !reportData.issue) return;
+  const quote = currentJobQuote();
+  const quoteChanged = quoteHasItems(quote) && (reportData.issue.fieldHashes || {}).quote !== quoteContentHash(quote).slice(0, 12);
+  if (reportFingerprint() !== reportData.issue.fingerprint || quoteChanged) {
+    showToast('Changes have been made. Send them and complete the job to finish the amendment', 'error');
+    return;
+  }
+  delete reportData.amending;
+  saveCurrentReport(true);
+  renderIssueState();
+}
+
+function formatIssueDate(ts) {
+  return new Date(ts).toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function renderIssueState() {
+  const banner = document.getElementById('issueBanner');
+  if (!banner) return;
+  const locked = isReportLocked();
+  document.body.classList.toggle('report-locked', locked);
+  if (locked && editOn) toggleEdit();
+  const issue = reportData.issue, amending = reportData.amending, sent = reportData.sent;
+  let html = '';
+  if (locked) {
+    html = `<div class="issue-banner-row"><span class="issue-banner-text"><strong>Job complete · version ${issue.version}</strong>
+      · ${formatIssueDate(issue.completedAt)}. The report and quote are locked so they match what the client received.</span>
+      <button class="agreement-banner-btn" onclick="openAmendForm()">Amend</button></div>
+      <div class="issue-amend-form" id="issueAmendForm" style="display:none">
+        <textarea id="issueAmendReason" rows="2" placeholder="Why is it changing? e.g. Client asked for the garage to be added"></textarea>
+        <div class="issue-amend-actions">
+          <button class="link-btn" onclick="closeAmendForm()">Cancel</button>
+          <button class="agreement-banner-btn issue-primary" onclick="startAmendment()">Unlock for version ${issue.version + 1}</button>
+        </div>
+      </div>`;
+  } else if (sent || amending) {
+    const items = reportAttentionItems();
+    const head = amending
+      ? `<strong>Amending to version ${reportVersion()}</strong> · ${escapeHtml(amending.reason)}.`
+      : `<strong>Report sent ${formatIssueDate(sent.at)}.</strong>`;
+    const next = items.length ? 'Before the job can be completed:' : 'Everything\'s done. Complete the job to lock it.';
+    const noQuote = !quoteHasItems(currentJobQuote());
+    html = `<div class="issue-banner-row"><span class="issue-banner-text">${head} ${next}</span>
+      ${items.length ? '' : '<button class="agreement-banner-btn issue-primary" onclick="markReportComplete()">Complete job</button>'}</div>
+      ${items.length ? `<ul class="issue-attention">${items.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>` : ''}
+      <div class="issue-links">
+        ${noQuote ? `<button class="link-btn" onclick="setNoQuoteNeeded(${!reportData.noQuoteNeeded})">${reportData.noQuoteNeeded ? 'A quote is needed' : 'No quote needed'}</button>` : ''}
+        ${amending ? '<button class="link-btn" onclick="cancelAmendment()">Cancel amendment</button>' : ''}
+      </div>`;
+  }
+  banner.innerHTML = html;
+  banner.style.display = html ? '' : 'none';
+  banner.classList.toggle('locked', locked);
+}
+
+// While locked, taps and typing in the report, the job details and the mic
+// are stopped with a note pointing at Amend. Scrolling and the section tabs
+// still work, and a signed agreement can still be viewed.
+let lockToastAt = 0;
+function installReportLockGuard() {
+  const stop = e => {
+    if (!isReportLocked()) return;
+    if (e.target.closest('.issue-banner')) return;
+    if (reportData.agreement && e.target.closest('.agreement-banner-btn')) return;
+    // Touches only matter on the signature pad; elsewhere they're scrolling.
+    if (e.type === 'touchstart' && e.target.tagName !== 'CANVAS') return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'focusin' && e.target.blur) e.target.blur();
+    if (e.type === 'click' && Date.now() - lockToastAt > 2500) {
+      lockToastAt = Date.now();
+      showToast('This job is complete and locked. Tap Amend to change it', 'info');
+    }
+  };
+  ['reportBody', 'jobPanelBody', 'micDock'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) ['mousedown', 'touchstart', 'click', 'focusin', 'keydown'].forEach(t => el.addEventListener(t, stop, { capture: true, passive: false }));
+  });
+}
+
 // ── PDF GENERATION ────────────────────────────────────────────────────────
 // ── SEND TO CLIENT ──────────────────────────────────────────────────────
 // Opens the phone's share sheet with the PDFs attached and a short message
@@ -8169,6 +8483,7 @@ function clientMessage({ client, address, docs, signOff }) {
   ].join('\n');
 }
 
+// Returns true once the files were handed to the share sheet or an email.
 async function sendPdfsToClient({ files, to, subject, body }) {
   const fileObjs = files.map(f => new File([f.blob], f.fname, { type: 'application/pdf' }));
   if (navigator.share && navigator.canShare && navigator.canShare({ files: fileObjs })) {
@@ -8178,22 +8493,31 @@ async function sendPdfsToClient({ files, to, subject, body }) {
     }
     try {
       await navigator.share({ title: subject, text: body, files: fileObjs });
+      return true;
     } catch (e) {
       // Safari refuses if too long passed since the tap; a second tap works.
       if (e.name === 'NotAllowedError') showToast('Tap Send again to open your email', 'info');
       else if (e.name !== 'AbortError') showToast('Could not open sharing on this device', 'error');
+      return false;
     }
-    return;
   }
   files.forEach(f => downloadBlob(f.blob, f.fname));
   window.location.href = `mailto:${encodeURIComponent(to || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   showToast(`PDF${files.length > 1 ? 's' : ''} downloaded — attach ${files.length > 1 ? 'them' : 'it'} to the email that just opened`, 'info');
+  return true;
 }
 
 // Sends the report PDF just generated, plus this report's quote if it has one.
-function sendReportToClient() {
+async function sendReportToClient() {
   const blob = window.__lastPdfBlob;
   if (!blob) { showToast('Generate the PDF first', 'error'); return; }
+  // The PDF must match the report as it is now, since sending is what the
+  // report is locked against (see COMPLETED REPORTS).
+  const fingerprint = window.__lastPdfFingerprint, version = window.__lastPdfVersion;
+  if (fingerprint !== reportFingerprint()) {
+    showToast('The report changed after the PDF was made. Tap Generate PDF, then Send', 'error');
+    return;
+  }
   const files = [{ blob, fname: window.__lastPdfName || 'KORVUS_Report.pdf' }];
   const quote = quoteForReport(currentReportId || 'draft', getFullAddress());
   if (quote && quote.items && quote.items.length) {
@@ -8201,7 +8525,7 @@ function sendReportToClient() {
   }
   const address = getFullAddress();
   const withQuote = files.length > 1;
-  sendPdfsToClient({
+  const sent = await sendPdfsToClient({
     files,
     to: (reportData.jobClientEmail || '').trim(),
     subject: `${withQuote ? 'Timber pest inspection report and quote' : 'Timber pest inspection report'} — ${address || 'your property'}`,
@@ -8212,6 +8536,10 @@ function sendReportToClient() {
       signOff: document.getElementById('jobInspector').value.trim(),
     }),
   });
+  if (sent) {
+    if (withQuote) markQuoteSent(quote);
+    recordReportSent(fingerprint, version);
+  }
 }
 
 function generateReport() {
@@ -8342,7 +8670,10 @@ async function _buildAndDownloadPDF() {
   const client    = document.getElementById('jobClient').value    || 'Not specified';
   const inspector = document.getElementById('jobInspector').value || 'Not specified';
   const today = new Date().toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' });
-  const reportId = 'TA-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.floor(Math.random()*9000+1000);
+  const reportNumber = ensureReportNumber();
+  const version = reportVersion();
+  const reportId = `${reportNumber} · Version ${version}`;
+  const fingerprint = reportFingerprint();
   let y = 0;
 
   const STANDARD_NAMES = {
@@ -9478,13 +9809,43 @@ async function _buildAndDownloadPDF() {
     doc.line(M+38, y+1, M+CW, y+1); y += 14;
   }
 
+  // ── Version history ─────────────────────────────────────────────────────
+  // Every earlier completed version, and why each amendment was made (see
+  // COMPLETED REPORTS), so a reader can see this isn't the first issue.
+  const history = reportData.issueHistory || [];
+  if (version > 1 && history.length) {
+    if (y + 20 > 270) newPage();
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+    doc.text('VERSION HISTORY', M, y); y += 5;
+    doc.setDrawColor(...C.rule); doc.setLineWidth(0.3); doc.line(M, y, M+CW, y); y += 5;
+    const rows = [...history.map(h => ({ v: h.version, when: h.completedAt, reason: h.reason, changed: h.changed })),
+      ...(version > history[history.length - 1].version
+        ? [{ v: version, when: null, reason: reportData.amending && reportData.amending.reason }] : [])];
+    rows.forEach(r => {
+      const label = r.v === 1 ? 'Original report' : `Amended: ${r.reason || 'no reason given'}`;
+      const detail = r.changed && r.changed.length ? `Changed: ${r.changed.join(', ')}` : '';
+      const lines = doc.splitTextToSize([label, detail].filter(Boolean).join('. '), CW - 60);
+      if (y + lines.length * 4.2 + 3 > 278) newPage();
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+      doc.text(`Version ${r.v}`, M, y);
+      doc.setFont('helvetica','normal'); doc.setTextColor(...C.inkLight);
+      doc.text(r.when ? formatIssueDate(r.when) : 'This version', M+22, y);
+      doc.setTextColor(...C.ink);
+      doc.text(lines, M+60, y);
+      y += lines.length * 4.2 + 3;
+    });
+    y += 5;
+  }
+
   // Footer badge
-  doc.setFillColor(...C.rowAlt); doc.roundedRect(M, y, CW, 12, 2, 2, 'F');
-  doc.setFillColor(...C.accent); doc.rect(M, y, 3, 12, 'F');
+  if (y + 17 > 284) newPage();
+  doc.setFillColor(...C.rowAlt); doc.roundedRect(M, y, CW, 16, 2, 2, 'F');
+  doc.setFillColor(...C.accent); doc.rect(M, y, 3, 16, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
   doc.text(`Generated by KORVUS  ·  ${today}`, M+7, y+5);
   doc.setFont('helvetica','normal'); doc.setTextColor(...C.inkMuted);
   doc.text(`Report ID: ${reportId}  ·  ${standard} Compliant`, M+7, y+9);
+  doc.text(`Content fingerprint: ${formatFingerprint(fingerprint)}  ·  changes to the report change this code`, M+7, y+13);
 
   if (agreement) {
     newPage();
@@ -9501,7 +9862,7 @@ async function _buildAndDownloadPDF() {
     doc.setFillColor(...C.rowAlt); doc.rect(0, 284, W, 13, 'F');
     doc.setFillColor(...C.accent); doc.rect(0, 284, W, 0.5, 'F');
     doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text(`KORVUS  ·  ${standard}`, M, 291);
+    doc.text(`KORVUS  ·  ${reportNumber} v${version}`, M, 291);
     doc.text(address, W/2, 291, { align:'center' });
     doc.setFont('helvetica','bold'); doc.setTextColor(...C.inkLight);
     doc.text(`${p-1} / ${totalPages-1}`, W-M, 291, { align:'right' });
@@ -9521,6 +9882,9 @@ async function _buildAndDownloadPDF() {
   // so the Share button still works even if the auto-delivery path fails.
   window.__lastPdfBlob = pdfBlob;
   window.__lastPdfName = fname;
+  window.__lastPdfFingerprint = fingerprint;
+  window.__lastPdfVersion = version;
+  saveDraft(); // keeps the report number it was given
   const shareBtn = document.getElementById('shareBtn');
   if (shareBtn) shareBtn.style.display = 'flex';
 

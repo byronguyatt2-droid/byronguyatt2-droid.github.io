@@ -27,6 +27,7 @@ const QUOTE_CATALOGUE = {
   system_topup:  { desc: 'Top-up / re-treatment of existing termite management system', unit: 'job', price: 1500 },
   treatment:     { desc: 'Termite management treatment', unit: 'job', price: 1800 },
   direct:        { desc: 'Direct treatment of active termite workings', unit: 'area', price: 380 },
+  borer:         { desc: 'Borer treatment of affected timbers', unit: 'area', price: 450 },
   timber_soil:   { desc: 'Remove timber-to-soil contact', unit: 'job', price: 220 },
   weep_holes:    { desc: 'Clear bridged weep holes', unit: 'job', price: 180 },
   slab_edge:     { desc: 'Expose concealed slab edge for inspection', unit: 'job', price: 250 },
@@ -238,6 +239,12 @@ function buildQuoteItemsFromReport(rd) {
     }
   }
 
+  // Active borers get treated; old borer damage and rot are repairs for a
+  // builder, so they go in the exclusions instead (buildQuoteExclusions).
+  if (rd.borerActivity === 'ACTIVE') {
+    items.push(newQuoteItem('borer', { detail: rd.borerDetails || '', source: 'Finding: active borers' }));
+  }
+
   if (rd.timberSoil === 'YES') {
     items.push(newQuoteItem('timber_soil', { source: 'Conducive condition: timber-to-soil contact' }));
   }
@@ -261,6 +268,12 @@ function buildQuoteExclusions(rd) {
     out.push('Structural assessment and repair of termite-damaged timbers, to be carried out by a licensed builder or structural engineer.');
   } else if (findings.some(f => f && f.damageDescription)) {
     out.push('Repair or replacement of termite-damaged timbers.');
+  }
+  if (rd.borerActivity === 'ACTIVE' || rd.borerActivity === 'INACTIVE') {
+    out.push('Repair or replacement of borer-damaged timbers.');
+  }
+  if (rd.decayFound === 'YES') {
+    out.push(`Repair or replacement of decayed timbers${rd.decayDetails ? ` (${rd.decayDetails})` : ''} by a licensed builder, and fixing the moisture that caused it.`);
   }
   if (rd.waterLeaks === 'YES') {
     out.push(`Repair of the moisture source${rd.leakLocation ? ` (${rd.leakLocation})` : ''} by a licensed plumber or builder.`);
@@ -304,6 +317,7 @@ function openQuote(from, preferKey) {
   document.getElementById('mainMenu').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('quoteScreen').classList.add('open');
+  installQuoteLockGuard();
   quoteSources = collectQuoteSources();
   renderQuoteSourceOptions(preferKey);
   onQuoteSourceChange();
@@ -318,6 +332,9 @@ function openQuoteFromReport() {
 function closeQuote() {
   clearTimeout(quoteSaveTimer);
   if (quoteState) { persistQuote(); storeQuoteOnReport(quoteState, true); }
+  // Forget it, so the next open reads the stored copy, which a report send
+  // may have marked as sent since.
+  quoteState = null;
   document.getElementById('quoteScreen').classList.remove('open');
   if (quoteReturnTo === 'app') document.getElementById('app').style.display = 'flex';
   else document.getElementById('mainMenu').style.display = 'flex';
@@ -358,6 +375,7 @@ function onQuoteSourceChange() {
   else setQuoteSaveState('Saved');
   renderQuoteSourceSummary(src);
   renderQuoteEditor();
+  renderQuoteLock();
   editor.style.display = 'flex';
 }
 
@@ -370,6 +388,9 @@ function renderQuoteSourceSummary(src) {
   const inactive = findings.filter(f => f.termiteActivity === 'INACTIVE').length;
   if (active) chips.push([`${active} active finding${active > 1 ? 's' : ''}`, 'high']);
   if (inactive) chips.push([`${inactive} inactive finding${inactive > 1 ? 's' : ''}`, 'medium']);
+  if (rd.borerActivity === 'ACTIVE') chips.push(['Active borers', 'high']);
+  else if (rd.borerActivity === 'INACTIVE') chips.push(['Old borer damage', 'medium']);
+  if (rd.decayFound === 'YES') chips.push(['Wood decay', 'medium']);
   if (rd.treatmentType) chips.push([rd.treatmentType, '']);
   else if (rd.treatmentRecommended === 'YES') chips.push(['Treatment recommended', '']);
   if (!chips.length) chips.push(['No findings or recommendations recorded yet', '']);
@@ -525,6 +546,52 @@ function rememberQuotePrices(q) {
   q.items.forEach(it => rememberQuotePrice(it.key, parseFloat(it.price)));
 }
 
+// ── SENT AND LOCKED ─────────────────────────────────────────────────────────
+// A quote records when it went to the client and a hash of what it said, so
+// the job can only be completed once the client has the current quote (see
+// COMPLETED JOBS in js/app.js). Once the job is complete the quote is locked
+// with its report until the job is amended.
+function quoteHasItems(q) { return !!(q && q.items && q.items.length); }
+function quoteContentHash(q) {
+  const content = Object.assign({}, q);
+  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey'].forEach(k => delete content[k]);
+  return sha256Hex(stableJson(content));
+}
+function markQuoteSent(q) {
+  q.sentAt = Date.now();
+  q.sentHash = quoteContentHash(q);
+  const all = readJSON(quotesStorageKey(), {});
+  all[q.reportKey] = q;
+  try { localStorage.setItem(quotesStorageKey(), JSON.stringify(all)); } catch (e) {}
+  storeQuoteOnReport(q, true);
+  if (typeof renderIssueState === 'function') renderIssueState();
+}
+function isQuoteLocked() {
+  const src = currentQuoteSource();
+  const rd = src && (src.key === (currentReportId || 'draft') ? reportData : src.reportData);
+  return !!(rd && rd.issue && !rd.amending);
+}
+function renderQuoteLock() {
+  const note = document.getElementById('quoteLockNote');
+  if (note) note.style.display = isQuoteLocked() ? '' : 'none';
+}
+// While locked, edits in the quote are stopped; the PDF and email still work.
+let quoteLockGuardInstalled = false;
+function installQuoteLockGuard() {
+  if (quoteLockGuardInstalled) return;
+  quoteLockGuardInstalled = true;
+  const editor = document.getElementById('quoteEditor');
+  const stop = e => {
+    if (!isQuoteLocked() || e.target.closest('#quotePdfBtn, #quoteEmailBtn')) return;
+    if (e.type === 'touchstart') return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'focusin' && e.target.blur) e.target.blur();
+    if (e.type === 'click') showToast('This job is complete and locked. Amend it from the report to change the quote', 'info');
+  };
+  ['mousedown', 'click', 'focusin', 'keydown'].forEach(t => editor.addEventListener(t, stop, true));
+}
+
 // Emails the quote PDF to the client. The PDF is built right here, inside
 // the tap, because the share sheet won't open after a wait.
 function emailQuoteToClient() {
@@ -545,7 +612,7 @@ function emailQuoteToClient() {
     to: (q.clientEmail || '').trim(),
     subject: `Quote ${q.number || ''} — ${q.address || 'your property'}`.replace('  ', ' '),
     body: clientMessage({ client: q.client, address: q.address, docs: 'treatment quote', signOff: q.inspector }),
-  });
+  }).then(sent => { if (sent) markQuoteSent(q); });
 }
 
 function buildQuotePDF(q) {
