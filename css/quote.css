@@ -177,10 +177,6 @@ select.quote-input { cursor: pointer; }
   color: var(--text2); font-size: 12.5px; line-height: 1.45;
 }
 .quote-company-gaps .quote-link-btn { flex-shrink: 0; }
-.quote-price-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); }
-.quote-price-row span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.quote-price-row small { font-size: 11px; color: var(--text3); }
-.quote-price-row .quote-input { width: 96px; flex-shrink: 0; text-align: right; }
 .quote-add-btn:hover, .quote-link-btn:hover { background: rgba(var(--accent-rgb), 0.12); }
 .quote-hint { font-size: 12px; color: var(--text3); line-height: 1.45; margin-top: 10px; }
 
@@ -279,3 +275,14 @@ select.quote-input { cursor: pointer; }
 .treat-sketch-wrap .signature-placeholder { padding: 0 24px; text-align: center; }
 .treat-sketch-actions { display: flex; justify-content: space-between; gap: 8px; }
 .treat-sketch-actions label { cursor: pointer; }
+
+/* Chemical calculator */
+.quote-item-calc { margin-top: 8px; }
+.cc-product { display: flex; flex-direction: column; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; }
+.cc-product .link-btn { align-self: flex-start; }
+.cc-result { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 10px; background: rgba(var(--accent-rgb), 0.06); font-size: 13.5px; color: var(--text2); }
+.cc-result > div { display: flex; justify-content: space-between; gap: 12px; }
+.cc-result strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.cc-result .cc-total { padding-top: 6px; border-top: 1px solid var(--border); font-size: 15px; }
+.cc-result .cc-note { display: block; font-size: 12.5px; color: #A15C07; }
+.cc-empty { font-size: 13px; color: var(--text3); }
