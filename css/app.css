@@ -782,12 +782,10 @@ header {
   top: 0;
   left: 0;
   bottom: 0;
-  width: 340px;
-  max-width: 90vw;
+  right: 0;
   z-index: 160;
   transform: translateX(-100%);
-  transition: transform 0.4s cubic-bezier(0.34, 1.1, 0.4, 1);
-  box-shadow: 8px 0 32px rgba(0,0,0,0.4);
+  transition: transform 0.35s cubic-bezier(0.34, 1.1, 0.4, 1);
 }
 .sidebar.open { transform: translateX(0); }
 
@@ -798,7 +796,8 @@ header {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 4px 12px 16px;
+  /* Full width on a phone; a readable column on a tablet or computer. */
+  padding: 4px max(14px, calc(50% - 320px)) 24px;
 }
 .drawer-scroll > * { flex-shrink: 0; }
 
@@ -806,10 +805,18 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px 10px 20px;
+  gap: 8px;
+  padding: 14px max(14px, calc(50% - 320px)) 10px;
   padding-top: calc(14px + env(safe-area-inset-top, 0px));
   flex-shrink: 0;
 }
+.drawer-header .drawer-title { flex: 1; min-width: 0; }
+.drawer-back {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.drawer-back[hidden] { display: none; }
 .drawer-title {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 19px;
@@ -832,7 +839,7 @@ header {
 .drawer-close:hover { border-color: var(--accent); color: var(--accent2); }
 
 .drawer-footer {
-  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  padding: 12px max(14px, calc(50% - 320px)) calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border);
   background: var(--surface);
   margin-top: auto;
@@ -863,8 +870,9 @@ header {
 .share-btn:hover  { background: rgba(var(--accent-rgb), 0.15); border-color: var(--accent); }
 .share-btn:active { transform: scale(0.97); }
 
-/* Drawer groups: This job, Reports, Business, App. Each panel is a card
-   that opens and closes on its own. */
+/* Menu groups: This job, Jobs, Business, App. On the menu list each panel
+   shows only its header row; tapping it opens the panel as a full page
+   (.on-page), with every other item hidden. See showMenuPage(). */
 .drawer-group-label {
   padding: 12px 8px 0;
   font-size: 11px;
@@ -906,7 +914,7 @@ header {
   color: var(--accent2);
 }
 
-/* Collapsible Job Details panel */
+/* Menu rows */
 .panel-label-toggle {
   width: 100%;
   background: transparent;
@@ -935,21 +943,18 @@ header {
   flex-shrink: 0;
   margin-left: auto;
   color: var(--text3);
-  transition: transform 0.25s ease;
 }
-
-.job-panel.collapsed .panel-toggle-chevron,
-.saved-panel.collapsed .panel-toggle-chevron { transform: rotate(-90deg); }
 
 .job-panel-body {
   padding: 2px 14px 14px;
 }
 
-.job-panel.collapsed .job-panel-body,
-.saved-panel.collapsed .job-panel-body { display: none; }
-
-.job-panel.collapsed .job-panel-summary,
-.saved-panel.collapsed .job-panel-summary { color: var(--text2); }
+.sidebar:not(.on-page) .drawer-scroll .job-panel > :not(.panel-label),
+.sidebar:not(.on-page) .drawer-scroll .saved-panel > :not(.panel-label) { display: none; }
+.sidebar.on-page .drawer-scroll > :not(.menu-page-active) { display: none; }
+.sidebar.on-page .menu-page-active > .panel-label { display: none; }
+.sidebar.on-page .menu-page-active { background: transparent; border: none; border-radius: 0; overflow: visible; }
+.sidebar.on-page .menu-page-active > .job-panel-body { padding: 4px 2px 16px; }
 
 
 .job-field {

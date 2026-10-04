@@ -439,6 +439,16 @@
       </div>
       <div class="job-row">
         <div class="job-field">
+          <div class="job-field-label">Supervisor</div>
+          <input class="job-input" id="trSupervisor" placeholder="If a trainee did the work">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Supervisor licence</div>
+          <input class="job-input" id="trSupervisorLicence">
+        </div>
+      </div>
+      <div class="job-row">
+        <div class="job-field">
           <div class="job-field-label">Start time</div>
           <input class="job-input" id="trStart" type="time">
         </div>
@@ -479,6 +489,17 @@
         <div class="job-field-label">Areas not treated, and why</div>
         <textarea class="job-input" id="trNotTreated" rows="2" placeholder="e.g. Under the rear deck, no access"></textarea>
       </div>
+      <div class="job-field">
+        <div class="job-field-label">Site plan</div>
+        <div class="signature-pad-wrap treat-sketch-wrap">
+          <canvas class="signature-canvas" id="trSketchCanvas" width="640" height="480"></canvas>
+          <div class="signature-placeholder" id="trSketchPlaceholder">Optional: sketch the building and mark where the treatment and the notice went</div>
+        </div>
+        <div class="treat-sketch-actions">
+          <label class="signature-clear-btn">Draw on a photo<input type="file" accept="image/*" hidden onchange="loadTreatmentSketchPhoto(this)"></label>
+          <button class="signature-clear-btn" onclick="treatmentSketch.clear()">Clear plan</button>
+        </div>
+      </div>
       <div class="job-row">
         <div class="job-field">
           <div class="job-field-label">Durable notice</div>
@@ -493,6 +514,7 @@
           <input class="job-input" id="trNoticeWhere" placeholder="e.g. Meter box">
         </div>
       </div>
+      <p class="quote-hint" id="trNoticeHint" style="margin:-4px 0 0">The certificate prints the notice wording: system, date, product life and future inspections.</p>
       <div class="job-field">
         <div class="job-field-label">Safety and re-entry (from the label)</div>
         <textarea class="job-input" id="trCautions" rows="2"></textarea>
@@ -690,7 +712,8 @@
     <div class="sidebar" id="sidebarPanel">
 
       <div class="drawer-header">
-        <span class="drawer-title">Menu</span>
+        <button class="drawer-back" id="drawerBack" onclick="showMenuPage(null)" aria-label="Back to menu" hidden><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+        <span class="drawer-title" id="drawerTitle">Menu</span>
         <button class="drawer-close" onclick="toggleDrawer()"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
       </div>
 
@@ -700,11 +723,11 @@
 
       <!-- Job details -->
       <div class="job-panel" id="jobPanel">
-        <button class="panel-label panel-label-toggle" onclick="toggleJobPanel()" id="jobPanelToggle">
+        <button class="panel-label panel-label-toggle" onclick="openMenuPage('jobPanel')" id="jobPanelToggle">
           <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span>
           <span class="panel-title">Job details</span>
           <span class="job-panel-summary" id="jobPanelSummary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
         <div class="job-panel-body" id="jobPanelBody">
 
@@ -844,15 +867,15 @@
           </div>
       </div>
 
-      <div class="drawer-group-label">Reports</div>
+      <div class="drawer-group-label">Jobs</div>
 
       <!-- Saved Reports -->
       <div class="saved-panel" id="savedPanel">
-        <button class="panel-label panel-label-toggle" onclick="togglePanel('savedPanel','korva_savedpanel_collapsed')" id="savedPanelToggle">
+        <button class="panel-label panel-label-toggle" onclick="openMenuPage('savedPanel')" id="savedPanelToggle">
           <span class="panel-icon"><svg class="icon " width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg></span>
           <span class="panel-title">Saved reports</span>
           <span class="job-panel-summary" id="savedPanelSummary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
         <div class="job-panel-body" id="savedPanelBody">
         <input class="job-input saved-search-input" id="savedSearchInput" type="text" placeholder="Search by address or client" autocomplete="off" oninput="renderSavedList()">
@@ -862,14 +885,23 @@
         </div>
       </div>
 
+      <div class="job-panel menu-link">
+        <button class="panel-label panel-label-toggle" onclick="openDashboardFromMenu()">
+          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span>
+          <span class="panel-title">Follow-ups &amp; schedule</span>
+          <span class="job-panel-summary" id="menuFollowUpSummary"></span>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+
       <div class="drawer-group-label">Business</div>
 
       <!-- Company Details -->
-      <div class="job-panel collapsed" id="companyPanelWrap">
-        <button class="panel-label panel-label-toggle" onclick="togglePanel('companyPanel','korva_companypanel_collapsed')" id="companyPanelToggle">
+      <div class="job-panel" id="companyPanelWrap">
+        <button class="panel-label panel-label-toggle" onclick="openMenuPage('companyPanelWrap')" id="companyPanelToggle">
           <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></span>
           <span class="panel-title">Company details</span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
         <div class="job-panel-body" id="companyPanel">
           <p class="drawer-hint company-team-note" id="companyTeamNote" hidden>Your business owner sets these, and they come to your phone automatically.</p>
@@ -915,11 +947,6 @@
             <p class="drawer-hint">Printed on your invoices, with the invoice number as the payment reference.</p>
           </div>
           <div class="job-field">
-            <div class="job-field-label">Quote Prices</div>
-            <button class="quote-link-btn" data-company-setting onclick="openQuotePriceList()">Set your prices</button>
-            <p class="drawer-hint">Your usual price for each treatment, so the first quote is right.</p>
-          </div>
-          <div class="job-field">
             <div class="job-field-label">Pre-Inspection Agreement Wording</div>
             <textarea class="job-input agreement-template-input" id="companyAgreementText" data-company-setting rows="8" oninput="saveCompanyDetails()"></textarea>
             <p class="drawer-hint">What clients sign before each inspection. {company}, {client}, {address}, {date}, {standard}, {inspectionType}, {fee} and {notes} are filled in for each job. This is a starting template: have your lawyer or industry body check it for your state. <button type="button" class="link-btn" data-company-setting onclick="resetAgreementTemplate()">Reset to the default wording</button></p>
@@ -928,13 +955,22 @@
         </div>
       </div>
 
+      <div class="job-panel menu-link">
+        <button class="panel-label panel-label-toggle" data-company-setting onclick="openQuotePriceList()">
+          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+          <span class="panel-title">Your prices</span>
+          <span class="job-panel-summary"></span>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+
       <!-- Team Management -->
-      <div class="job-panel collapsed" id="teamPanel">
-        <button class="panel-label panel-label-toggle" onclick="togglePanel('teamPanelBody','korva_teampanel_collapsed')" id="teamPanelToggle">
+      <div class="job-panel" id="teamPanel">
+        <button class="panel-label panel-label-toggle" onclick="openMenuPage('teamPanel')" id="teamPanelToggle">
           <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
           <span class="panel-title">Team</span>
           <span class="job-panel-summary" id="teamPanelSummary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
         <div class="job-panel-body" id="teamPanelBody">
 
@@ -985,15 +1021,60 @@
         </div>
       </div>
 
+      <!-- Billing -->
+      <div class="saved-panel settings-panel" id="billingPanel">
+        <button class="panel-label panel-label-toggle" onclick="openMenuPage('billingPanel')" id="billingPanelToggle">
+          <span class="panel-icon"><svg class="icon " width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
+          <span class="panel-title">Billing</span>
+          <span class="job-panel-summary" id="billingPanelSummary"></span>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <div class="job-panel-body">
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title">Current Plan</div>
+              <div class="settings-row-desc" id="billingStatusText">Sign in to see your plan.</div>
+            </div>
+            <button class="job-action-btn settings-primary-btn" id="manageBillingBtn" onclick="openBillingPortal()" style="display:none">Manage</button>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title">Starter — $49/mo <span style="font-weight:400;opacity:.65">(draft pricing)</span></div>
+              <div class="settings-row-desc">150 AI extractions / month</div>
+            </div>
+            <button class="job-action-btn settings-primary-btn" onclick="openCheckout('starter')">Upgrade</button>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title">Pro — $99/mo <span style="font-weight:400;opacity:.65">(draft pricing)</span></div>
+              <div class="settings-row-desc">400 AI extractions / month</div>
+            </div>
+            <button class="job-action-btn settings-primary-btn" onclick="openCheckout('pro')">Upgrade</button>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title">Business — $199/mo <span style="font-weight:400;opacity:.65">(draft pricing)</span></div>
+              <div class="settings-row-desc">2000 AI extractions / month</div>
+            </div>
+            <button class="job-action-btn settings-primary-btn" onclick="openCheckout('business')">Upgrade</button>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-desc" style="font-style:italic">Pricing shown is a draft for review, not final. Upgrade buttons will show a message until Stripe billing is fully connected on the backend.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="drawer-group-label">App</div>
 
       <!-- Accessibility -->
-      <div class="saved-panel settings-panel collapsed" id="accessibilityPanel">
-        <button class="panel-label panel-label-toggle" onclick="togglePanel('accessibilityPanel','korva_a11ypanel_collapsed')" id="accessibilityPanelToggle">
+      <div class="saved-panel settings-panel" id="accessibilityPanel">
+        <button class="panel-label panel-label-toggle" onclick="openMenuPage('accessibilityPanel')" id="accessibilityPanelToggle">
           <span class="panel-icon"><svg class="icon " width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8" r="1"/><path d="M12 12v7"/><path d="M9 15h6"/></svg></span>
           <span class="panel-title">Accessibility</span>
           <span class="job-panel-summary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
         <div class="job-panel-body">
           <div class="settings-row">
@@ -1044,12 +1125,12 @@
       </div>
 
       <!-- Voice & AI -->
-      <div class="saved-panel settings-panel collapsed" id="aiPanel">
-        <button class="panel-label panel-label-toggle" onclick="togglePanel('aiPanel','korva_aipanel_collapsed')" id="aiPanelToggle">
+      <div class="saved-panel settings-panel" id="aiPanel">
+        <button class="panel-label panel-label-toggle" onclick="openMenuPage('aiPanel')" id="aiPanelToggle">
           <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg></span>
           <span class="panel-title">Voice &amp; AI</span>
           <span class="job-panel-summary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
         <div class="job-panel-body">
           <div class="settings-row">
@@ -1069,12 +1150,12 @@
       </div>
 
       <!-- Data & backups -->
-      <div class="saved-panel settings-panel collapsed" id="settingsPanel">
-        <button class="panel-label panel-label-toggle" onclick="togglePanel('settingsPanel','korva_settingspanel_collapsed')" id="settingsPanelToggle">
+      <div class="saved-panel settings-panel" id="settingsPanel">
+        <button class="panel-label panel-label-toggle" onclick="openMenuPage('settingsPanel')" id="settingsPanelToggle">
           <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg></span>
           <span class="panel-title">Data &amp; backups</span>
           <span class="job-panel-summary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
         <div class="job-panel-body">
           <div class="settings-row">
@@ -1115,50 +1196,6 @@
         </div>
       </div>
 
-      <!-- Billing -->
-      <div class="saved-panel settings-panel collapsed" id="billingPanel">
-        <button class="panel-label panel-label-toggle" onclick="togglePanel('billingPanel','korva_billingpanel_collapsed')" id="billingPanelToggle">
-          <span class="panel-icon"><svg class="icon " width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
-          <span class="panel-title">Billing</span>
-          <span class="job-panel-summary" id="billingPanelSummary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="job-panel-body">
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <div class="settings-row-title">Current Plan</div>
-              <div class="settings-row-desc" id="billingStatusText">Sign in to see your plan.</div>
-            </div>
-            <button class="job-action-btn settings-primary-btn" id="manageBillingBtn" onclick="openBillingPortal()" style="display:none">Manage</button>
-          </div>
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <div class="settings-row-title">Starter — $49/mo <span style="font-weight:400;opacity:.65">(draft pricing)</span></div>
-              <div class="settings-row-desc">150 AI extractions / month</div>
-            </div>
-            <button class="job-action-btn settings-primary-btn" onclick="openCheckout('starter')">Upgrade</button>
-          </div>
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <div class="settings-row-title">Pro — $99/mo <span style="font-weight:400;opacity:.65">(draft pricing)</span></div>
-              <div class="settings-row-desc">400 AI extractions / month</div>
-            </div>
-            <button class="job-action-btn settings-primary-btn" onclick="openCheckout('pro')">Upgrade</button>
-          </div>
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <div class="settings-row-title">Business — $199/mo <span style="font-weight:400;opacity:.65">(draft pricing)</span></div>
-              <div class="settings-row-desc">2000 AI extractions / month</div>
-            </div>
-            <button class="job-action-btn settings-primary-btn" onclick="openCheckout('business')">Upgrade</button>
-          </div>
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <div class="settings-row-desc" style="font-style:italic">Pricing shown is a draft for review, not final. Upgrade buttons will show a message until Stripe billing is fully connected on the backend.</div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div class="drawer-legal"><a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a></div>
 
