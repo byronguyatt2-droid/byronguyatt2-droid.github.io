@@ -437,9 +437,33 @@
           <input class="job-input" id="trLicence">
         </div>
       </div>
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Start time</div>
+          <input class="job-input" id="trStart" type="time">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Finish time</div>
+          <input class="job-input" id="trFinish" type="time">
+        </div>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Pest treated</div>
+        <input class="job-input" id="trPest" placeholder="e.g. Subterranean termites (Coptotermes)">
+      </div>
       <div class="job-field">
         <div class="job-field-label">What was done</div>
         <div class="treat-methods" id="trMethods"></div>
+      </div>
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Equipment used</div>
+          <input class="job-input" id="trEquipment" placeholder="e.g. Trenching, rodding, foam applicator">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Weather</div>
+          <input class="job-input" id="trWeather" placeholder="e.g. Fine, 22°C, light SE wind">
+        </div>
       </div>
       <div class="job-field">
         <div class="job-field-label">Products used</div>
@@ -468,6 +492,14 @@
           <div class="job-field-label">Where</div>
           <input class="job-input" id="trNoticeWhere" placeholder="e.g. Meter box">
         </div>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Safety and re-entry (from the label)</div>
+        <textarea class="job-input" id="trCautions" rows="2"></textarea>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Warranty or service terms</div>
+        <textarea class="job-input" id="trWarranty" rows="2" placeholder="Optional"></textarea>
       </div>
       <div class="job-field">
         <div class="job-field-label">Notes for the client</div>
