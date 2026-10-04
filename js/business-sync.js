@@ -34,10 +34,10 @@ function applyCloudBusinessSettings() {
   const local = localBusinessSettings();
   try {
     if (hasContent(cloud.company) && (cloud.company.updatedAt || 0) > (local.company.updatedAt || 0)) {
-      localStorage.setItem(companyStorageKey(), JSON.stringify(cloud.company));
+      localStorage.setItem(companyStorageKey(), JSON.stringify(takeCloudCopy(cloud.company, local.company, 'updatedAt')));
     }
     if (hasContent(cloud.prices) && (cloud.prices.__updatedAt || 0) > (local.prices.__updatedAt || 0)) {
-      localStorage.setItem(quotePricesStorageKey(), JSON.stringify(cloud.prices));
+      localStorage.setItem(quotePricesStorageKey(), JSON.stringify(takeCloudCopy(cloud.prices, local.prices, '__updatedAt')));
     }
     if ((parseInt(cloud.invoiceSeq, 10) || 0) > local.invoiceSeq) {
       localStorage.setItem(invoiceSeqKey(), JSON.stringify(parseInt(cloud.invoiceSeq, 10)));
@@ -46,6 +46,21 @@ function applyCloudBusinessSettings() {
   // Settings made on this phone before syncing existed go up now.
   if (isBusinessOwner() && localSettingsAhead(cloud)) scheduleBusinessSync();
   renderCompanySettingsAccess();
+}
+
+// The account copy replaces this phone's, except for details this phone
+// entered before syncing existed (no time on them): anything the account
+// copy has blank is kept from the phone, so a near-empty copy pushed first
+// by another browser can't wipe real details. The merged copy then goes up.
+function takeCloudCopy(cloudPart, localPart, timeKey) {
+  if (localPart[timeKey] || !hasContent(localPart)) return cloudPart;
+  const merged = Object.assign({}, cloudPart);
+  Object.keys(localPart).forEach(k => {
+    const v = merged[k];
+    if (v === undefined || v === null || v === '') merged[k] = localPart[k];
+  });
+  merged[timeKey] = Date.now();
+  return merged;
 }
 
 function localSettingsAhead(cloud) {
