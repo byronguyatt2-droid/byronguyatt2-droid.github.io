@@ -309,7 +309,7 @@
 
         <div class="quote-card">
           <label class="quote-card-title" for="qExclusions">Exclusions &amp; work by others</label>
-          <div class="quote-hint" style="margin:2px 0 8px">One per line. Pre-filled from structural concerns, moisture sources and inaccessible areas in the report.</div>
+          <div class="quote-hint" style="margin:2px 0 8px">One per line. Pre-filled from builder referrals, moisture sources and inaccessible areas in the report.</div>
           <textarea class="quote-input quote-textarea" id="qExclusions" rows="5" oninput="onQuoteFieldInput()"></textarea>
           <label class="quote-card-title" for="qNotes" style="margin-top:14px;display:block">Terms &amp; notes</label>
           <textarea class="quote-input quote-textarea" id="qNotes" rows="4" oninput="onQuoteFieldInput()"></textarea>
@@ -372,6 +372,39 @@
       </div>
       <button class="extract-btn" id="qaSaveBtn" onclick="saveQuoteAnswer()">Save</button>
       <button class="link-btn send-review-cancel" onclick="closeQuoteAnswer()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-sheet-overlay" id="quoteBookOverlay">
+  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="quoteBookTitle">
+    <div class="page-sheet-header">
+      <span class="page-sheet-title" id="quoteBookTitle">Book the treatment</span>
+      <button class="voice-popover-close" onclick="closeQuoteBooking()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+    </div>
+    <div class="page-sheet-body">
+      <p class="quote-hint" id="qbSummary" style="margin:0"></p>
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Date</div>
+          <input class="job-input" id="qbDate" type="date">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Time</div>
+          <input class="job-input" id="qbTime" type="time">
+        </div>
+      </div>
+      <div class="job-field" id="qbAssigneeWrap" style="display:none">
+        <div class="job-field-label">Technician</div>
+        <select class="job-input" id="qbAssignee"></select>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Notes</div>
+        <input class="job-input" id="qbNotes" placeholder="e.g. Client home after 9, dog in the backyard">
+      </div>
+      <p class="quote-hint" style="margin:0">It goes on the Schedule. Booked for someone else on your team, it goes on their Schedule too.</p>
+      <button class="extract-btn" id="qbSaveBtn" onclick="saveQuoteBooking()">Book it</button>
+      <button class="link-btn send-review-cancel" onclick="closeQuoteBooking()">Cancel</button>
     </div>
   </div>
 </div>
@@ -546,7 +579,7 @@
           </div>
           <div class="job-field">
             <div class="job-field-label">Inspection Type</div>
-            <select class="job-input job-select" id="jobInspectionType" onchange="saveJobInfo()">
+            <select class="job-input job-select" id="jobInspectionType" onchange="onInspectionTypeChange()">
               <option value="">Select…</option>
               <option>Annual — Existing Building</option>
               <option>Pre-Purchase — Timber Pest</option>
@@ -689,6 +722,11 @@
           <div class="job-field">
             <div class="job-field-label">Business Email</div>
             <input class="job-input" id="companyEmail" type="email" placeholder="e.g. office@abcpest.com.au" oninput="saveCompanyDetails()">
+          </div>
+          <div class="job-field">
+            <div class="job-field-label">Quote Prices</div>
+            <button class="quote-link-btn" onclick="openQuotePriceList()">Set your prices</button>
+            <p class="drawer-hint">Your usual price for each treatment, so the first quote is right.</p>
           </div>
           <div class="job-field">
             <div class="job-field-label">Pre-Inspection Agreement Wording</div>
@@ -1271,7 +1309,7 @@
 
           <!-- Species Reference (inline) -->
           <div class="species-inline">
-            <div class="species-inline-label"><span class="panel-icon"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2 5 6"/><path d="M16 2l3 4"/><rect x="7" y="7" width="10" height="12" rx="5"/><path d="M7 12H3"/><path d="M21 12h-4"/><path d="M7 16H3"/><path d="M21 16h-4"/></svg></span>NSW Species Reference</div>
+            <div class="species-inline-label"><span class="panel-icon"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2 5 6"/><path d="M16 2l3 4"/><rect x="7" y="7" width="10" height="12" rx="5"/><path d="M7 12H3"/><path d="M21 12h-4"/><path d="M7 16H3"/><path d="M21 16h-4"/></svg></span>Common Australian Species</div>
             <div class="species-list">
               <div class="species-item" title="Most common in NSW — Extreme risk">
                 <div class="species-dot" style="background:#ff4d6a"></div>
