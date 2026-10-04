@@ -603,6 +603,7 @@ function quoteAnswerSummary(q) {
   const a = quoteAnswerState(q);
   if (!a) return q.sentAt ? { short: 'Quote sent', text: 'Waiting on the client\'s answer to the quote', tone: 'wait' } : null;
   if (a.stale) return { short: 'Quote changed', text: 'The quote changed after the client answered. Get their answer on the new version', tone: 'warn' };
+  if (a.status === 'accepted' && q.treatment) return { short: 'Treatment done', text: `Treatment done on ${formatAnswerDate(q.treatment.date)}. Send the client the certificate`, tone: 'good' };
   if (a.status === 'accepted' && q.booking) return { short: 'Treatment booked', text: `Quote accepted. Treatment booked for ${formatBooking(q.booking)}`, tone: 'good' };
   if (a.status === 'accepted') return { short: 'Quote accepted', text: `Quote accepted by ${a.by} on ${formatAnswerDate(a.date)}. Book the treatment next`, tone: 'good' };
   return { short: 'Quote declined', text: `Quote declined on ${formatAnswerDate(a.date)}${a.note ? ` · ${a.note}` : ''}`, tone: 'bad' };
@@ -630,7 +631,7 @@ function renderQuoteAnswer() {
       ${a.note ? `<div class="quote-answer-note">${esc(a.note)}</div>` : ''}
       ${a.signature ? `<img class="quote-answer-sig" src="${a.signature}" alt="Client signature">` : ''}
       ${a.stale ? '<div class="quote-answer-warn">The quote has changed since then. Send the new version and record the client\'s answer again.</div>' : ''}
-      ${a.status === 'accepted' && !a.stale ? renderQuoteBookingBlock(q) : ''}
+      ${a.status === 'accepted' && !a.stale ? renderQuoteBookingBlock(q) + renderTreatmentBlock(q) : ''}
       <button class="quote-link-btn" onclick="clearQuoteAnswer()">${a.stale ? 'Record a new answer' : 'Change answer'}</button>`;
   }
   el.innerHTML = `<div class="quote-card-title">Client's answer</div>${body}`;
@@ -709,7 +710,9 @@ function saveQuoteAnswer() {
 function clearQuoteAnswer() {
   const q = quoteState;
   if (!q || !q.answer) return;
-  if (!confirm(q.booking
+  if (!confirm(q.treatment
+    ? 'Clear the client\'s answer to this quote? The treatment record and certificate stay.'
+    : q.booking
     ? 'Clear the client\'s answer to this quote? The treatment booking stays until you cancel it.'
     : 'Clear the client\'s recorded answer to this quote?')) return;
   delete q.answer;
@@ -740,6 +743,7 @@ function formatClockTime(t) {
 
 function renderQuoteBookingBlock(q) {
   const b = q.booking;
+  if (q.treatment) return '';
   if (!b) return '<button class="quote-btn primary quote-book-btn" onclick="openQuoteBooking()">Book the treatment</button>';
   const who = b.assignedName ? ` · ${escapeHtml(b.assignedName)}` : '';
   return `<div class="quote-booking">
@@ -935,7 +939,7 @@ function closeQuotePriceList() {
 function quoteHasItems(q) { return !!(q && q.items && q.items.length); }
 function quoteContentHash(q) {
   const content = Object.assign({}, q);
-  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey', 'answer', 'booking'].forEach(k => delete content[k]);
+  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey', 'answer', 'booking', 'treatment'].forEach(k => delete content[k]);
   return sha256Hex(stableJson(content));
 }
 function markQuoteSent(q) {
@@ -996,47 +1000,20 @@ function emailQuoteToClient() {
   }).then(sent => { if (sent) markQuoteSent(q); });
 }
 
-function buildQuotePDF(q) {
+// ── SHARED PDF PARTS (quote and treatment certificate) ──────────────────────
+// The dark business band, the document title and the details card: client
+// details on the left, document details in a two-by-two grid on the right.
+// Returns the y position below the card. compact: a shorter band and title,
+// for one-page documents.
+function drawPdfDocCover(doc, company, { kicker, title, date, left, right, compact }) {
   const C = PDF_COLORS;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const W = 210, M = 15, CW = W - M * 2, BOTTOM = 276;
-  const fmtDate = d => new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
-  const today = fmtDate(Date.now());
-  const validDays = parseInt(q.validDays, 10) || 30;
-  const validUntil = fmtDate(Date.now() + validDays * 86400000);
-  const company = getCompanyDetails();
-  const totals = quoteTotals(q);
-  let y = 0;
-
-  function pageTopBand() {
-    // Same light running header as the inspection report.
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...C.ink);
-    doc.text(company.name || 'Treatment Quote', M, 10);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    const sub = [company.name ? 'Treatment Quote' : '', q.address || ''].filter(Boolean).join('   ·   ');
-    if (sub) doc.text(sub.length > 90 ? sub.slice(0, 89) + '…' : sub, M, 14);
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.accent);
-    doc.text(q.number || '', W - M, 10, { align: 'right' });
-    doc.setFillColor(...C.accent); doc.rect(M, 17, CW, 0.35, 'F');
-    y = 26;
-  }
-  function ensure(h) { if (y + h > BOTTOM) { doc.addPage(); pageTopBand(); } }
-  function sectionTitle(title, num) {
-    ensure(20);
-    y += 4;
-    doc.setFillColor(...C.accent); doc.roundedRect(M, y, 7, 7, 1, 1, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...C.white);
-    doc.text(String(num), M + 3.5, y + 5.2, { align: 'center' });
-    doc.setFontSize(10.5); doc.setTextColor(...C.ink);
-    doc.text(title, M + 10, y + 5.5);
-    doc.setFillColor(...C.rule); doc.rect(M, y + 9, CW, 0.3, 'F');
-    y += 15;
-  }
-
-  // ── HEADER BAND (as on the report cover) ──
-  doc.setFillColor(...C.coverDark); doc.rect(0, 0, W, 48, 'F');
+  const W = 210, M = 15, CW = W - M * 2;
+  left = left.filter(([, v]) => v);
+  right = right.filter(([, v]) => v);
+  const bandH = compact ? 39 : 48;
+  doc.setFillColor(...C.coverDark); doc.rect(0, 0, W, bandH, 'F');
   doc.setFillColor(...C.accent); doc.rect(0, 0, W, 3, 'F');
-  doc.setFillColor(...C.accent); doc.rect(0, 0, 4, 48, 'F');
+  doc.setFillColor(...C.accent); doc.rect(0, 0, 4, bandH, 'F');
   drawPdfCompanyMark(doc, company);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(240, 234, 224);
   doc.text(company.name || 'KORVUS', 40, 22);
@@ -1048,32 +1025,17 @@ function buildQuotePDF(q) {
   if (sub.length) doc.text(sub.join('   ·   '), 40, 29);
   if (company.email) doc.text(company.email, 40, 34);
   doc.setFontSize(8);
-  doc.text(today, W - 8, 22, { align: 'right' });
+  doc.text(date, W - 8, 22, { align: 'right' });
 
-  // ── TITLE ──
+  const t0 = compact ? -12 : 0;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
-  doc.text('TIMBER PEST', M, 57);
-  doc.setFontSize(24); doc.setTextColor(...C.ink);
-  doc.text('TREATMENT QUOTE', M, 67);
-  doc.setFillColor(...C.accent); doc.rect(M, 70, 32, 2, 'F');
+  doc.text(kicker, M, 57 + t0);
+  doc.setFontSize(compact ? 20 : 24); doc.setTextColor(...C.ink);
+  doc.text(title, M, (compact ? 65.5 : 67) + t0);
+  doc.setFillColor(...C.accent); doc.rect(M, (compact ? 68.5 : 70) + t0, 32, 2, 'F');
 
-  // ── DETAILS CARD: prepared for | quote details ──
-  const left = [
-    ['PREPARED FOR', q.client || 'Not specified'],
-    ['PROPERTY ADDRESS', q.address || 'Not specified'],
-    ['CONTACT', [q.clientPhone, q.clientEmail].map(v => (v || '').trim()).filter(Boolean).join('  ·  ')],
-  ].filter(([, v]) => v);
-  const right = [
-    ['QUOTE NO.', q.number],
-    ['DATE', today],
-    ['VALID UNTIL', validUntil],
-    ['REPORT DATE', q.inspectionDate ? fmtDate(q.inspectionDate) : ''],
-    ['INSPECTOR', q.inspector],
-  ].filter(([, v]) => v);
-  // Client details on the left; quote details in a two-by-two grid on the
-  // right, which keeps the card short enough for a one-page quote.
   const leftW = (CW - 16) * 0.48, rightX = M + 12 + leftW, cellW = (M + CW - 4 - rightX) / 2;
-  const cardY = 77;
+  const cardY = compact ? 62 : 77;
   const measure = (rows, w) => rows.map(([, v]) => 6 + doc.splitTextToSize(String(v), w - 3).length * 4.2);
   doc.setFontSize(9);
   const leftH = measure(left, leftW).reduce((a, b) => a + b, 0);
@@ -1099,7 +1061,78 @@ function buildQuotePDF(q) {
     if (right[i + 1]) cell(right[i + 1][0], right[i + 1][1], rightX + cellW, ry, cellW);
     ry += Math.max(rightHs[i], rightHs[i + 1] || 0);
   }
-  y = cardY + cardH + 6;
+  return cardY + cardH + 6;
+}
+
+// Same light running header as the inspection report. Returns the y where
+// content starts.
+function drawPdfRunningHeader(doc, company, docName, address, number) {
+  const C = PDF_COLORS;
+  const W = 210, M = 15, CW = W - M * 2;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...C.ink);
+  doc.text(company.name || docName, M, 10);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+  const sub = [company.name ? docName : '', address || ''].filter(Boolean).join('   ·   ');
+  if (sub) doc.text(sub.length > 90 ? sub.slice(0, 89) + '…' : sub, M, 14);
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.accent);
+  doc.text(number || '', W - M, 10, { align: 'right' });
+  doc.setFillColor(...C.accent); doc.rect(M, 17, CW, 0.35, 'F');
+  return 26;
+}
+
+function drawPdfNumberedTitle(doc, y, title, num) {
+  const C = PDF_COLORS;
+  const M = 15, CW = 180;
+  y += 4;
+  doc.setFillColor(...C.accent); doc.roundedRect(M, y, 7, 7, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...C.white);
+  doc.text(String(num), M + 3.5, y + 5.2, { align: 'center' });
+  doc.setFontSize(10.5); doc.setTextColor(...C.ink);
+  doc.text(title, M + 10, y + 5.5);
+  doc.setFillColor(...C.rule); doc.rect(M, y + 9, CW, 0.3, 'F');
+  return y + 15;
+}
+
+function drawPdfDocFooters(doc, label) {
+  const C = PDF_COLORS;
+  const W = 210, M = 15, CW = W - M * 2;
+  const pages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFillColor(...C.rule); doc.rect(M, 284, CW, 0.3, 'F');
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+    doc.text(label, M, 290);
+    doc.text(`Page ${p} of ${pages}`, W - M, 290, { align: 'right' });
+  }
+}
+
+function buildQuotePDF(q) {
+  const C = PDF_COLORS;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = 210, M = 15, CW = W - M * 2, BOTTOM = 276;
+  const fmtDate = d => new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+  const today = fmtDate(Date.now());
+  const validDays = parseInt(q.validDays, 10) || 30;
+  const validUntil = fmtDate(Date.now() + validDays * 86400000);
+  const company = getCompanyDetails();
+  const totals = quoteTotals(q);
+  let y = 0;
+
+  function pageTopBand() { y = drawPdfRunningHeader(doc, company, 'Treatment Quote', q.address, q.number); }
+  function ensure(h) { if (y + h > BOTTOM) { doc.addPage(); pageTopBand(); } }
+  function sectionTitle(title, num) { ensure(20); y = drawPdfNumberedTitle(doc, y, title, num); }
+
+  y = drawPdfDocCover(doc, company, { kicker: 'TIMBER PEST', title: 'TREATMENT QUOTE', date: today, left: [
+    ['PREPARED FOR', q.client || 'Not specified'],
+    ['PROPERTY ADDRESS', q.address || 'Not specified'],
+    ['CONTACT', [q.clientPhone, q.clientEmail].map(v => (v || '').trim()).filter(Boolean).join('  ·  ')],
+  ], right: [
+    ['QUOTE NO.', q.number],
+    ['DATE', today],
+    ['VALID UNTIL', validUntil],
+    ['REPORT DATE', q.inspectionDate ? fmtDate(q.inspectionDate) : ''],
+    ['INSPECTOR', q.inspector],
+  ] });
 
   // ── 1. SCOPE OF WORKS ──
   sectionTitle('SCOPE OF WORKS', 1);
@@ -1238,15 +1271,7 @@ function buildQuotePDF(q) {
   }
   y += 6;
 
-  // ── PAGE FOOTERS ──
-  const pages = doc.internal.getNumberOfPages();
-  for (let p = 1; p <= pages; p++) {
-    doc.setPage(p);
-    doc.setFillColor(...C.rule); doc.rect(M, 284, CW, 0.3, 'F');
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text(`Quote ${q.number || ''}${company.name ? `  ·  ${company.name}` : ''}`, M, 290);
-    doc.text(`Page ${p} of ${pages}`, W - M, 290, { align: 'right' });
-  }
+  drawPdfDocFooters(doc, `Quote ${q.number || ''}${company.name ? `  ·  ${company.name}` : ''}`);
 
   const safe = (q.address || 'Property').replace(/[^\w]+/g, '_').substring(0, 25);
   return { blob: doc.output('blob'), fname: `KORVUS_Quote_${(q.number || '').replace(/[^\w-]+/g, '')}_${safe}.pdf` };
