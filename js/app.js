@@ -5968,6 +5968,7 @@ function saveCompanyDetails() {
   details.phone   = document.getElementById('companyPhone').value.trim();
   details.abn     = document.getElementById('companyABN').value.trim();
   details.email   = document.getElementById('companyEmail').value.trim();
+  details.paymentDetails = document.getElementById('companyPayment').value.trim();
   // Kept empty while it matches the default, so the business picks up
   // improvements to the default wording until they've customised it.
   const agreementText = document.getElementById('companyAgreementText').value;
@@ -5986,6 +5987,7 @@ function loadCompanyDetails() {
     document.getElementById('companyPhone').value   = '';
     document.getElementById('companyABN').value     = '';
     document.getElementById('companyEmail').value   = '';
+    document.getElementById('companyPayment').value = '';
     document.getElementById('companyAgreementText').value = DEFAULT_AGREEMENT_TEXT;
     if (!stored) { renderCompanyLogoPreview(null); return; }
     const d = JSON.parse(stored);
@@ -5994,6 +5996,7 @@ function loadCompanyDetails() {
     if (d.phone)   document.getElementById('companyPhone').value   = d.phone;
     if (d.abn)     document.getElementById('companyABN').value     = d.abn;
     if (d.email)   document.getElementById('companyEmail').value   = d.email;
+    if (d.paymentDetails) document.getElementById('companyPayment').value = d.paymentDetails;
     if (d.agreementText) document.getElementById('companyAgreementText').value = d.agreementText;
     renderCompanyLogoPreview(d.logo || null);
   } catch(e) {}
