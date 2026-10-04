@@ -597,7 +597,8 @@ function quoteAnswerSummary(q) {
   const a = quoteAnswerState(q);
   if (!a) return q.sentAt ? { short: 'Quote sent', text: 'Waiting on the client\'s answer to the quote', tone: 'wait' } : null;
   if (a.stale) return { short: 'Quote changed', text: 'The quote changed after the client answered. Get their answer on the new version', tone: 'warn' };
-  if (a.status === 'accepted') return { short: 'Quote accepted', text: `Quote accepted by ${a.by} on ${formatAnswerDate(a.date)}`, tone: 'good' };
+  if (a.status === 'accepted' && q.booking) return { short: 'Treatment booked', text: `Quote accepted. Treatment booked for ${formatBooking(q.booking)}`, tone: 'good' };
+  if (a.status === 'accepted') return { short: 'Quote accepted', text: `Quote accepted by ${a.by} on ${formatAnswerDate(a.date)}. Book the treatment next`, tone: 'good' };
   return { short: 'Quote declined', text: `Quote declined on ${formatAnswerDate(a.date)}${a.note ? ` · ${a.note}` : ''}`, tone: 'bad' };
 }
 
@@ -623,6 +624,7 @@ function renderQuoteAnswer() {
       ${a.note ? `<div class="quote-answer-note">${esc(a.note)}</div>` : ''}
       ${a.signature ? `<img class="quote-answer-sig" src="${a.signature}" alt="Client signature">` : ''}
       ${a.stale ? '<div class="quote-answer-warn">The quote has changed since then. Send the new version and record the client\'s answer again.</div>' : ''}
+      ${a.status === 'accepted' && !a.stale ? renderQuoteBookingBlock(q) : ''}
       <button class="quote-link-btn" onclick="clearQuoteAnswer()">${a.stale ? 'Record a new answer' : 'Change answer'}</button>`;
   }
   el.innerHTML = `<div class="quote-card-title">Client's answer</div>${body}`;
@@ -701,7 +703,9 @@ function saveQuoteAnswer() {
 function clearQuoteAnswer() {
   const q = quoteState;
   if (!q || !q.answer) return;
-  if (!confirm('Clear the client\'s recorded answer to this quote?')) return;
+  if (!confirm(q.booking
+    ? 'Clear the client\'s answer to this quote? The treatment booking stays until you cancel it.'
+    : 'Clear the client\'s recorded answer to this quote?')) return;
   delete q.answer;
   clearTimeout(quoteSaveTimer);
   persistQuote();
@@ -709,6 +713,153 @@ function clearQuoteAnswer() {
   renderQuoteAnswer();
   if (typeof renderIssueState === 'function') renderIssueState();
   if (typeof renderSavedList === 'function') renderSavedList();
+}
+
+// ── BOOKING THE TREATMENT ───────────────────────────────────────────────────
+// Once the client accepts, the treatment gets a date. q.booking = { date,
+// time, assignedTo, assignedName, notes, at, jobId? }. It's kept with the
+// quote (so it syncs with the report) and shows on the Schedule. When an
+// owner books it for someone else on the team, it's also added to the
+// team's jobs (jobId), so it appears on that technician's Schedule.
+function formatBooking(b) {
+  if (!b || !b.date) return '';
+  const d = new Date(b.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+  return b.time ? `${d}, ${formatClockTime(b.time)}` : d;
+}
+function formatClockTime(t) {
+  const [h, m] = String(t).split(':').map(Number);
+  if (!isFinite(h)) return t;
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m || 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
+function renderQuoteBookingBlock(q) {
+  const b = q.booking;
+  if (!b) return '<button class="quote-btn primary quote-book-btn" onclick="openQuoteBooking()">Book the treatment</button>';
+  const who = b.assignedName ? ` · ${escapeHtml(b.assignedName)}` : '';
+  return `<div class="quote-booking">
+      <div><strong>Treatment booked</strong> for ${escapeHtml(formatBooking(b))}${who}</div>
+      ${b.notes && b.notes !== (q.answer && q.answer.note) ? `<div class="quote-answer-note">${escapeHtml(b.notes)}</div>` : ''}
+      <div class="quote-booking-actions">
+        <button class="quote-link-btn" onclick="openQuoteBooking()">Change</button>
+        <button class="quote-link-btn" onclick="cancelQuoteBooking()">Cancel booking</button>
+      </div>
+    </div>`;
+}
+
+// The team members an owner can book the treatment for. Empty for a
+// technician on someone else's team, or a business of one.
+function bookingTeamOptions() {
+  const isOwner = !!(authBusiness && authUser && authBusiness.owner_id === authUser.id);
+  const team = (typeof teamMembersCache !== 'undefined' && teamMembersCache) || [];
+  return isOwner && team.length > 1 ? team : [];
+}
+
+function openQuoteBooking() {
+  const q = quoteState;
+  if (!q) return;
+  const b = q.booking || {};
+  document.getElementById('qbDate').value = b.date || '';
+  document.getElementById('qbTime').value = b.time || '';
+  document.getElementById('qbNotes').value = b.notes != null ? b.notes : ((q.answer && q.answer.note) || '');
+  const team = bookingTeamOptions();
+  const sel = document.getElementById('qbAssignee');
+  document.getElementById('qbAssigneeWrap').style.display = team.length ? '' : 'none';
+  sel.innerHTML = team.map(m =>
+    `<option value="${m.user_id}">${escapeHtml(m.name || m.email)}${m.user_id === authUser.id ? ' (you)' : ''}</option>`).join('');
+  if (team.length) sel.value = b.assignedTo || authUser.id;
+  document.getElementById('qbSummary').textContent =
+    `${q.client || 'Client'} · ${q.address || 'No address'} · ${formatAUD(quoteTotals(q).total)}`;
+  document.getElementById('quoteBookOverlay').classList.add('open');
+}
+function closeQuoteBooking() {
+  document.getElementById('quoteBookOverlay').classList.remove('open');
+}
+
+function bookingJobNotes(q, notes) {
+  const lines = q.items.map(it => (it.desc || '').trim()).filter(Boolean);
+  return [`Treatment · quote ${q.number || ''}`.trim(), q.client, lines.join('; '), notes].filter(Boolean).join(' · ');
+}
+
+async function saveQuoteBooking() {
+  const q = quoteState;
+  if (!q) return;
+  const date = document.getElementById('qbDate').value;
+  if (!date) { showToast('Choose a date for the treatment', 'error'); return; }
+  const team = bookingTeamOptions();
+  const assignedTo = team.length ? document.getElementById('qbAssignee').value : (authUser ? authUser.id : '');
+  const member = team.find(m => m.user_id === assignedTo);
+  const booking = {
+    date,
+    time: document.getElementById('qbTime').value,
+    assignedTo,
+    assignedName: member && assignedTo !== authUser.id ? (member.name || member.email) : '',
+    notes: document.getElementById('qbNotes').value.trim(),
+    at: Date.now(),
+  };
+  const btn = document.getElementById('qbSaveBtn');
+  btn.disabled = true;
+  try {
+    const prevJob = q.booking && q.booking.jobId;
+    // Someone else on the team does the treatment: it goes on their Schedule.
+    if (booking.assignedName) {
+      if (prevJob) await deleteTeamJobQuietly(prevJob);
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/jobs`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Prefer': 'return=representation' },
+        body: JSON.stringify({
+          business_id: authBusiness.id, assigned_to: assignedTo, created_by: authUser.id,
+          address: q.address || '', notes: bookingJobNotes(q, booking.notes),
+          job_date: booking.date, job_time: booking.time || null,
+        }),
+      });
+      if (!res.ok) { showToast('Could not add it to the team schedule. Check your connection and try again', 'error'); return; }
+      const rows = await res.json().catch(() => []);
+      if (rows && rows[0] && rows[0].id) booking.jobId = rows[0].id;
+    } else if (prevJob) {
+      await deleteTeamJobQuietly(prevJob);
+    }
+    q.booking = booking;
+    clearTimeout(quoteSaveTimer);
+    persistQuote();
+    storeQuoteOnReport(q, true);
+    closeQuoteBooking();
+    renderQuoteAnswer();
+    if (typeof renderIssueState === 'function') renderIssueState();
+    if (typeof renderSavedList === 'function') renderSavedList();
+    showToast(`Treatment booked for ${formatBooking(booking)}`, 'success');
+  } catch (e) {
+    showToast('Network error — please try again', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function deleteTeamJobQuietly(id) {
+  try { await fetch(`${SUPABASE_URL}/rest/v1/jobs?id=eq.${id}`, { method: 'DELETE', headers: getAuthHeaders() }); } catch (e) {}
+}
+
+async function cancelQuoteBooking() {
+  const q = quoteState;
+  if (!q || !q.booking) return;
+  if (!confirm('Cancel the treatment booking?')) return;
+  if (q.booking.jobId) await deleteTeamJobQuietly(q.booking.jobId);
+  delete q.booking;
+  clearTimeout(quoteSaveTimer);
+  persistQuote();
+  storeQuoteOnReport(q, true);
+  renderQuoteAnswer();
+  if (typeof renderIssueState === 'function') renderIssueState();
+  if (typeof renderSavedList === 'function') renderSavedList();
+}
+
+// Treatments booked from quotes on this account, for the Schedule. Ones
+// booked for someone else are left out: they reach the Schedule through
+// the team's jobs instead.
+function bookedTreatments() {
+  const reports = getSavedReports();
+  return Object.values(getSavedQuotes())
+    .filter(q => q && q.booking && q.booking.date && !q.booking.assignedName)
+    .map(q => ({ q, report: reports.find(r => r.id === q.reportKey) }));
 }
 
 // ── PDF EXPORT ──────────────────────────────────────────────────────────────
@@ -778,7 +929,7 @@ function closeQuotePriceList() {
 function quoteHasItems(q) { return !!(q && q.items && q.items.length); }
 function quoteContentHash(q) {
   const content = Object.assign({}, q);
-  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey', 'answer'].forEach(k => delete content[k]);
+  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey', 'answer', 'booking'].forEach(k => delete content[k]);
   return sha256Hex(stableJson(content));
 }
 function markQuoteSent(q) {
