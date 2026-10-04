@@ -1375,7 +1375,7 @@ const SECTIONS = {
   property:        { fields:['structureType','height','occupancyStatus','weatherConditions','wallConstruction','roofType','floorType','facadeDirection','constructionEra','standard'], total:10 },
   obstructions:    { fields:['obstructions','restrictedAccess','highRiskAreas'], total:3 },
   restrictions:    { fields:['hinderedAreas','hinderedAreasDetail'], total:2 },
-  findings:        { fields:['findings'], total:1 },
+  findings:        { fields:['findings','borerActivity','decayFound'], total:3 },
   conducive:       { fields:['waterLeaks','moistureReadings','leakLocation','timberSoil','slabEdge','weepHoles'], total:6 },
   recommendations: { fields:['riskLevel','treatmentRecommended','treatmentType','inspectionFrequency'], total:4 },
   photos:          { fields:['photos'], total:1 },
@@ -1404,7 +1404,7 @@ Construction era materials (for constructionEra field):
 Direct decade references map the same way even without material descriptions, e.g. "built in the 70s", "early 2000s", "looks like a 90s build", "probably 1950s era" — map the stated or implied decade to the matching era range above.
 
 Fields (null if not mentioned):
-{"propertyStreetAddress":string,"propertySuburb":string,"propertyState":"NSW" or "VIC" or "QLD" or "WA" or "SA" or "TAS" or "ACT" or "NT","propertyPostcode":string,"clientName":string,"structureType":string,"wallConstruction":string,"floorType":string,"roofType":string,"height":string,"facadeDirection":string,"occupancyStatus":string,"weatherConditions":string,"constructionEra":"Pre-1920s" or "1920s-1940s" or "1945-1965" or "1965-1985" or "1985-2003" or "Post-2003","hinderedAreas":string(readily accessible areas inspected),"obstructions":string(areas not inspected),"restrictedAccess":string(physical obstructions preventing inspection),"hinderedAreasDetail":string(restrictions limiting inspection),"highRiskAreas":string(areas that could NOT be accessed or inspected and should be prioritised for a follow-up inspection once access becomes available — this is never a location where termite activity was actually found, inspected, and already captured in findings[]),"findings":[{"termiteActivity":"ACTIVE" or "INACTIVE" or "NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES" or "NO","structuralConcern":"YES" or "NO"}],"waterLeaks":"YES" or "NO","leakLocation":string,"moistureReadings":"YES" or "NO","timberSoil":"YES" or "NO","slabEdge":"CLEAR" or "OBSTRUCTED","weepHoles":"CLEAR" or "BRIDGED","existingSystem":string,"durableNoticePresent":"YES" or "NO","hardLandscaping":"YES" or "NO","zone25mmVisible":"YES" or "NO","softLandscaping":"YES" or "NO","zone75mmVisible":"YES" or "NO","antCapSoldered":"YES" or "NO" or "N/A","treatmentRecommended":"YES" or "NO","treatmentType":string,"inspectionFrequency":string,"riskLevel":"LOW" or "MEDIUM" or "HIGH"}
+{"propertyStreetAddress":string,"propertySuburb":string,"propertyState":"NSW" or "VIC" or "QLD" or "WA" or "SA" or "TAS" or "ACT" or "NT","propertyPostcode":string,"clientName":string,"structureType":string,"wallConstruction":string,"floorType":string,"roofType":string,"height":string,"facadeDirection":string,"occupancyStatus":string,"weatherConditions":string,"constructionEra":"Pre-1920s" or "1920s-1940s" or "1945-1965" or "1965-1985" or "1985-2003" or "Post-2003","hinderedAreas":string(readily accessible areas inspected),"obstructions":string(areas not inspected),"restrictedAccess":string(physical obstructions preventing inspection),"hinderedAreasDetail":string(restrictions limiting inspection),"highRiskAreas":string(areas that could NOT be accessed or inspected and should be prioritised for a follow-up inspection once access becomes available — this is never a location where termite activity was actually found, inspected, and already captured in findings[]),"findings":[{"termiteActivity":"ACTIVE" or "INACTIVE" or "NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES" or "NO","structuralConcern":"YES" or "NO"}],"waterLeaks":"YES" or "NO","leakLocation":string,"moistureReadings":"YES" or "NO","timberSoil":"YES" or "NO","slabEdge":"CLEAR" or "OBSTRUCTED","weepHoles":"CLEAR" or "BRIDGED","existingSystem":string,"durableNoticePresent":"YES" or "NO","hardLandscaping":"YES" or "NO","zone25mmVisible":"YES" or "NO","softLandscaping":"YES" or "NO","zone75mmVisible":"YES" or "NO","antCapSoldered":"YES" or "NO" or "N/A","treatmentRecommended":"YES" or "NO","treatmentType":string,"inspectionFrequency":string,"riskLevel":"LOW" or "MEDIUM" or "HIGH","borerActivity":"ACTIVE" or "INACTIVE" or "NONE","borerDetails":string,"decayFound":"YES" or "NO","decayDetails":string}
 
 Rules:
 - Return ONLY the JSON. No other text.
@@ -1418,6 +1418,12 @@ Rules:
 - leakLocation: only relevant when waterLeaks is "YES". Capture WHERE the leak or moisture source is — this is not limited to ground level/slab. Listen for leaks anywhere in the structure: roof, ceiling, wall cavity, bathroom/wet area plumbing, hot water system, gutters, as well as subfloor or perimeter sources. This matters because subterranean termites can establish above-ground secondary colonies near a roof or wall-cavity leak with zero soil contact — a ground-level-only leak check would miss this. Leave null if waterLeaks is "YES" but no location was mentioned.
 - moistureReadings and waterLeaks normally move together — a leak is a moisture source. Whenever waterLeaks is "YES", or the technician otherwise describes damp/wet timber, elevated moisture meter readings, or dampness of any kind, set moistureReadings to "YES" as well. Only leave moistureReadings "NO" or null despite a leak being mentioned if the technician explicitly distinguishes the two (e.g. confirms a leaking tap exists but the surrounding timber tested dry on the meter).
 - highRiskAreas is strictly about areas the technician could NOT access or inspect, that are worth prioritising once access is available (e.g. a locked shed, an obstructed subfloor section, dense vegetation blocking a fence line). It must NEVER duplicate a location already captured in findings[].activityLocation — a room or area where termite activity was actually found and reported is a finding, not a "high risk area". Leave highRiskAreas null unless the technician clearly describes somewhere they couldn't get to.
+
+BORERS AND WOOD DECAY (the other AS 4349.3 timber pests — never put these in findings[], which is termites only):
+- borerActivity: borers of seasoned timber (e.g. furniture beetle / Anobium, Queensland pine beetle, powderpost / Lyctus, European house borer). "ACTIVE" only if the technician describes fresh frass, fresh/bright exit holes or live beetles. "INACTIVE" for old or dark exit holes, old borer damage, or borer evidence with nothing fresh. "NONE" if they say no borers or no borer activity. Leave null if borers aren't mentioned.
+- borerDetails: the borer type if stated, where it was found and what was seen (e.g. "Anobium exit holes and old frass — subfloor bearers and floor joists, rear bedroom"). Same rule as damageDescription: no severity adjectives.
+- decayFound: "YES" if the technician describes wood rot, fungal decay, soft/crumbling/spongy timber or fungal growth on timber. "NO" if they say no rot or no decay. Leave null if not mentioned.
+- decayDetails: where the decay is and what was seen (e.g. "soft, crumbling timber — base of rear deck posts and lower weatherboards, western side"). No severity adjectives.
 
 EXISTING SYSTEM VERIFICATION (only relevant when existingSystem is identified):
 - durableNoticePresent: "YES" if the technician confirms seeing the durable notice/sticker in the meter box (or mentions identifying the system via the notice — this implies it's present). "NO" if they specifically mention it's missing, damaged, or not found. Leave null if not mentioned.
@@ -3254,6 +3260,24 @@ function offlineExtract(transcript) {
 
   if (Object.keys(finding).length > 0) result.findings = [{ id: 'offline_' + Date.now(), ...finding }];
 
+  // ── BORERS & WOOD DECAY ───────────────────────────────────────────────
+  // Read from the sentences that mention them only, so a termite sentence
+  // ("live termites...") can't set the borer status. Negation first, as above.
+  const sentences = transcript.split(/(?<=[.!?])\s+/);
+  const borerText = sentences.filter(x => /borer|anobium|lyctus|furniture\s+beetle|pine\s+beetle|exit\s+holes/i.test(x)).join(' ');
+  if (borerText) {
+    if (/no\s+(?:sign\s+of\s+|evidence\s+of\s+)?(?:borers?|borer\s+activity)/i.test(borerText)) result.borerActivity = 'NONE';
+    else if (/inactive|(?:no|nothing|not)\s+(?:\w+\s+)?fresh|\bold\b/i.test(borerText)) result.borerActivity = 'INACTIVE';
+    else if (/fresh|live\s+beetle|\bactive\b/i.test(borerText)) result.borerActivity = 'ACTIVE';
+    else result.borerActivity = 'INACTIVE';
+    if (result.borerActivity !== 'NONE') result.borerDetails = borerText.trim();
+  }
+  const decayText = sentences.filter(x => /\brot\b|rotten|rotting|wood\s+decay|fungal\s+decay|decayed\s+timber/i.test(x)).join(' ');
+  if (decayText) {
+    if (/no\s+(?:sign\s+of\s+|evidence\s+of\s+)?(?:rot|wood\s+decay|fungal\s+decay|decay)/i.test(decayText)) result.decayFound = 'NO';
+    else { result.decayFound = 'YES'; result.decayDetails = decayText.trim(); }
+  }
+
   // ── CONDUCIVE ─────────────────────────────────────────────────────────
   // FIX (both below): "no water leak detected" contains the substring
   // "leak detected", and "moisture readings are normal" contains the
@@ -3684,7 +3708,7 @@ async function analyzeGalleryPhoto(photoId) {
 // ── FIELD RENDERING ───────────────────────────────────────────────────────
 function renderField(el, key, val) {
   el.classList.remove('editing');
-  const yesNoKeys = ['nestLocated','waterLeaks','moistureReadings','timberSoil','treatmentRecommended'];
+  const yesNoKeys = ['nestLocated','waterLeaks','moistureReadings','timberSoil','treatmentRecommended','decayFound'];
 
   if (key === 'structuralConcern') {
     el.innerHTML = val === 'YES'
@@ -3693,6 +3717,10 @@ function renderField(el, key, val) {
   } else if (key === 'termiteActivity') {
     const cls = val==='ACTIVE'?'risk-high':val==='INACTIVE'?'risk-medium':'risk-low';
     const label = val==='ACTIVE'?'ACTIVE — live termites sighted':val==='INACTIVE'?'INACTIVE — evidence only, no live sighting':'NONE';
+    el.innerHTML = `<span class="risk-tag ${cls}">${escapeHtml(label)}</span>`;
+  } else if (key === 'borerActivity') {
+    const cls = val==='ACTIVE'?'risk-high':val==='INACTIVE'?'risk-medium':'risk-low';
+    const label = val==='ACTIVE'?'ACTIVE — fresh frass or new exit holes':val==='INACTIVE'?'INACTIVE — old exit holes only':'NONE';
     el.innerHTML = `<span class="risk-tag ${cls}">${escapeHtml(label)}</span>`;
   } else if (key === 'durableNoticePresent' || key === 'zone25mmVisible' || key === 'zone75mmVisible') {
     // these should be YES for a properly verifiable system — NO is the concerning answer
@@ -6911,27 +6939,25 @@ function resetReportState() {
   const intel = document.getElementById('speciesIntel');
   if (confirm) confirm.style.display = 'none';
   if (intel) intel.style.display = 'none';
-  // Clear all field displays
-  Object.values(SECTIONS).forEach(cfg => {
-    cfg.fields.forEach(key => {
-      const el = document.getElementById('f-' + key);
-      if (el) {
-        el.classList.remove('filled', 'flash');
-        el.innerHTML = '—';
-      }
-      // Remove edited-dot indicators
-      const label = el ? getFieldLabel(el) : null;
-      if (label) {
-        const dot = label.querySelector('.edited-dot');
-        if (dot) dot.remove();
-      }
-      // Clear notes
-      const ta = document.getElementById('notes-text-' + key);
-      if (ta) ta.value = '';
-      const panel = document.getElementById('notes-' + key);
-      if (panel) panel.classList.remove('open');
-      updateNotesIndicator(key);
-    });
+  // Clear all field displays. Every field-val, not just the ones counted in
+  // SECTIONS, so detail fields (leak location, borer details, etc.) don't
+  // carry the previous report's text into the next one.
+  document.querySelectorAll('.field-val[id^="f-"]').forEach(el => {
+    const key = el.id.replace('f-', '');
+    el.classList.remove('filled', 'flash');
+    el.innerHTML = '—';
+    // Remove edited-dot indicators
+    const label = getFieldLabel(el);
+    if (label) {
+      const dot = label.querySelector('.edited-dot');
+      if (dot) dot.remove();
+    }
+    // Clear notes
+    const ta = document.getElementById('notes-text-' + key);
+    if (ta) ta.value = '';
+    const panel = document.getElementById('notes-' + key);
+    if (panel) panel.classList.remove('open');
+    updateNotesIndicator(key);
   });
   updateProgress();
   const banner = document.getElementById('asbestosBanner');
@@ -7791,6 +7817,7 @@ async function _buildAndDownloadPDF() {
     height:'Height', facadeDirection:'Orientation', occupancyStatus:'Occupancy Status', weatherConditions:'Weather Conditions',
     constructionEra:'Year / Period of Construction', standard:'Applicable Standard',
     hinderedAreas:'Readily Accessible Areas Inspected', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'Restrictions', highRiskAreas:'High Risk Areas',
+    borerActivity:'Borers of Seasoned Timber', borerDetails:'Borer Type, Location & Evidence', decayFound:'Wood Decay Fungi (Rot)', decayDetails:'Wood Decay Location & Evidence',
     termiteActivity:'Termite Activity Status', species:'Species', damageDescription:'Damage Description', activityLocation:'Location of Activity', nestLocated:'Workings / Nest Located', structuralConcern:'Structural Concern Flagged',
     waterLeaks:'Water Leaks', leakLocation:'Location of Moisture Ingress', moistureReadings:'Moisture Readings', timberSoil:'Timber-to-Soil Contact', slabEdge:'Slab Edge Concealed', weepHoles:'Weep Holes (Clear / Bridged)', existingSystem:'Existing System',
     durableNoticePresent:'Durable Notice Present', hardLandscaping:'Hard Landscaping Adjacent', zone25mmVisible:'25mm Inspection Zone Visible', softLandscaping:'Soft Landscaping Adjacent', zone75mmVisible:'75mm Inspection Zone Visible', antCapSoldered:'Ant Cap Joins Soldered',
@@ -8166,7 +8193,7 @@ async function _buildAndDownloadPDF() {
     doc.setDrawColor(...actCol); doc.setLineWidth(0.5);
     doc.line(M, y+headerH, M+CW, y+headerH);
     doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text(`FINDING ${idx + 1}`, M+8, y+5.5);
+    doc.text(`TERMITE FINDING ${idx + 1}`, M+8, y+5.5);
     doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...actCol);
     doc.text(actLabel, M+8, y+10.5);
     doc.setFillColor(...actCol); doc.circle(M+CW-6, y+7, 3, 'F');
@@ -8245,6 +8272,20 @@ async function _buildAndDownloadPDF() {
   }
 
   findings.forEach((f, idx) => findingCard(f, idx));
+
+  // Borers and wood decay: the other timber pests AS 4349.3 requires.
+  // Always printed, so an unanswered field shows as a gap rather than
+  // silently implying "none found".
+  if (y > 250) newPage();
+  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+  doc.text('BORERS & WOOD DECAY', M, y); y += 4;
+  doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 4;
+  resetRowShade();
+  row('Borers of Seasoned Timber', reportData.borerActivity);
+  if (reportData.borerDetails) row('Borer Type, Location & Evidence', reportData.borerDetails);
+  row('Wood Decay Fungi (Rot)', reportData.decayFound);
+  if (reportData.decayDetails) row('Wood Decay Location & Evidence', reportData.decayDetails);
+  gap(4);
 
   gap(2);
   disclaimer('This inspection describes the location and visible extent of timber pest activity only. It does not assess structural damage severity — a licensed builder or structural engineer must be engaged for that purpose. Where live termites are found, concealed activity must be assumed in all areas not inspected.');
@@ -8456,7 +8497,8 @@ async function _buildAndDownloadPDF() {
   gap(2);
 
   const conclusionItems = [
-    ['Treatment of timber pest activity is required', findings.some(f => f.termiteActivity === 'ACTIVE') ? 'YES — SEE FINDINGS' : 'NO'],
+    ['Treatment of timber pest activity is required', (findings.some(f => f.termiteActivity === 'ACTIVE') || reportData.borerActivity === 'ACTIVE') ? 'YES — SEE FINDINGS' : 'NO'],
+    ['Wood decay (rot) was found', reportData.decayFound === 'YES' ? 'YES — SEE FINDINGS' : reportData.decayFound === 'NO' ? 'NO' : 'NOT ASSESSED'],
     ['A termite management proposal is recommended', reportData.treatmentRecommended === 'YES' ? 'YES' : 'NO'],
     ['Removal of conducive conditions is necessary', (reportData.waterLeaks === 'YES' || reportData.timberSoil === 'YES' || reportData.weepHoles === 'BRIDGED') ? 'YES — SEE CONDUCIVE CONDITIONS' : 'NO'],
     ['Risk of termite attack', reportData.riskLevel || 'NOT ASSESSED'],
