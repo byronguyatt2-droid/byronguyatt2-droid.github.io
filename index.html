@@ -439,6 +439,16 @@
       </div>
       <div class="job-row">
         <div class="job-field">
+          <div class="job-field-label">Supervisor</div>
+          <input class="job-input" id="trSupervisor" placeholder="If a trainee did the work">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Supervisor licence</div>
+          <input class="job-input" id="trSupervisorLicence">
+        </div>
+      </div>
+      <div class="job-row">
+        <div class="job-field">
           <div class="job-field-label">Start time</div>
           <input class="job-input" id="trStart" type="time">
         </div>
@@ -479,6 +489,17 @@
         <div class="job-field-label">Areas not treated, and why</div>
         <textarea class="job-input" id="trNotTreated" rows="2" placeholder="e.g. Under the rear deck, no access"></textarea>
       </div>
+      <div class="job-field">
+        <div class="job-field-label">Site plan</div>
+        <div class="signature-pad-wrap treat-sketch-wrap">
+          <canvas class="signature-canvas" id="trSketchCanvas" width="640" height="480"></canvas>
+          <div class="signature-placeholder" id="trSketchPlaceholder">Optional: sketch the building and mark where the treatment and the notice went</div>
+        </div>
+        <div class="treat-sketch-actions">
+          <label class="signature-clear-btn">Draw on a photo<input type="file" accept="image/*" hidden onchange="loadTreatmentSketchPhoto(this)"></label>
+          <button class="signature-clear-btn" onclick="treatmentSketch.clear()">Clear plan</button>
+        </div>
+      </div>
       <div class="job-row">
         <div class="job-field">
           <div class="job-field-label">Durable notice</div>
@@ -493,6 +514,7 @@
           <input class="job-input" id="trNoticeWhere" placeholder="e.g. Meter box">
         </div>
       </div>
+      <p class="quote-hint" id="trNoticeHint" style="margin:-4px 0 0">The certificate prints the notice wording: system, date, product life and future inspections.</p>
       <div class="job-field">
         <div class="job-field-label">Safety and re-entry (from the label)</div>
         <textarea class="job-input" id="trCautions" rows="2"></textarea>
