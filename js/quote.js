@@ -460,11 +460,7 @@ function renderQuoteCompanyGaps() {
 function openCompanyDetailsFromQuote() {
   closeQuote();
   if (quoteReturnTo !== 'app') openApp('inspect');
-  const wrap = document.getElementById('companyPanelWrap');
-  if (wrap && wrap.classList.contains('collapsed')) togglePanel('companyPanel', 'korva_companypanel_collapsed');
-  const sidebar = document.getElementById('sidebarPanel');
-  if (sidebar && !sidebar.classList.contains('open')) toggleDrawer();
-  if (wrap) setTimeout(() => wrap.scrollIntoView({ block: 'start', behavior: 'smooth' }), 250);
+  openMenuPage('companyPanelWrap');
 }
 
 function renderQuoteItems() {
