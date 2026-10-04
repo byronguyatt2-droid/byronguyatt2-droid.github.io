@@ -215,3 +215,14 @@ select.quote-input { cursor: pointer; }
   .quote-item-nums { grid-template-columns: 1fr 1fr 1.3fr; }
   .quote-item-total { grid-column: 1 / -1; padding-top: 2px; }
 }
+
+.quote-lock-note {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(40,148,72,0.35);
+  background: rgba(40,148,72,0.06);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+}
