@@ -1406,10 +1406,11 @@ Construction era materials (for constructionEra field):
 Direct decade references map the same way even without material descriptions, e.g. "built in the 70s", "early 2000s", "looks like a 90s build", "probably 1950s era" — map the stated or implied decade to the matching era range above.
 
 Fields (null if not mentioned):
-{"propertyStreetAddress":string,"propertySuburb":string,"propertyState":"NSW" or "VIC" or "QLD" or "WA" or "SA" or "TAS" or "ACT" or "NT","propertyPostcode":string,"clientName":string,"structureType":string,"wallConstruction":string,"floorType":string,"roofType":string,"height":string,"facadeDirection":string,"occupancyStatus":string,"weatherConditions":string,"constructionEra":"Pre-1920s" or "1920s-1940s" or "1945-1965" or "1965-1985" or "1985-2003" or "Post-2003","hinderedAreas":string(readily accessible areas inspected),"areaStatus":{"interior"|"exterior"|"subfloor"|"roofvoid"|"outbuildings"|"site"|"fences"|"retainingwalls"|"landscapingtimbers": "INSPECTED" or "PARTIAL" or "NOT" or "NA"},"obstructions":string(areas not inspected),"restrictedAccess":string(physical obstructions preventing inspection),"hinderedAreasDetail":string(restrictions limiting inspection),"highRiskAreas":string(areas that could NOT be accessed or inspected and should be prioritised for a follow-up inspection once access becomes available — this is never a location where termite activity was actually found, inspected, and already captured in findings[]),"findings":[{"termiteActivity":"ACTIVE" or "INACTIVE" or "NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES" or "NO","structuralConcern":"YES" or "NO"}],"waterLeaks":"YES" or "NO","leakLocation":string,"moistureReadings":"YES" or "NO","moistureMeterReadings":[{"location":string,"reading":string}],"timberSoil":"YES" or "NO","slabEdge":"CLEAR" or "OBSTRUCTED","weepHoles":"CLEAR" or "BRIDGED","existingSystem":string,"durableNoticePresent":"YES" or "NO","hardLandscaping":"YES" or "NO","zone25mmVisible":"YES" or "NO","softLandscaping":"YES" or "NO","zone75mmVisible":"YES" or "NO","antCapSoldered":"YES" or "NO" or "N/A","treatmentRecommended":"YES" or "NO","treatmentType":string,"inspectionFrequency":string,"riskLevel":"LOW" or "MEDIUM" or "HIGH","borerActivity":"ACTIVE" or "INACTIVE" or "NONE","borerDetails":string,"decayFound":"YES" or "NO","decayDetails":string}
+{"propertyStreetAddress":string,"propertySuburb":string,"propertyState":"NSW" or "VIC" or "QLD" or "WA" or "SA" or "TAS" or "ACT" or "NT","propertyPostcode":string,"clientName":string,"inspectionType":"Pre-Purchase — Timber Pest" or "Annual — Existing Building" or "Treatment Follow-Up" or "Re-inspection" or null,"structureType":string,"wallConstruction":string,"floorType":string,"roofType":string,"height":string,"facadeDirection":string,"occupancyStatus":string,"weatherConditions":string,"constructionEra":"Pre-1920s" or "1920s-1940s" or "1945-1965" or "1965-1985" or "1985-2003" or "Post-2003","hinderedAreas":string(readily accessible areas inspected),"areaStatus":{"interior"|"exterior"|"subfloor"|"roofvoid"|"outbuildings"|"site"|"fences"|"retainingwalls"|"landscapingtimbers": "INSPECTED" or "PARTIAL" or "NOT" or "NA"},"obstructions":string(areas not inspected),"restrictedAccess":string(physical obstructions preventing inspection),"hinderedAreasDetail":string(restrictions limiting inspection),"highRiskAreas":string(areas that could NOT be accessed or inspected and should be prioritised for a follow-up inspection once access becomes available — this is never a location where termite activity was actually found, inspected, and already captured in findings[]),"findings":[{"termiteActivity":"ACTIVE" or "INACTIVE" or "NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES" or "NO","structuralConcern":"YES" or "NO"}],"waterLeaks":"YES" or "NO","leakLocation":string,"moistureReadings":"YES" or "NO","moistureMeterReadings":[{"location":string,"reading":string}],"timberSoil":"YES" or "NO","slabEdge":"CLEAR" or "OBSTRUCTED","weepHoles":"CLEAR" or "BRIDGED","existingSystem":string,"durableNoticePresent":"YES" or "NO","hardLandscaping":"YES" or "NO","zone25mmVisible":"YES" or "NO","softLandscaping":"YES" or "NO","zone75mmVisible":"YES" or "NO","antCapSoldered":"YES" or "NO" or "N/A","treatmentRecommended":"YES" or "NO","treatmentType":string,"inspectionFrequency":string,"riskLevel":"LOW" or "MEDIUM" or "HIGH","borerActivity":"ACTIVE" or "INACTIVE" or "NONE","borerDetails":string,"decayFound":"YES" or "NO","decayDetails":string}
 
 Rules:
 - Return ONLY the JSON. No other text.
+- inspectionType: "Pre-Purchase — Timber Pest" when the technician says pre-purchase, pre-sale, or that the client is buying the property. "Annual — Existing Building" for an annual, routine or regular inspection of the client's own home. Null if the purpose isn't said.
 - findings is always an array. If there is only one finding, return an array with one object. If the technician describes two or more distinct termite findings at different locations (e.g. active under the rear steps AND inactive near the front piers), return each as a separate object in the findings array. A new finding is signalled by a clear location change, a different species, or an explicit contrast ("also", "separately", "another area", "and over near the..."). Never merge two locationally distinct findings into one entry.
 - Format species properly e.g. "Coptotermes acinaciformis"
 - Format treatment products properly e.g. "Termidor (Fipronil)", "HomeGuard Blue — 66 linear metres perimeter"
@@ -4011,8 +4012,16 @@ function populateFields(data) {
   });
   if (jobFieldsChanged) updateJob();
 
+  if (data.inspectionType) {
+    const sel = document.getElementById('jobInspectionType');
+    if (sel && !sel.value && [...sel.options].some(o => o.value === data.inspectionType)) {
+      sel.value = data.inspectionType;
+      onInspectionTypeChange();
+    }
+  }
+
   // All non-findings fields
-  const skip = new Set(['findings','termiteActivity','species','damageDescription','activityLocation','nestLocated','structuralConcern','propertyStreetAddress','propertySuburb','propertyState','propertyPostcode','clientName','obstructions','restrictedAccess']);
+  const skip = new Set(['inspectionType','findings','termiteActivity','species','damageDescription','activityLocation','nestLocated','structuralConcern','propertyStreetAddress','propertySuburb','propertyState','propertyPostcode','clientName','obstructions','restrictedAccess']);
   const entries = Object.entries(data).filter(([key, val]) => !skip.has(key) && val !== null && val !== undefined && document.getElementById('f-' + key));
 
   entries.forEach(([key, val], i) => {
@@ -5988,6 +5997,23 @@ function saveJobInfo() {
   saveDraft();
 }
 
+// The inspection type decides which Australian Standard the report follows:
+// a pre-purchase inspection is reported under AS 4349.3, an inspection of
+// the owner's existing home under AS 3660.2.
+const INSPECTION_TYPE_STANDARD = {
+  'Pre-Purchase — Timber Pest': 'AS 4349.3-2010',
+  'Pre-Purchase — Combined Building & Pest': 'AS 4349.3-2010',
+  'Annual — Existing Building': 'AS 3660.2-2017',
+};
+function onInspectionTypeChange() {
+  saveJobInfo();
+  const std = INSPECTION_TYPE_STANDARD[document.getElementById('jobInspectionType').value];
+  if (std && std !== reportData.standard) {
+    setStandard(std);
+    showToast(`Report will follow ${std}`, 'info');
+  }
+}
+
 function loadJobInfo() {
   JOB_INFO_FIELDS.forEach(id => {
     const el = document.getElementById(id);
@@ -7760,13 +7786,17 @@ function restoreA11ySettings() {
   } catch (e) {}
 }
 
-// A new job starts with the inspector from the most recent saved report on
-// this account, so the sign-off name isn't typed again on every job.
-function lastInspectorName() {
+// A new job starts with the inspector's name and licence from the most
+// recent saved report on this account, so the sign-off isn't retyped on
+// every job.
+function lastInspectorDetails() {
   const latest = getSavedReports()
-    .filter(r => r.inspector)
+    .filter(r => r.inspector || (r.reportData && r.reportData.inspectorLicence))
     .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
-  return latest ? latest.inspector : '';
+  return {
+    name: latest ? latest.inspector || '' : '',
+    licence: latest && latest.reportData ? latest.reportData.inspectorLicence || '' : '',
+  };
 }
 
 function newReport() {
@@ -7776,7 +7806,10 @@ function newReport() {
   document.getElementById('jobState').value = '';
   document.getElementById('jobPostcode').value = '';
   document.getElementById('jobClient').value = '';
-  document.getElementById('jobInspector').value = lastInspectorName();
+  const lastInspector = lastInspectorDetails();
+  document.getElementById('jobInspector').value = lastInspector.name;
+  if (lastInspector.licence) reportData.inspectorLicence = lastInspector.licence;
+  restoreLicenceField();
   updateJob();
   currentReportId = null;
   clearDraft();
@@ -8919,7 +8952,7 @@ async function _buildAndDownloadPDF() {
   // ── PAGE HEADER ──────────────────────────────────────────────────────────
   function compactHeader(sectionLabel) {
     pageNum++;
-    const reportTitle = standard.startsWith('AS 4349') ? 'TIMBER PEST & BUILDING REPORT' : 'TERMITE INSPECTION REPORT';
+    const reportTitle = 'TIMBER PEST INSPECTION REPORT';
     // White page — thin top band in dark
     doc.setFillColor(...C.headerBg); doc.rect(0, 0, W, 13, 'F');
     doc.setFillColor(...C.accent);   doc.rect(0, 0, 4, 13, 'F');
@@ -8935,7 +8968,7 @@ async function _buildAndDownloadPDF() {
     }
     // Section label + page number
     doc.setTextColor(170,160,148); doc.setFontSize(7);
-    doc.text(`${sectionLabel}  ·  ${pageNum}`, W-M, 8.5, { align:'right' });
+    doc.text(sectionLabel, W-M, 8.5, { align:'right' });
     // Thin orange rule below header
     doc.setFillColor(...C.accent); doc.rect(0, 13, W, 0.6, 'F');
     // Light rule below that
@@ -8968,7 +9001,9 @@ async function _buildAndDownloadPDF() {
 
   // ── DATA ROW ──────────────────────────────────────────────────────────────
   let _rowShade = false;
-  function row(label, value) {
+  // invert: for questions where YES is the good answer (e.g. "inspection
+  // zone visible"), so NO shows red and YES green.
+  function row(label, value, invert) {
     const v     = String(value || '');
     const isEmpty = !value && value !== 0;
     const LABEL_W = 60;
@@ -8995,6 +9030,8 @@ async function _buildAndDownloadPDF() {
     // Value — colour-coded
     if (isEmpty) {
       doc.setTextColor(...C.rule); doc.setFont('helvetica','italic');
+    } else if (invert && (v === 'YES' || v === 'NO')) {
+      doc.setTextColor(...(v === 'NO' ? C.danger : C.safe)); doc.setFont('helvetica','bold');
     } else if (['YES','HIGH','OBSTRUCTED','BRIDGED','ACTIVE'].includes(v)) {
       doc.setTextColor(...C.danger); doc.setFont('helvetica','bold');
     } else if (['NO','LOW','CLEAR','NONE'].includes(v)) {
@@ -9256,7 +9293,7 @@ async function _buildAndDownloadPDF() {
 
   // ── TITLE BLOCK ───────────────────────────────────────────────────────────
   // Report type label
-  const reportTypeLabel = standard.startsWith('AS 4349') ? 'TIMBER PEST & BUILDING' : 'TIMBER PEST';
+  const reportTypeLabel = standard.startsWith('AS 4349') ? 'PRE-PURCHASE TIMBER PEST' : 'TIMBER PEST';
   doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
   doc.text(reportTypeLabel, M, 70);
 
@@ -9441,7 +9478,7 @@ async function _buildAndDownloadPDF() {
   if (inspType)   row('Inspection Type', inspType);
   if (orderId)    row('Order / Job ID', orderId);
   if (invoiceNo)  row('Invoice No.', invoiceNo);
-  if (fee)        row('Fee (inc. GST)', fee);
+  if (fee)        row('Fee (inc. GST)', /^\s*\$?\s*[\d,]+(\.\d+)?\s*$/.test(fee) ? '$' + parseFeeToNumber(fee).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : fee);
   startPart('Property Details');
 
   sectionTitle('PROPERTY DETAILS');
@@ -9457,10 +9494,10 @@ async function _buildAndDownloadPDF() {
   }
   if (reportData.constructionEra && (reportData.constructionEra === '1945-1965' || reportData.constructionEra === '1965-1985')) {
     gap(3);
-    disclaimer('⚠ Construction era indicates a HIGH likelihood of asbestos-containing materials (fibro/ACM sheeting). Noted as observation only — not disturbed. Recommend licensed asbestos assessor if suspected ACM identified.');
+    disclaimer('Construction era indicates a HIGH likelihood of asbestos-containing materials (fibro/ACM sheeting). Noted as observation only — not disturbed. Recommend licensed asbestos assessor if suspected ACM identified.');
   } else if (reportData.constructionEra && (reportData.constructionEra === '1920s-1940s' || reportData.constructionEra === '1985-2003')) {
     gap(3);
-    disclaimer('⚠ Construction era indicates a MODERATE likelihood of asbestos-containing materials. Noted as observation only.');
+    disclaimer('Construction era indicates a MODERATE likelihood of asbestos-containing materials. Noted as observation only.');
   }
   notesBlock('property');
   gap(4);
@@ -9764,12 +9801,12 @@ async function _buildAndDownloadPDF() {
     if (reportData.existingSystemOther) row('Specific System Name', reportData.existingSystemOther);
 
     if (hasIdentifiedSystem(reportData.existingSystem)) {
-      row('Durable Notice Present (Meter Box)', reportData.durableNoticePresent);
+      row('Durable Notice Present (Meter Box)', reportData.durableNoticePresent, true);
       row('Hard Landscaping Adjacent', reportData.hardLandscaping);
-      row('25mm Inspection Zone Visible', reportData.zone25mmVisible);
+      row('25mm Inspection Zone Visible', reportData.zone25mmVisible, true);
       row('Soft Landscaping Adjacent', reportData.softLandscaping);
-      row('75mm Inspection Zone Visible', reportData.zone75mmVisible);
-      row('Ant Cap / Strip Shield Joins Soldered', reportData.antCapSoldered);
+      row('75mm Inspection Zone Visible', reportData.zone75mmVisible, true);
+      row('Ant Cap / Strip Shield Joins Soldered', reportData.antCapSoldered, true);
 
       const concerns = [];
       if (reportData.durableNoticePresent === 'NO') concerns.push('Durable notice sticker not found in meter box');
@@ -9903,7 +9940,7 @@ async function _buildAndDownloadPDF() {
     // Subtle teal left bar for each clause heading
     doc.setFillColor(...C.accent); doc.rect(M, y-1, 2, 8, 'F');
     doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
-    doc.text(text, M+6, y+5); y += 8;
+    doc.text(text, M+6, y+5); y += 11;
   }
   function tcPara(text) {
     doc.setFont(TC.font,'normal'); doc.setFontSize(TC.size);
@@ -9924,7 +9961,7 @@ async function _buildAndDownloadPDF() {
   tcPara('A visual, non-invasive inspection of the type described in AS 4349.3-2010 cannot detect activity or damage concealed within wall cavities, structural timber members, beneath floor slabs or coverings, inside hollow trees or stumps, behind fixed linings, or in any area that cannot be directly observed without causing damage. Subterranean termites are frequently active inside walls, flooring, and structural framing without any external indicators being visible. The findings of this report reflect observable conditions in accessible areas at the time of inspection only. No inspection of this nature can conclusively establish that a property is free of timber pest infestation, activity, or damage.');
 
   tcHeading('5. Damage Assessment — No Structural Opinion');
-  tcPara('Where timber pest damage has been recorded in this report, the description is limited to the observable location, affected building elements, and visible characteristics of the damage. The inspector is not qualified to assess the structural significance of any damage identified, and no opinion regarding structural integrity, load-bearing capacity, or engineering risk is expressed or implied in this report. Where a structural concern has been flagged, the client is strongly advised to engage a licensed builder or structural engineer to carry out a structural assessment before undertaking any remedial work or making decisions in reliance on that finding.');
+  tcPara('Where timber pest damage has been recorded in this report, the description is limited to the observable location, affected building elements, and visible characteristics of the damage. The inspector is not qualified to assess the structural significance of any damage identified, and no opinion regarding structural integrity, load-bearing capacity, or engineering risk is expressed or implied in this report. Where a builder or engineer referral has been made, the client is strongly advised to engage a licensed builder or structural engineer to carry out a structural assessment before undertaking any remedial work or making decisions in reliance on that finding.');
 
   tcHeading('6. Conditions May Change After Inspection');
   tcPara('The findings of this report reflect the observable condition of the property at the specific date and time of inspection. Timber pest colonies are dynamic and can expand, relocate, or establish new workings rapidly. Conditions at the property may change materially after the inspection date due to moisture fluctuations, building alterations, landscaping changes, or the natural movement of pest colonies. This report does not warrant or predict the future condition of the property, and the client is advised that regular professional re-inspections are the most effective ongoing protection measure available.');
@@ -9986,7 +10023,7 @@ async function _buildAndDownloadPDF() {
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
   doc.text('Inspector Signature:', M, y);
   if (reportData.inspectorSignature) {
-    try { doc.addImage(reportData.inspectorSignature, 'PNG', M+38, y-9, 40, 12); } catch(e) {}
+    try { doc.addImage(reportData.inspectorSignature, 'PNG', M+38, y-6, 36, 8); } catch(e) {}
   }
   doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
   doc.line(M+38, y+1, M+38+40, y+1); y += 14;
