@@ -6840,9 +6840,13 @@ function enterApp() {
     migrateLegacyCompanyDetails();
     applyCloudBusinessSettings();
     loadCompanyDetails();
-    if (!document.getElementById('companyName').value && isBusinessOwner()) {
-      document.getElementById('companyName').value = authBusiness.name || '';
-      saveCompanyDetails();
+    // The sign-up name fills an empty form, but isn't stamped as an edit:
+    // it mustn't count as newer than real details on another phone.
+    if (!document.getElementById('companyName').value && isBusinessOwner() && authBusiness.name) {
+      document.getElementById('companyName').value = authBusiness.name;
+      const details = getCompanyDetails();
+      details.name = authBusiness.name;
+      try { localStorage.setItem(companyStorageKey(), JSON.stringify(details)); } catch (e) {}
     }
   }
   renderProfileMenu();
