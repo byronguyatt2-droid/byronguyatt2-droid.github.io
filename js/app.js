@@ -1381,7 +1381,7 @@ const SECTIONS = {
   conducive:       { fields:['waterLeaks','moistureReadings','leakLocation','timberSoil','slabEdge','weepHoles'], total:6 },
   recommendations: { fields:['riskLevel','treatmentRecommended','treatmentType','inspectionFrequency'], total:4 },
   photos:          { fields:['photos'], total:1 },
-  signoff:         { fields:['inspectorLicence','inspectorSignature','clientSignature'], total:3 }
+  signoff:         { fields:['inspectorLicence','inspectorSignature','agreement'], total:3 }
 };
 
 const SYSTEM_PROMPT = `You are a data extraction AI for KORVUS, an Australian termite inspection app compliant with AS 3660.2-2017.
@@ -5021,121 +5021,373 @@ function updateProgress() {
 // CSS display size, so drawing works correctly even if the pad was never
 // visible at "natural" size — coordinates are scaled to the bitmap on every
 // pointer event rather than relying on a resize-on-show step.
-const SIGNATURE_PADS = {};
-const SIG_KEY = { inspector: 'inspectorSignature', client: 'clientSignature' };
-function sigCap(which) { return which.charAt(0).toUpperCase() + which.slice(1); }
+// Ink is dark on a white pad: the PNG goes onto white PDF paper as is (the
+// old near-white ink was all but invisible there).
+const SIGNATURE_INK = '#0c121c';
+
+// Wires up drawing on one canvas. onSigned() runs after each stroke.
+function createSignaturePad(canvas, placeholder, onSigned) {
+  const ctx = canvas.getContext('2d');
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = SIGNATURE_INK;
+
+  let drawing = false, lastX = 0, lastY = 0;
+  const pad = { canvas, ctx, empty: true };
+
+  function posFromEvent(e) {
+    const rect = canvas.getBoundingClientRect();
+    const pt = e.touches && e.touches.length ? e.touches[0] : e;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (pt.clientX - rect.left) * scaleX, y: (pt.clientY - rect.top) * scaleY };
+  }
+  function start(e) {
+    e.preventDefault();
+    drawing = true; pad.empty = false;
+    const p = posFromEvent(e); lastX = p.x; lastY = p.y;
+    if (placeholder) placeholder.style.display = 'none';
+  }
+  function move(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = posFromEvent(e);
+    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+    lastX = p.x; lastY = p.y;
+  }
+  function end() {
+    if (!drawing) return;
+    drawing = false;
+    if (onSigned) onSigned();
+  }
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  canvas.addEventListener('mouseup', end);
+  canvas.addEventListener('mouseleave', end);
+  canvas.addEventListener('touchstart', start, { passive: false });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', end);
+
+  pad.clear = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pad.empty = true;
+    if (placeholder) placeholder.style.display = 'flex';
+  };
+  pad.show = (dataUrl) => {
+    pad.clear();
+    if (!dataUrl) return;
+    const img = new Image();
+    img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    img.src = dataUrl;
+    pad.empty = false;
+    if (placeholder) placeholder.style.display = 'none';
+  };
+  return pad;
+}
+
+let inspectorSignaturePad = null;
 
 function initSignaturePads() {
-  ['inspector', 'client'].forEach(which => {
-    const canvas = document.getElementById('sigCanvas' + sigCap(which));
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#f2f3f5';
-
-    let drawing = false, lastX = 0, lastY = 0, hasStroke = false;
-
-    function posFromEvent(e) {
-      const rect = canvas.getBoundingClientRect();
-      const pt = e.touches && e.touches.length ? e.touches[0] : e;
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      return { x: (pt.clientX - rect.left) * scaleX, y: (pt.clientY - rect.top) * scaleY };
-    }
-
-    function start(e) {
-      e.preventDefault();
-      drawing = true; hasStroke = true;
-      const p = posFromEvent(e); lastX = p.x; lastY = p.y;
-      const ph = document.getElementById('sigPlaceholder' + sigCap(which));
-      if (ph) ph.style.display = 'none';
-    }
-    function move(e) {
-      if (!drawing) return;
-      e.preventDefault();
-      const p = posFromEvent(e);
-      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
-      lastX = p.x; lastY = p.y;
-    }
-    function end() {
-      if (!drawing) return;
-      drawing = false;
-      if (hasStroke) saveSignature(which);
-    }
-
-    canvas.addEventListener('mousedown', start);
-    canvas.addEventListener('mousemove', move);
-    canvas.addEventListener('mouseup', end);
-    canvas.addEventListener('mouseleave', end);
-    canvas.addEventListener('touchstart', start, { passive: false });
-    canvas.addEventListener('touchmove', move, { passive: false });
-    canvas.addEventListener('touchend', end);
-
-    SIGNATURE_PADS[which] = { canvas, ctx };
-  });
+  const canvas = document.getElementById('sigCanvasInspector');
+  if (canvas) {
+    inspectorSignaturePad = createSignaturePad(canvas, document.getElementById('sigPlaceholderInspector'), () => {
+      reportData.inspectorSignature = canvas.toDataURL('image/png');
+      setInspectorSignatureStatus(true);
+      updateProgress();
+      saveDraft();
+    });
+  }
+  const agreementCanvas = document.getElementById('agreementSigCanvas');
+  if (agreementCanvas) {
+    agreementSignaturePad = createSignaturePad(agreementCanvas, document.getElementById('agreementSigPlaceholder'), updateAgreementSignButton);
+  }
 }
 
-function saveSignature(which) {
-  const pad = SIGNATURE_PADS[which];
-  if (!pad) return;
-  reportData[SIG_KEY[which]] = pad.canvas.toDataURL('image/png');
-  setSignatureStatus(which, true);
+function clearInspectorSignature() {
+  if (inspectorSignaturePad) inspectorSignaturePad.clear();
+  delete reportData.inspectorSignature;
+  setInspectorSignatureStatus(false);
   updateProgress();
   saveDraft();
 }
 
-function clearSignature(which) {
-  const pad = SIGNATURE_PADS[which];
-  if (!pad) return;
-  pad.ctx.clearRect(0, 0, pad.canvas.width, pad.canvas.height);
-  delete reportData[SIG_KEY[which]];
-  const ph = document.getElementById('sigPlaceholder' + sigCap(which));
-  if (ph) ph.style.display = 'flex';
-  setSignatureStatus(which, false);
-  updateProgress();
-  saveDraft();
-}
-
-function clearAllSignaturePads() {
-  ['inspector', 'client'].forEach(which => clearSignature(which));
-}
-
-function setSignatureStatus(which, signed) {
-  const status = document.getElementById('sigStatus' + sigCap(which));
+function setInspectorSignatureStatus(signed) {
+  const status = document.getElementById('sigStatusInspector');
   if (status) {
     status.textContent = signed ? 'Signed' : 'Not signed';
     status.classList.toggle('signed', signed);
   }
 }
 
-// Redraws saved signature images onto their canvases — used after a draft
-// or saved report is loaded, since reportData may now contain signatures
-// captured in an earlier session.
 function restoreLicenceField() {
   const el = document.getElementById('inspectorLicence');
   if (el) el.value = reportData.inspectorLicence || '';
 }
 
+// Redraws the saved inspector signature after a draft or saved report is
+// loaded, and brings the agreement banner up to date.
 function restoreSignaturePads() {
-  ['inspector', 'client'].forEach(which => {
-    const pad = SIGNATURE_PADS[which];
-    if (!pad) return;
-    const dataUrl = reportData[SIG_KEY[which]];
-    pad.ctx.clearRect(0, 0, pad.canvas.width, pad.canvas.height);
-    const ph = document.getElementById('sigPlaceholder' + sigCap(which));
-    if (dataUrl) {
-      const img = new Image();
-      img.onload = () => pad.ctx.drawImage(img, 0, 0, pad.canvas.width, pad.canvas.height);
-      img.src = dataUrl;
-      if (ph) ph.style.display = 'none';
-      setSignatureStatus(which, true);
-    } else {
-      if (ph) ph.style.display = 'flex';
-      setSignatureStatus(which, false);
-    }
+  if (inspectorSignaturePad) inspectorSignaturePad.show(reportData.inspectorSignature);
+  setInspectorSignatureStatus(!!reportData.inspectorSignature);
+  renderAgreementBanner();
+}
+
+// ── PRE-INSPECTION AGREEMENT ────────────────────────────────────────────
+// AS 4349.3 expects a written agreement before a timber pest inspection
+// starts, so the client signs (or the inspector records a paper / emailed
+// agreement) before the job, not at the end. A signed agreement is kept on
+// the report as reportData.agreement:
+//   { method: 'onsite' | 'other', signerName, signature?, otherNote?,
+//     signedAt, inspectionDate, fee, notes, standard, text }
+// text is the exact wording agreed to, so editing the business's template
+// later never changes what an earlier client signed.
+let agreementSignaturePad = null;
+
+const AGREEMENT_PLACEHOLDERS = ['company', 'client', 'address', 'date', 'standard', 'inspectionType', 'fee', 'notes'];
+
+const DEFAULT_AGREEMENT_TEXT = `1. The inspection
+{company} will carry out a {inspectionType} inspection of {address} for {client} on {date}, in line with {standard}.
+
+2. What is inspected
+A visual inspection of the readily accessible areas of the building and site for termites, borers of seasoned timber and wood decay fungi, and for conditions that make timber pest attack more likely. This normally covers the interior, roof space, subfloor, exterior, outbuildings, and the site within 50 m of the building, where they can be safely reached.
+
+3. Limits of the inspection
+The inspection is visual and non-invasive. We do not move furniture, stored goods, floor coverings, insulation or vegetation, and we do not cut, drill or remove any part of the building. Areas we cannot reach or see will be recorded in the report, and timber pests or damage may be hidden in them. The inspection cannot guarantee that the property is, or will stay, free of timber pests. It is not a building, structural, asbestos, mould or electrical inspection.
+
+4. Invasive inspection
+An invasive inspection is not included. If one is recommended, it needs a separate written agreement and fee.
+
+5. Access
+Please arrange safe access to all areas on the day. Any area we can't get into will be noted in the report, and coming back to inspect it later may cost extra.
+
+6. The report
+You will receive a written report after the inspection. It is for your use only and must not be relied on by anyone else without our written consent.
+
+7. Fee
+{fee}
+
+8. Special requests
+{notes}
+
+9. Your rights
+Nothing in this agreement limits your rights under the Australian Consumer Law.
+
+By signing, you confirm you have read and agree to this agreement before the inspection starts.`;
+
+function getAgreementTemplate() {
+  const custom = getCompanyDetails().agreementText;
+  return (custom && custom.trim()) ? custom : DEFAULT_AGREEMENT_TEXT;
+}
+
+function agreementInspectionType(standard) {
+  return /4349/.test(standard || '') ? 'pre-purchase timber pest' : 'timber pest';
+}
+
+// Fills the template's {placeholders} for this job. Anything still
+// unknown prints as a blank line to write on rather than an empty gap.
+function fillAgreementText(template, values) {
+  return template.replace(/\{(\w+)\}/g, (m, key) => {
+    if (!AGREEMENT_PLACEHOLDERS.includes(key)) return m;
+    const v = values[key];
+    return (v && String(v).trim()) ? String(v).trim() : '____________';
   });
+}
+
+function formatAgreementDate(isoDate) {
+  if (!isoDate) return '';
+  const d = new Date(isoDate + 'T00:00:00');
+  return isNaN(d) ? isoDate : d.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function formatAgreementSignedAt(ms) {
+  return new Date(ms).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function todayIsoDate() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// The job details the agreement is filled from, read from the open sheet.
+function agreementFormValues() {
+  const standard = reportData.standard || 'AS 3660.2-2017';
+  const inspectionDate = document.getElementById('agreementDate').value || todayIsoDate();
+  const fee = document.getElementById('agreementFee').value.trim();
+  const notes = document.getElementById('agreementNotes').value.trim();
+  return {
+    standard, inspectionDate, fee, notes,
+    text: fillAgreementText(getAgreementTemplate(), {
+      company: getCompanyDetails().name || 'The inspecting company',
+      client: document.getElementById('agreementSignerName').value.trim() || document.getElementById('jobClient').value.trim(),
+      address: getFullAddress(),
+      date: formatAgreementDate(inspectionDate),
+      standard,
+      inspectionType: agreementInspectionType(standard),
+      fee: fee || 'As quoted.',
+      notes: notes || 'None.',
+    }),
+  };
+}
+
+function renderAgreementBanner() {
+  const banner = document.getElementById('agreementBanner');
+  if (!banner) return;
+  const a = reportData.agreement;
+  banner.classList.toggle('signed', !!a);
+  document.getElementById('agreementBannerText').textContent = a
+    ? `Agreement signed by ${a.signerName} · ${formatAgreementSignedAt(a.signedAt)}`
+    : 'Pre-inspection agreement not signed yet';
+  document.getElementById('agreementBannerBtn').textContent = a ? 'View' : 'Get it signed';
+  const so = document.getElementById('signoffAgreementStatus');
+  if (so) {
+    so.textContent = a
+      ? `Signed by ${a.signerName} on ${formatAgreementSignedAt(a.signedAt)}${a.method === 'other' ? ` (${a.otherNote})` : ''}`
+      : 'Not signed yet. The client signs the agreement before the inspection starts.';
+    so.classList.toggle('signed', !!a);
+  }
+}
+
+function openAgreementSheet() {
+  const a = reportData.agreement;
+  document.getElementById('agreementEdit').style.display = a ? 'none' : '';
+  document.getElementById('agreementView').style.display = a ? '' : 'none';
+  if (a) {
+    document.getElementById('agreementViewSummary').textContent =
+      `Signed by ${a.signerName} on ${formatAgreementSignedAt(a.signedAt)}` +
+      (a.method === 'other' ? ` · ${a.otherNote}` : ' · signed on this device');
+    document.getElementById('agreementViewText').textContent = a.text;
+    const img = document.getElementById('agreementViewSignature');
+    img.style.display = a.signature ? '' : 'none';
+    if (a.signature) img.src = a.signature;
+  } else {
+    document.getElementById('agreementSignerName').value = document.getElementById('jobClient').value.trim();
+    document.getElementById('agreementDate').value = todayIsoDate();
+    document.getElementById('agreementAgree').checked = false;
+    document.getElementById('agreementOtherNote').value = '';
+    document.getElementById('agreementOtherWrap').style.display = 'none';
+    if (agreementSignaturePad) agreementSignaturePad.clear();
+    refreshAgreementPreview();
+  }
+  document.getElementById('agreementOverlay').classList.add('open');
+  document.body.classList.add('agreement-open');
+}
+
+function closeAgreementSheet() {
+  document.getElementById('agreementOverlay').classList.remove('open');
+  document.body.classList.remove('agreement-open');
+}
+
+function refreshAgreementPreview() {
+  if (!reportData.agreement) document.getElementById('agreementText').textContent = agreementFormValues().text;
+  updateAgreementSignButton();
+}
+
+function updateAgreementSignButton() {
+  const btn = document.getElementById('agreementSignBtn');
+  if (!btn) return;
+  btn.disabled = !(document.getElementById('agreementSignerName').value.trim()
+    && document.getElementById('agreementAgree').checked
+    && agreementSignaturePad && !agreementSignaturePad.empty);
+}
+
+function toggleAgreementOther() {
+  const wrap = document.getElementById('agreementOtherWrap');
+  wrap.style.display = wrap.style.display === 'none' ? '' : 'none';
+}
+
+// method 'onsite': the client signed on this device. 'other': the inspector
+// records an agreement signed on paper or by email, with a short note.
+function signAgreement(method) {
+  const signerName = document.getElementById('agreementSignerName').value.trim();
+  if (!signerName) { showToast('Enter the name of the person signing', 'error'); return; }
+  const values = agreementFormValues();
+  const agreement = { method, signerName, signedAt: Date.now(),
+    inspectionDate: values.inspectionDate, fee: values.fee, notes: values.notes,
+    standard: values.standard, text: values.text };
+  if (method === 'onsite') {
+    if (!document.getElementById('agreementAgree').checked || !agreementSignaturePad || agreementSignaturePad.empty) return;
+    agreement.signature = agreementSignaturePad.canvas.toDataURL('image/png');
+  } else {
+    agreement.otherNote = document.getElementById('agreementOtherNote').value.trim();
+    if (!agreement.otherNote) { showToast('Say how it was signed, e.g. "Signed on paper"', 'error'); return; }
+  }
+  reportData.agreement = agreement;
+  if (!document.getElementById('jobClient').value.trim()) {
+    document.getElementById('jobClient').value = signerName;
+    updateJob();
+  }
+  saveDraft();
+  updateProgress();
+  renderAgreementBanner();
+  closeAgreementSheet();
+  showToast('Agreement signed', 'success');
+}
+
+function removeAgreement() {
+  if (!confirm('Remove the signed agreement from this report? The client will need to sign again.')) return;
+  delete reportData.agreement;
+  saveDraft();
+  updateProgress();
+  renderAgreementBanner();
+  closeAgreementSheet();
+}
+
+// A PDF of the signed agreement for the client to keep.
+function shareAgreementPdf() {
+  const a = reportData.agreement;
+  if (!a || !window.jspdf) { showToast('PDF tools are still loading — try again in a moment', 'error'); return; }
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  const C = PDF_COLORS, M = 18, W = 210, CW = W - M * 2;
+  const company = getCompanyDetails();
+  doc.setFillColor(...C.headerBg); doc.rect(0, 0, W, 48, 'F');
+  drawPdfCompanyMark(doc, company);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(...C.white);
+  doc.text('Pre-Inspection Agreement', 42, 24);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.accentLight);
+  doc.text([company.name, getFullAddress()].filter(Boolean).join('  ·  '), 42, 31, { maxWidth: W - 42 - M });
+  let y = 60;
+  y = drawAgreementBody(doc, a, y, { M, CW, onNewPage: () => 20 });
+  const fname = `Agreement_${(getFullAddress() || 'property').replace(/\s+/g, '_').substring(0, 25)}.pdf`;
+  deliverPdfBlob(doc.output('blob'), fname, {
+    title: 'Pre-Inspection Agreement',
+    text: `Pre-inspection agreement — ${getFullAddress() || 'Property'}`,
+    readyToast: 'Agreement ready — choose where to save or send it',
+  });
+}
+
+// Prints the agreed wording and who signed it, from y down. Used for the
+// client's copy and the last page of the report. Returns the new y.
+function drawAgreementBody(doc, a, y, { M, CW, onNewPage }) {
+  const C = PDF_COLORS;
+  const bottom = 278;
+  const room = (h) => { if (y + h > bottom) { doc.addPage(); y = onNewPage(); } };
+  a.text.split(/\n/).forEach(line => {
+    const isHeading = /^\d+\.\s/.test(line);
+    doc.setFont('helvetica', isHeading ? 'bold' : 'normal');
+    doc.setFontSize(isHeading ? 9.5 : 8.5);
+    doc.setTextColor(...(isHeading ? C.ink : C.inkLight));
+    if (!line.trim()) { y += 2.5; return; }
+    const wrapped = doc.splitTextToSize(line, CW);
+    wrapped.forEach(w => { room(5); doc.text(w, M, y); y += isHeading ? 5 : 4.2; });
+    if (isHeading) y += 0.5;
+  });
+  y += 6;
+  room(40);
+  doc.setDrawColor(...C.rule); doc.setLineWidth(0.3); doc.line(M, y, M + CW, y); y += 7;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
+  doc.text('Agreed by:', M, y); doc.setFont('helvetica', 'bold'); doc.text(a.signerName, M + 30, y); y += 7;
+  doc.setFont('helvetica', 'normal');
+  doc.text('Signed:', M, y); doc.setFont('helvetica', 'bold'); doc.text(formatAgreementSignedAt(a.signedAt), M + 30, y); y += 7;
+  doc.setFont('helvetica', 'normal');
+  if (a.signature) {
+    doc.text('Signature:', M, y);
+    try { doc.addImage(a.signature, 'PNG', M + 30, y - 8, 46, 16); } catch (e) {}
+    y += 12;
+  } else {
+    doc.text('How:', M, y); doc.setFont('helvetica', 'bold'); doc.text(a.otherNote || 'Recorded by the inspector', M + 30, y); y += 7;
+  }
+  return y;
 }
 
 // ── PHOTO ATTACHMENTS ────────────────────────────────────────────────────
@@ -5812,6 +6064,10 @@ function saveCompanyDetails() {
   details.licence = document.getElementById('companyLicence').value.trim();
   details.phone   = document.getElementById('companyPhone').value.trim();
   details.abn     = document.getElementById('companyABN').value.trim();
+  // Kept empty while it matches the default, so the business picks up
+  // improvements to the default wording until they've customised it.
+  const agreementText = document.getElementById('companyAgreementText').value;
+  details.agreementText = agreementText.trim() === DEFAULT_AGREEMENT_TEXT.trim() ? '' : agreementText;
   try { localStorage.setItem(companyStorageKey(), JSON.stringify(details)); } catch(e) {}
 }
 
@@ -5825,14 +6081,22 @@ function loadCompanyDetails() {
     document.getElementById('companyLicence').value = '';
     document.getElementById('companyPhone').value   = '';
     document.getElementById('companyABN').value     = '';
+    document.getElementById('companyAgreementText').value = DEFAULT_AGREEMENT_TEXT;
     if (!stored) { renderCompanyLogoPreview(null); return; }
     const d = JSON.parse(stored);
     if (d.name)    document.getElementById('companyName').value    = d.name;
     if (d.licence) document.getElementById('companyLicence').value = d.licence;
     if (d.phone)   document.getElementById('companyPhone').value   = d.phone;
     if (d.abn)     document.getElementById('companyABN').value     = d.abn;
+    if (d.agreementText) document.getElementById('companyAgreementText').value = d.agreementText;
     renderCompanyLogoPreview(d.logo || null);
   } catch(e) {}
+}
+
+function resetAgreementTemplate() {
+  if (!confirm('Replace your agreement wording with the default?')) return;
+  document.getElementById('companyAgreementText').value = DEFAULT_AGREEMENT_TEXT;
+  saveCompanyDetails();
 }
 
 function getCompanyDetails() {
@@ -7436,7 +7700,9 @@ function resetReportState() {
   checkFindingsGate();
   checkSystemVerify();
   checkSecondaryColonyFlag();
-  clearAllSignaturePads();
+  if (inspectorSignaturePad) inspectorSignaturePad.clear();
+  setInspectorSignatureStatus(false);
+  renderAgreementBanner();
   renderReportWidgets();
   renderFindingsUI();
   setStandard('AS 3660.2-2017');
@@ -9125,24 +9391,47 @@ async function _buildAndDownloadPDF() {
   doc.text('Date:', M, y);
   doc.setFont('helvetica','bold'); doc.text(today, M+38, y); y += 14;
 
-  // ── Client acknowledgement block ─────────────────────────────────────────
+  // ── Client agreement block ───────────────────────────────────────────────
+  // The client signs the pre-inspection agreement before the job; its full
+  // wording follows on the next page. Reports from before that change have
+  // a client signature captured at sign-off instead, printed as it was.
+  const agreement = reportData.agreement;
   doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-  doc.text('CLIENT ACKNOWLEDGEMENT', M, y); y += 5;
+  doc.text(agreement ? 'PRE-INSPECTION AGREEMENT' : 'CLIENT ACKNOWLEDGEMENT', M, y); y += 5;
   doc.setDrawColor(...C.rule); doc.setLineWidth(0.3); doc.line(M, y, M+CW, y); y += 5;
 
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-  doc.text('Client Name:', M, y);
-  doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
-  doc.line(M+38, y+1, M+CW, y+1); y += 12;
+  if (agreement) {
+    doc.text('Agreed by:', M, y);
+    doc.setFont('helvetica','bold'); doc.text(agreement.signerName, M+38, y); y += 8;
+    doc.setFont('helvetica','normal');
+    doc.text('Signed:', M, y);
+    doc.setFont('helvetica','bold');
+    doc.text(`${formatAgreementSignedAt(agreement.signedAt)}${agreement.method === 'other' ? ' — ' + agreement.otherNote : ', before the inspection'}`, M+38, y, { maxWidth: CW-38 }); y += 8;
+    if (agreement.signature) {
+      doc.setFont('helvetica','normal');
+      doc.text('Client Signature:', M, y);
+      try { doc.addImage(agreement.signature, 'PNG', M+38, y-9, 40, 12); } catch(e) {}
+      y += 8;
+    }
+    y += 6;
+  } else {
+    doc.setFont('helvetica','bold'); doc.setTextColor(...C.warn);
+    if (!reportData.clientSignature) { doc.text('No pre-inspection agreement was recorded for this inspection.', M, y); y += 8; }
+    doc.setFont('helvetica','normal'); doc.setTextColor(...C.ink);
+    doc.text('Client Name:', M, y);
+    doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
+    doc.line(M+38, y+1, M+CW, y+1); y += 12;
 
-  doc.text('Client Signature:', M, y);
-  if (reportData.clientSignature) {
-    try { doc.addImage(reportData.clientSignature, 'PNG', M+38, y-9, 40, 12); } catch(e) {}
+    doc.text('Client Signature:', M, y);
+    if (reportData.clientSignature) {
+      try { doc.addImage(reportData.clientSignature, 'PNG', M+38, y-9, 40, 12); } catch(e) {}
+    }
+    doc.line(M+38, y+1, M+CW, y+1); y += 12;
+
+    doc.text('Date:', M, y);
+    doc.line(M+38, y+1, M+CW, y+1); y += 14;
   }
-  doc.line(M+38, y+1, M+CW, y+1); y += 12;
-
-  doc.text('Date:', M, y);
-  doc.line(M+38, y+1, M+CW, y+1); y += 14;
 
   // Footer badge
   doc.setFillColor(...C.rowAlt); doc.roundedRect(M, y, CW, 12, 2, 2, 'F');
@@ -9151,6 +9440,14 @@ async function _buildAndDownloadPDF() {
   doc.text(`Generated by KORVUS  ·  ${today}`, M+7, y+5);
   doc.setFont('helvetica','normal'); doc.setTextColor(...C.inkMuted);
   doc.text(`Report ID: ${reportId}  ·  ${standard} Compliant`, M+7, y+9);
+
+  if (agreement) {
+    newPage();
+    compactHeader('Pre-Inspection Agreement');
+    sectionTitle('PRE-INSPECTION AGREEMENT', '11');
+    gap(2);
+    y = drawAgreementBody(doc, agreement, y, { M, CW, onNewPage: () => { compactHeader('Pre-Inspection Agreement'); return 22; } });
+  }
 
   // ── PAGE FOOTERS ──────────────────────────────────────────────────────────
   const totalPages = doc.internal.getNumberOfPages();

@@ -593,6 +593,11 @@
             <div class="job-field-label">ABN</div>
             <input class="job-input" id="companyABN" placeholder="e.g. 12 345 678 901" oninput="saveCompanyDetails()">
           </div>
+          <div class="job-field">
+            <div class="job-field-label">Pre-Inspection Agreement Wording</div>
+            <textarea class="job-input agreement-template-input" id="companyAgreementText" rows="8" oninput="saveCompanyDetails()"></textarea>
+            <p style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.5">What clients sign before each inspection. {company}, {client}, {address}, {date}, {standard}, {inspectionType}, {fee} and {notes} are filled in for each job. This is a starting template: have your lawyer or industry body check it for your state. <button type="button" class="link-btn" onclick="resetAgreementTemplate()">Reset to the default wording</button></p>
+          </div>
           <p style="font-size:10px;color:var(--text3);padding:0 2px 6px;line-height:1.5">These details appear on every PDF report. Fill them in once — they're saved to this device.</p>
         </div>
       <!-- Team Management -->
@@ -911,6 +916,14 @@
       </div><!-- /sectionTabs -->
 
       <div class="report-body" id="reportBody">
+
+        <!-- Pre-inspection agreement: signed before the job (see the
+             PRE-INSPECTION AGREEMENT block in js/app.js) -->
+        <div class="agreement-banner" id="agreementBanner">
+          <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/></svg>
+          <span class="agreement-banner-text" id="agreementBannerText">Pre-inspection agreement not signed yet</span>
+          <button class="agreement-banner-btn" id="agreementBannerBtn" onclick="openAgreementSheet()">Get it signed</button>
+        </div>
 
         <!-- PROPERTY -->
         <div class="report-section" id="section-property">
@@ -1374,22 +1387,18 @@
               </div>
               <div class="signature-footer">
                 <span class="signature-status" id="sigStatusInspector">Not signed</span>
-                <button class="signature-clear-btn" onclick="clearSignature('inspector')">Clear</button>
+                <button class="signature-clear-btn" onclick="clearInspectorSignature()">Clear</button>
               </div>
             </div>
             <div class="signature-block">
-              <div class="field-label">Client Signature</div>
-              <div class="signature-pad-wrap">
-                <canvas class="signature-canvas" id="sigCanvasClient" width="640" height="220"></canvas>
-                <div class="signature-placeholder" id="sigPlaceholderClient">Sign here</div>
-              </div>
+              <div class="field-label">Client Agreement</div>
+              <div class="signoff-agreement" id="signoffAgreementStatus">Not signed yet. The client signs the agreement before the inspection starts.</div>
               <div class="signature-footer">
-                <span class="signature-status" id="sigStatusClient">Not signed</span>
-                <button class="signature-clear-btn" onclick="clearSignature('client')">Clear</button>
+                <button class="signature-clear-btn" onclick="openAgreementSheet()">Open agreement</button>
               </div>
             </div>
           </div>
-          <div class="warn-note" style="background:rgba(200,240,74,0.06); border-color:rgba(200,240,74,0.2); color:var(--green);"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Signatures are captured on this device only and embedded directly into the PDF — they are never transmitted anywhere else.</div>
+          <div class="warn-note" style="background:rgba(200,240,74,0.06); border-color:rgba(200,240,74,0.2); color:var(--green);"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Signatures are saved with this report, synced to your account when you're signed in, and printed in the PDF.</div>
         </div>
 
       </div><!-- /reportBody -->
@@ -1521,6 +1530,65 @@
       <span id="aiStatus">AI ready</span>
     </div>
   </div><!-- /voicePopover -->
+
+<!-- PRE-INSPECTION AGREEMENT SHEET -->
+<div class="agreement-overlay" id="agreementOverlay">
+  <div class="agreement-sheet" role="dialog" aria-modal="true" aria-labelledby="agreementTitle">
+    <div class="agreement-sheet-header">
+      <span class="agreement-sheet-title" id="agreementTitle">Pre-Inspection Agreement</span>
+      <button class="voice-popover-close" onclick="closeAgreementSheet()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+    </div>
+
+    <!-- Not signed yet: job details, wording, signature -->
+    <div class="agreement-sheet-body" id="agreementEdit">
+      <div class="job-row">
+        <div class="job-field">
+          <div class="job-field-label">Inspection Date</div>
+          <input class="job-input" id="agreementDate" type="date" onchange="refreshAgreementPreview()">
+        </div>
+        <div class="job-field">
+          <div class="job-field-label">Fee</div>
+          <input class="job-input" id="agreementFee" placeholder="e.g. $330 inc GST" oninput="refreshAgreementPreview()">
+        </div>
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Special Requests</div>
+        <input class="job-input" id="agreementNotes" placeholder="e.g. check the back deck closely" oninput="refreshAgreementPreview()">
+      </div>
+      <div class="agreement-text" id="agreementText"></div>
+      <div class="job-field">
+        <div class="job-field-label">Client Name</div>
+        <input class="job-input" id="agreementSignerName" placeholder="Full name of the person signing" oninput="refreshAgreementPreview()">
+      </div>
+      <label class="agreement-check">
+        <input type="checkbox" id="agreementAgree" onchange="updateAgreementSignButton()">
+        <span>I have read and agree to this agreement</span>
+      </label>
+      <div class="signature-pad-wrap agreement-sig-wrap">
+        <canvas class="signature-canvas" id="agreementSigCanvas" width="640" height="220"></canvas>
+        <div class="signature-placeholder" id="agreementSigPlaceholder">Client signs here</div>
+      </div>
+      <div class="agreement-sig-actions">
+        <button class="signature-clear-btn" onclick="agreementSignaturePad.clear();updateAgreementSignButton()">Clear signature</button>
+      </div>
+      <button class="extract-btn" id="agreementSignBtn" onclick="signAgreement('onsite')" disabled>Sign agreement</button>
+      <button class="link-btn agreement-other-toggle" onclick="toggleAgreementOther()">Signed on paper or by email instead?</button>
+      <div class="agreement-other" id="agreementOtherWrap" style="display:none">
+        <input class="job-input" id="agreementOtherNote" placeholder="e.g. Signed on paper, agreed by email">
+        <button class="agreement-banner-btn" onclick="signAgreement('other')">Record it</button>
+      </div>
+    </div>
+
+    <!-- Signed: what was agreed, read-only -->
+    <div class="agreement-sheet-body" id="agreementView" style="display:none">
+      <div class="agreement-view-summary" id="agreementViewSummary"></div>
+      <img class="agreement-view-signature" id="agreementViewSignature" alt="Client signature">
+      <div class="agreement-text" id="agreementViewText"></div>
+      <button class="extract-btn" onclick="shareAgreementPdf()">Send the client a copy (PDF)</button>
+      <button class="link-btn agreement-other-toggle" onclick="removeAgreement()">Remove and sign again</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
