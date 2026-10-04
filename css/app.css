@@ -736,6 +736,14 @@ header {
   flex-shrink: 0;
 }
 .header-icon-btn:hover { background: var(--surface2); color: var(--accent2); }
+#dashboardBtn { position: relative; }
+.header-badge {
+  position: absolute; top: 0; right: -2px;
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px;
+  background: var(--risk); color: #fff;
+  font: 800 10px/16px 'Inter', sans-serif; text-align: center;
+}
+.header-badge[hidden] { display: none; }
 .hamburger-btn span {
   display: block;
   width: 17px;
@@ -3337,6 +3345,45 @@ body.report-locked #micDock { opacity: 0.4; }
 .team-job-delete:hover { color:var(--risk); }
 .schedule-item.tappable { cursor: pointer; }
 .schedule-item-badge.treatment { background: rgba(40,148,72,0.12); color: var(--green); }
+/* ── Follow-ups (dashboard) ── */
+.followup-section { margin-bottom: 18px; }
+.followup-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.followup-item {
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface2);
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.followup-main { cursor: pointer; min-width: 0; }
+.followup-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.followup-addr { font-size: 13px; font-weight: 700; color: var(--text); min-width: 0; }
+.followup-tag {
+  flex-shrink: 0; font-size: 10px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase;
+  color: var(--accent2); background: rgba(var(--accent-rgb),0.12); border-radius: 4px; padding: 2px 6px;
+}
+.followup-tag.late { color: #B5651D; background: rgba(214,140,30,0.14); }
+.followup-text { font-size: 12px; color: var(--text2); margin-top: 3px; line-height: 1.4; }
+.followup-reminded { font-size: 11px; color: var(--green); margin-top: 3px; font-weight: 600; }
+.followup-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.followup-btn {
+  height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text); font: 700 12.5px 'Inter', sans-serif; cursor: pointer;
+}
+.followup-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.followup-nocontact { font-size: 11.5px; color: var(--text3); }
+.followup-dismiss {
+  margin-left: auto; width: 32px; height: 32px; border: none; background: none; color: var(--text3);
+  cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 8px;
+}
+.followup-dismiss:hover { color: var(--risk); background: var(--surface); }
+.followup-empty { font-size: 12px; color: var(--text3); line-height: 1.45; margin-bottom: 14px; }
+.followup-coming { margin-bottom: 4px; }
+.followup-coming-item {
+  display: flex; justify-content: space-between; gap: 10px; padding: 8px 0;
+  border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12.5px;
+}
+.followup-coming-item:last-child { border-bottom: none; }
+.followup-coming-addr { color: var(--text); font-weight: 600; min-width: 0; }
+.followup-coming-date { color: var(--text3); flex-shrink: 0; }
+.followup-coming-more { font-size: 11.5px; color: var(--text3); padding-top: 6px; }
 .schedule-item-badge {
   display:inline-block; font-size:10px; font-weight:800; letter-spacing:.02em;
   text-transform:uppercase; color:var(--accent2); background:rgba(var(--accent-rgb),0.12);

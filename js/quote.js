@@ -624,7 +624,7 @@ function renderQuoteAnswer() {
   const esc = escapeHtml;
   let body;
   if (!a) {
-    body = `<div class="quote-answer-status wait">${q.sentAt ? `Sent ${formatAnswerDate(new Date(q.sentAt).toISOString().slice(0, 10))}. Waiting on the client.` : 'Not sent yet. Record the client\'s answer here once you have it.'}</div>
+    body = `<div class="quote-answer-status wait">${q.sentAt ? `Sent ${formatAnswerDate(isoDate(new Date(q.sentAt)))}. Waiting on the client.` : 'Not sent yet. Record the client\'s answer here once you have it.'}</div>
       <div class="quote-answer-btns">
         <button class="quote-btn primary" onclick="openQuoteAnswer('accepted')">Accepted</button>
         <button class="quote-btn" onclick="openQuoteAnswer('declined')">Declined</button>
