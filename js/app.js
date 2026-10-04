@@ -3895,9 +3895,9 @@ function renderField(el, key, val) {
     el.innerHTML = `<span class="risk-tag ${cls}">${escapeHtml(label)}</span>`;
   } else if (key === 'durableNoticePresent' || key === 'zone25mmVisible' || key === 'zone75mmVisible') {
     // these should be YES for a properly verifiable system — NO is the concerning answer
-    el.innerHTML = val === 'YES' ? '<span class="yes-tag">YES</span>' : '<span class="no-tag" style="background:rgba(255,77,106,0.14);color:var(--risk);">NO</span>';
+    el.innerHTML = val === 'YES' ? '<span class="yes-tag">YES</span>' : '<span class="no-tag" style="background:rgba(192,57,43,0.14);color:var(--risk);">NO</span>';
   } else if (key === 'antCapSoldered') {
-    const cls = val === 'NO' ? 'background:rgba(255,77,106,0.14);color:var(--risk);' : '';
+    const cls = val === 'NO' ? 'background:rgba(192,57,43,0.14);color:var(--risk);' : '';
     el.innerHTML = val === 'N/A' ? '<span class="no-tag">N/A</span>' : `<span class="${val==='YES'?'yes-tag':'no-tag'}" style="${cls}">${escapeHtml(val)}</span>`;
   } else if (key === 'hardLandscaping' || key === 'softLandscaping') {
     // presence is informational, not inherently a concern either way
@@ -4140,7 +4140,7 @@ function findingCardHTML(finding, index, total) {
             <div class="field"><div class="field-label">Damage Appears to Compromise Structure?</div>${fv('structuralConcern','yesno')}</div>
           </div>
           ${act === 'INACTIVE' ? `<div class="inactive-reminder" style="display:flex"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span>Inactive workings can mean termites have temporarily abandoned the area, not that the risk is gone. Continued, regular inspections remain essential.</span></div>` : ''}
-          ${finding.structuralConcern === 'YES' ? `<div class="warn-note" style="background:rgba(255,77,106,0.08);border-color:rgba(255,77,106,0.3);color:var(--risk);margin:0 0 10px"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Structural concern flagged — PDF will include mandatory builder/engineer referral for this finding.</div>` : ''}
+          ${finding.structuralConcern === 'YES' ? `<div class="warn-note" style="margin:0 0 10px"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Structural concern flagged — PDF will include mandatory builder/engineer referral for this finding.</div>` : ''}
         </div>` : ''}
         ${showNone ? `<div class="findings-none" style="display:flex;margin:8px 0 6px"><span class="findings-none-icon"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span><span>No activity or evidence found at this location.</span></div>` : ''}
       </div>
