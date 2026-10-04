@@ -5107,10 +5107,12 @@ function formatAgreementSignedAt(ms) {
   return new Date(ms).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
-function todayIsoDate() {
-  const d = new Date();
+// A date as YYYY-MM-DD on the phone's own calendar. toISOString() gives the
+// UTC date, which in Australia is the day before until 10 or 11 in the morning.
+function isoDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+function todayIsoDate() { return isoDate(new Date()); }
 
 // The job details the agreement is filled from, read from the open sheet.
 function agreementFormValues() {
@@ -7373,6 +7375,8 @@ function saveCurrentReport(quiet) {
   if (quote) entry.quote = quote;
 
   const existingIndex = reports.findIndex(r => r.id === id);
+  // Reminders sent or dismissed from the dashboard (see js/followup.js).
+  if (existingIndex >= 0 && reports[existingIndex].followUps) entry.followUps = reports[existingIndex].followUps;
   if (existingIndex >= 0) {
     reports[existingIndex] = entry;
   } else {
@@ -7518,7 +7522,7 @@ async function exportAllData() {
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
 
-    const date = new Date().toISOString().slice(0, 10);
+    const date = todayIsoDate();
     const a = document.createElement('a');
     a.href = url;
     a.download = `korvus_backup_${date}.json`;
@@ -7884,13 +7888,13 @@ function renderScheduleAgenda(assignedJobs) {
     return;
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = todayIsoDate();
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+  const tomorrowStr = isoDate(tomorrow);
   const weekAhead = new Date();
   weekAhead.setDate(weekAhead.getDate() + 7);
-  const weekAheadStr = weekAhead.toISOString().slice(0, 10);
+  const weekAheadStr = isoDate(weekAhead);
 
   const sorted = [...all].sort((a, b) =>
     (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
@@ -7965,7 +7969,7 @@ function renderDashboard() {
   const fmtDate = (ts) => new Date(ts).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
   const fmtMoney = (n) => n > 0 ? `$${n.toLocaleString('en-AU', { maximumFractionDigits: 0 })}` : '—';
 
-  body.innerHTML = `
+  body.innerHTML = renderFollowUpsSection() + `
     <div class="dashboard-stat-grid">
       <div class="dashboard-stat-card">
         <div class="dashboard-stat-value">${totalJobs}</div>
@@ -8111,6 +8115,7 @@ async function renderTeamDashboard() {
 }
 
 function renderSavedList() {
+  updateFollowUpBadge();
   const list = document.getElementById('savedList');
   const allReports = getSavedReports();
   const summary = document.getElementById('savedPanelSummary');
@@ -8296,7 +8301,7 @@ function changedSections(before, after) {
 
 function ensureReportNumber() {
   if (!reportData.reportNumber) {
-    reportData.reportNumber = 'KV-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.floor(Math.random()*9000+1000);
+    reportData.reportNumber = 'KV-' + todayIsoDate().replace(/-/g,'') + '-' + Math.floor(Math.random()*9000+1000);
   }
   return reportData.reportNumber;
 }
