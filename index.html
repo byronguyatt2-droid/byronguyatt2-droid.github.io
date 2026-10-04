@@ -286,13 +286,12 @@
           <div class="quote-card-head">
             <div class="quote-card-title">Line items</div>
             <div class="quote-card-actions">
-              <button class="quote-link-btn" data-company-setting onclick="openQuotePriceList()">Your prices</button>
               <button class="quote-link-btn" onclick="rebuildQuoteFromReport()">Rebuild from report</button>
             </div>
           </div>
           <div id="quoteItems"></div>
           <button class="quote-add-btn" onclick="addQuoteItem()">+ Add line</button>
-          <div class="quote-hint">Prices are ex GST. Set your usual prices once in Your prices. A price you change here becomes your usual price for that item too.</div>
+          <div class="quote-hint">Prices are ex GST. Each line starts at the rate you last quoted for it, so per-metre and per-station rates carry over to your next quote.</div>
         </div>
 
         <div class="quote-card quote-totals">
@@ -611,21 +610,6 @@
       </div>
       <button class="extract-btn" onclick="saveInvoicePaid()">Mark paid</button>
       <button class="link-btn send-review-cancel" onclick="closeInvoicePaid()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<div class="page-sheet-overlay" id="quotePriceOverlay">
-  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="quotePriceTitle">
-    <div class="page-sheet-header">
-      <span class="page-sheet-title" id="quotePriceTitle">Your prices</span>
-      <button class="voice-popover-close" onclick="closeQuotePriceList()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
-    </div>
-    <div class="page-sheet-body">
-      <p class="quote-hint" style="margin:0">Your usual price for each item, in dollars ex GST. New quote lines start at these prices. Quotes you've already made keep theirs.</p>
-      <div id="quotePriceRows"></div>
-      <button class="extract-btn" onclick="saveQuotePriceList()">Save prices</button>
-      <button class="link-btn send-review-cancel" onclick="closeQuotePriceList()">Cancel</button>
     </div>
   </div>
 </div>
@@ -953,15 +937,6 @@
           </div>
           <p class="drawer-hint">These details appear on every report, quote and invoice. Fill them in once — they're saved to this device.</p>
         </div>
-      </div>
-
-      <div class="job-panel menu-link">
-        <button class="panel-label panel-label-toggle" data-company-setting onclick="openQuotePriceList()">
-          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
-          <span class="panel-title">Your prices</span>
-          <span class="job-panel-summary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-        </button>
       </div>
 
       <!-- Team Management -->
