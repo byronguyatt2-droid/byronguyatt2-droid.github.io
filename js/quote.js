@@ -304,6 +304,7 @@ function openQuote(from, preferKey) {
   document.getElementById('mainMenu').style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('quoteScreen').classList.add('open');
+  installQuoteLockGuard();
   quoteSources = collectQuoteSources();
   renderQuoteSourceOptions(preferKey);
   onQuoteSourceChange();
@@ -318,6 +319,9 @@ function openQuoteFromReport() {
 function closeQuote() {
   clearTimeout(quoteSaveTimer);
   if (quoteState) { persistQuote(); storeQuoteOnReport(quoteState, true); }
+  // Forget it, so the next open reads the stored copy, which a report send
+  // may have marked as sent since.
+  quoteState = null;
   document.getElementById('quoteScreen').classList.remove('open');
   if (quoteReturnTo === 'app') document.getElementById('app').style.display = 'flex';
   else document.getElementById('mainMenu').style.display = 'flex';
@@ -358,6 +362,7 @@ function onQuoteSourceChange() {
   else setQuoteSaveState('Saved');
   renderQuoteSourceSummary(src);
   renderQuoteEditor();
+  renderQuoteLock();
   editor.style.display = 'flex';
 }
 
@@ -525,6 +530,52 @@ function rememberQuotePrices(q) {
   q.items.forEach(it => rememberQuotePrice(it.key, parseFloat(it.price)));
 }
 
+// ── SENT AND LOCKED ─────────────────────────────────────────────────────────
+// A quote records when it went to the client and a hash of what it said, so
+// the job can only be completed once the client has the current quote (see
+// COMPLETED JOBS in js/app.js). Once the job is complete the quote is locked
+// with its report until the job is amended.
+function quoteHasItems(q) { return !!(q && q.items && q.items.length); }
+function quoteContentHash(q) {
+  const content = Object.assign({}, q);
+  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey'].forEach(k => delete content[k]);
+  return sha256Hex(stableJson(content));
+}
+function markQuoteSent(q) {
+  q.sentAt = Date.now();
+  q.sentHash = quoteContentHash(q);
+  const all = readJSON(quotesStorageKey(), {});
+  all[q.reportKey] = q;
+  try { localStorage.setItem(quotesStorageKey(), JSON.stringify(all)); } catch (e) {}
+  storeQuoteOnReport(q, true);
+  if (typeof renderIssueState === 'function') renderIssueState();
+}
+function isQuoteLocked() {
+  const src = currentQuoteSource();
+  const rd = src && (src.key === (currentReportId || 'draft') ? reportData : src.reportData);
+  return !!(rd && rd.issue && !rd.amending);
+}
+function renderQuoteLock() {
+  const note = document.getElementById('quoteLockNote');
+  if (note) note.style.display = isQuoteLocked() ? '' : 'none';
+}
+// While locked, edits in the quote are stopped; the PDF and email still work.
+let quoteLockGuardInstalled = false;
+function installQuoteLockGuard() {
+  if (quoteLockGuardInstalled) return;
+  quoteLockGuardInstalled = true;
+  const editor = document.getElementById('quoteEditor');
+  const stop = e => {
+    if (!isQuoteLocked() || e.target.closest('#quotePdfBtn, #quoteEmailBtn')) return;
+    if (e.type === 'touchstart') return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'focusin' && e.target.blur) e.target.blur();
+    if (e.type === 'click') showToast('This job is complete and locked. Amend it from the report to change the quote', 'info');
+  };
+  ['mousedown', 'click', 'focusin', 'keydown'].forEach(t => editor.addEventListener(t, stop, true));
+}
+
 // Emails the quote PDF to the client. The PDF is built right here, inside
 // the tap, because the share sheet won't open after a wait.
 function emailQuoteToClient() {
@@ -545,7 +596,7 @@ function emailQuoteToClient() {
     to: (q.clientEmail || '').trim(),
     subject: `Quote ${q.number || ''} — ${q.address || 'your property'}`.replace('  ', ' '),
     body: clientMessage({ client: q.client, address: q.address, docs: 'treatment quote', signOff: q.inspector }),
-  });
+  }).then(sent => { if (sent) markQuoteSent(q); });
 }
 
 function buildQuotePDF(q) {
