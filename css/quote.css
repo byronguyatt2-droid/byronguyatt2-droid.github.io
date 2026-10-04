@@ -275,3 +275,13 @@ select.quote-input { cursor: pointer; }
 .treat-sketch-wrap .signature-placeholder { padding: 0 24px; text-align: center; }
 .treat-sketch-actions { display: flex; justify-content: space-between; gap: 8px; }
 .treat-sketch-actions label { cursor: pointer; }
+
+/* Chemical calculator */
+.quote-item-calc { margin-top: 8px; }
+.cc-product { display: flex; flex-direction: column; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; }
+.cc-product .link-btn { align-self: flex-start; }
+.cc-result { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 10px; background: rgba(var(--accent-rgb), 0.06); font-size: 13.5px; color: var(--text2); }
+.cc-result > div { display: flex; justify-content: space-between; gap: 12px; }
+.cc-result strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.cc-result .cc-total { padding-top: 6px; border-top: 1px solid var(--border); font-size: 15px; }
+.cc-empty { font-size: 13px; color: var(--text3); }
