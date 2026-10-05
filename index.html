@@ -375,131 +375,6 @@
   </div>
 </div>
 
-<div class="page-sheet-overlay" id="quoteBookOverlay">
-  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="quoteBookTitle">
-    <div class="page-sheet-header">
-      <span class="page-sheet-title" id="quoteBookTitle">Book the treatment</span>
-      <button class="voice-popover-close" onclick="closeQuoteBooking()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
-    </div>
-    <div class="page-sheet-body">
-      <p class="quote-hint" id="qbSummary" style="margin:0"></p>
-      <div class="job-row">
-        <div class="job-field">
-          <div class="job-field-label">Date</div>
-          <input class="job-input" id="qbDate" type="date">
-        </div>
-        <div class="job-field">
-          <div class="job-field-label">Time</div>
-          <input class="job-input" id="qbTime" type="time">
-        </div>
-      </div>
-      <div class="job-field" id="qbAssigneeWrap" style="display:none">
-        <div class="job-field-label">Technician</div>
-        <select class="job-input" id="qbAssignee"></select>
-      </div>
-      <div class="job-field">
-        <div class="job-field-label">Notes</div>
-        <input class="job-input" id="qbNotes" placeholder="e.g. Client home after 9, dog in the backyard">
-      </div>
-      <p class="quote-hint" style="margin:0">It goes on the Schedule. Booked for someone else on your team, it goes on their Schedule too.</p>
-      <button class="extract-btn" id="qbSaveBtn" onclick="saveQuoteBooking()">Book it</button>
-      <button class="link-btn send-review-cancel" onclick="closeQuoteBooking()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<div class="page-sheet-overlay" id="chemCalcOverlay">
-  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="chemCalcTitle">
-    <div class="page-sheet-header">
-      <span class="page-sheet-title" id="chemCalcTitle">Work out from the label</span>
-      <button class="voice-popover-close" onclick="closeChemCalc()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
-    </div>
-    <div class="page-sheet-body">
-      <p class="quote-hint" style="margin:0">Copy the figures from the current product label. The label is the legal document: this never prices below its rate or minimum. Kept for your next quote, and only you, the owner, see this.</p>
-      <div class="job-row">
-        <div class="job-field">
-          <div class="job-field-label">Linear metres</div>
-          <input class="job-input" id="ccMetres" type="number" min="0" step="any" inputmode="decimal" oninput="updateChemCalc()">
-        </div>
-        <div class="job-field">
-          <div class="job-field-label">Treated depth (mm)</div>
-          <input class="job-input" id="ccDepth" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 500" oninput="updateChemCalc()">
-        </div>
-      </div>
-      <p class="quote-hint" style="margin:0">Depth is from ground level to as far below the footing as the label requires.</p>
-      <div class="job-field">
-        <div class="job-field-label">Product</div>
-        <select class="job-input" id="ccProduct" onchange="onChemCalcProductPick()"></select>
-      </div>
-      <div class="cc-product">
-        <div class="job-row">
-          <div class="job-field">
-            <div class="job-field-label">Product name</div>
-            <input class="job-input" id="ccName" list="trProductList" placeholder="e.g. Termidor Residual" oninput="updateChemCalc()">
-          </div>
-          <div class="job-field">
-            <div class="job-field-label">APVMA number</div>
-            <input class="job-input" id="ccApvma" placeholder="On the label">
-          </div>
-        </div>
-        <div class="job-field">
-          <div class="job-field-label">Concentrate per 100 L of mix (mL)</div>
-          <input class="job-input" id="ccMixRate" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 600" oninput="updateChemCalc()">
-        </div>
-        <div class="job-field">
-          <div class="job-field-label">The label gives its rate as</div>
-          <select class="job-input" id="ccRateForm" onchange="updateChemCalc()">
-            <option value="per100">Litres of mix per metre, per 100 mm depth</option>
-            <option value="perM3">Litres of mix per cubic metre of soil</option>
-          </select>
-        </div>
-        <div class="job-row">
-          <div class="job-field">
-            <div class="job-field-label">Label rate (L)</div>
-            <input class="job-input" id="ccAppRate" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 1.5" oninput="updateChemCalc()">
-          </div>
-          <div class="job-field" id="ccWidthField" style="display:none">
-            <div class="job-field-label">Zone width (mm)</div>
-            <input class="job-input" id="ccWidth" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 150" oninput="updateChemCalc()">
-          </div>
-          <div class="job-field">
-            <div class="job-field-label">Label minimum per metre (L)</div>
-            <input class="job-input" id="ccMinPerMetre" type="number" min="0" step="any" inputmode="decimal" placeholder="If stated" oninput="updateChemCalc()">
-          </div>
-        </div>
-        <div class="job-row">
-          <div class="job-field">
-            <div class="job-field-label">Pack size (L)</div>
-            <input class="job-input" id="ccPackSize" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 6" oninput="updateChemCalc()">
-          </div>
-          <div class="job-field">
-            <div class="job-field-label">You pay per pack ($)</div>
-            <input class="job-input" id="ccPackPrice" type="number" min="0" step="any" inputmode="decimal" oninput="updateChemCalc()">
-          </div>
-        </div>
-        <button class="link-btn" id="ccRemove" onclick="removeChemCalcProduct()" hidden>Remove this product</button>
-      </div>
-      <div class="job-row">
-        <div class="job-field">
-          <div class="job-field-label">Labour (hours)</div>
-          <input class="job-input" id="ccHours" type="number" min="0" step="any" inputmode="decimal" oninput="updateChemCalc()">
-        </div>
-        <div class="job-field">
-          <div class="job-field-label">Per hour ($)</div>
-          <input class="job-input" id="ccRate" type="number" min="0" step="any" inputmode="decimal" oninput="updateChemCalc()">
-        </div>
-      </div>
-      <div class="job-field">
-        <div class="job-field-label">Markup on cost (%)</div>
-        <input class="job-input" id="ccMarkup" type="number" min="0" step="any" inputmode="decimal" oninput="updateChemCalc()">
-      </div>
-      <div class="cc-result" id="ccResult"></div>
-      <button class="extract-btn" id="ccApply" onclick="applyChemCalc()">Use this price</button>
-      <button class="link-btn send-review-cancel" onclick="closeChemCalc()">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <div class="page-sheet-overlay" id="treatmentOverlay">
   <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="treatmentTitle">
     <div class="page-sheet-header">
@@ -634,78 +509,6 @@
   </div>
 </div>
 
-<div class="page-sheet-overlay" id="invoiceOverlay">
-  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="invoiceTitle">
-    <div class="page-sheet-header">
-      <span class="page-sheet-title" id="invoiceTitle">Invoice</span>
-      <button class="voice-popover-close" onclick="closeInvoiceSheet()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
-    </div>
-    <div class="page-sheet-body">
-      <div class="invoice-summary" id="invSummary"></div>
-      <label class="treat-method" id="invUpdateWrap" style="display:none">
-        <input type="checkbox" id="invUpdate" onchange="renderInvoiceSheetSummary()">
-        <span>Update the invoice to match the changed quote</span>
-      </label>
-      <div class="job-row">
-        <div class="job-field">
-          <div class="job-field-label">Invoice No.</div>
-          <input class="job-input" id="invNumber">
-        </div>
-        <div class="job-field">
-          <div class="job-field-label">Deposit already paid ($)</div>
-          <input class="job-input" id="invDeposit" type="number" min="0" step="any" inputmode="decimal" placeholder="0" oninput="renderInvoiceSheetSummary()">
-        </div>
-      </div>
-      <div class="job-row">
-        <div class="job-field">
-          <div class="job-field-label">Invoice date</div>
-          <input class="job-input" id="invDate" type="date">
-        </div>
-        <div class="job-field">
-          <div class="job-field-label">Due date</div>
-          <input class="job-input" id="invDue" type="date">
-        </div>
-      </div>
-      <div class="job-field">
-        <div class="job-field-label">How the client pays you</div>
-        <textarea class="job-input" id="invPayment" rows="3" placeholder="e.g. Bank transfer to ABC Pest Control, BSB 000-000, Acc 12345678" oninput="renderInvoiceSheetSummary()"></textarea>
-      </div>
-      <p class="quote-hint" style="margin:0">The line items come from the quote. To change them, edit the quote, then update the invoice here.</p>
-      <button class="extract-btn" id="invSaveBtn" onclick="saveInvoice()">Save invoice</button>
-      <button class="link-btn send-review-cancel" onclick="closeInvoiceSheet()">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<div class="page-sheet-overlay" id="invoicePaidOverlay">
-  <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="invoicePaidTitle">
-    <div class="page-sheet-header">
-      <span class="page-sheet-title" id="invoicePaidTitle">Mark as paid</span>
-      <button class="voice-popover-close" onclick="closeInvoicePaid()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
-    </div>
-    <div class="page-sheet-body">
-      <div class="job-row">
-        <div class="job-field">
-          <div class="job-field-label">Date paid</div>
-          <input class="job-input" id="invPaidDate" type="date">
-        </div>
-        <div class="job-field">
-          <div class="job-field-label">How</div>
-          <select class="job-input" id="invPaidMethod">
-            <option value="bank">Bank transfer</option>
-            <option value="card">Card</option>
-            <option value="cash">Cash</option>
-            <option value="cheque">Cheque</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-      </div>
-      <button class="extract-btn" onclick="saveInvoicePaid()">Mark paid</button>
-      <button class="link-btn send-review-cancel" onclick="closeInvoicePaid()">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <!-- MAIN APP -->
 <div id="app">
 
@@ -724,7 +527,6 @@
     <div class="header-right">
       <button class="header-icon-btn" id="dashboardBtn" onclick="openDashboard()" aria-label="Dashboard" title="Dashboard">
         <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
-        <span class="header-badge" id="dashboardBadge" hidden></span>
       </button>
       <div class="progress-ring-wrap" title="Report completion">
         <svg class="progress-ring" width="26" height="26" viewBox="0 0 26 26">
@@ -775,7 +577,6 @@
       <div class="dashboard-panel-subtitle" id="dashboardSubtitle">Reports saved on this device — preview</div>
       <div class="dashboard-tabs">
         <button class="dashboard-tab active" id="dashTabOverview" onclick="switchDashboardTab('overview')">Overview</button>
-        <button class="dashboard-tab" id="dashTabSchedule" onclick="switchDashboardTab('schedule')">Schedule</button>
         <button class="dashboard-tab" id="dashTabTeam" onclick="switchDashboardTab('team')" style="display:none">Team</button>
       </div>
       <div class="dashboard-panel-body" id="dashboardBody"></div>
@@ -964,8 +765,7 @@
       <div class="job-panel menu-link">
         <button class="panel-label panel-label-toggle" onclick="openDashboardFromMenu()">
           <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span>
-          <span class="panel-title">Follow-ups &amp; schedule</span>
-          <span class="job-panel-summary" id="menuFollowUpSummary"></span>
+          <span class="panel-title">Dashboard</span>
           <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
       </div>
@@ -1018,16 +818,11 @@
             <input class="job-input" id="companyEmail" data-company-setting type="email" placeholder="e.g. office@abcpest.com.au" oninput="saveCompanyDetails()">
           </div>
           <div class="job-field">
-            <div class="job-field-label">How Clients Pay You</div>
-            <textarea class="job-input" id="companyPayment" data-company-setting rows="3" placeholder="e.g. Bank transfer to ABC Pest Control, BSB 000-000, Acc 12345678" oninput="saveCompanyDetails()"></textarea>
-            <p class="drawer-hint">Printed on your invoices, with the invoice number as the payment reference.</p>
-          </div>
-          <div class="job-field">
             <div class="job-field-label">Pre-Inspection Agreement Wording</div>
             <textarea class="job-input agreement-template-input" id="companyAgreementText" data-company-setting rows="8" oninput="saveCompanyDetails()"></textarea>
             <p class="drawer-hint">What clients sign before each inspection. {company}, {client}, {address}, {date}, {standard}, {inspectionType}, {fee} and {notes} are filled in for each job. This is a starting template: have your lawyer or industry body check it for your state. <button type="button" class="link-btn" data-company-setting onclick="resetAgreementTemplate()">Reset to the default wording</button></p>
           </div>
-          <p class="drawer-hint">These details appear on every report, quote and invoice. Fill them in once — they're saved to this device.</p>
+          <p class="drawer-hint">These details appear on every report, quote and treatment certificate. Fill them in once — they're saved to this device.</p>
         </div>
       </div>
 
@@ -1057,32 +852,6 @@
           <!-- Team member list -->
           <div class="team-list" id="teamList">
             <div class="team-loading">Loading team…</div>
-          </div>
-
-          <div class="drawer-group-divider" style="margin:16px 0"></div>
-          <div class="job-field-label" style="margin-bottom:8px">Team Schedule</div>
-
-          <!-- Assign-a-job form — owner only, hidden for technicians -->
-          <div class="team-invite-wrap" id="assignJobForm" style="display:none">
-            <div class="job-field">
-              <div class="job-field-label">Assign a Job</div>
-              <select class="job-input job-select" id="jobAssignee"></select>
-            </div>
-            <input class="job-input" id="jobAddressInput" type="text" placeholder="Property address" autocomplete="off">
-            <div class="job-assign-row">
-              <input class="job-input" id="jobDateInput" type="date">
-              <input class="job-input" id="jobTimeInput" type="time">
-            </div>
-            <input class="job-input" id="jobNotesInput" type="text" placeholder="Notes (optional)" autocomplete="off">
-            <button class="team-invite-btn" id="assignJobBtn" onclick="assignJob()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-              Assign Job
-            </button>
-          </div>
-
-          <!-- Whole-team job list — visible to everyone on the team, editable (delete) by the owner -->
-          <div class="team-list" id="jobsList">
-            <div class="team-loading">Loading schedule…</div>
           </div>
 
         </div>
@@ -2022,8 +1791,6 @@
 <!-- Quote builder: uses js/app.js globals (reportData, getSavedReports, jsPDF…) -->
 <script src="js/quote.js"></script>
 <script src="js/treatment.js"></script>
-<script src="js/invoice.js"></script>
-<script src="js/followup.js"></script>
 <script src="js/business-sync.js"></script>
 <!-- Activity picker bottom sheet — rendered once, reused for all finding cards -->
 <div class="activity-sheet-overlay" id="activitySheetOverlay" onclick="closeActivitySheet()">
