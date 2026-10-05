@@ -235,6 +235,15 @@ body.large-touch .saved-item-delete { width: 36px; height: 36px; }
 .ob-step.done   { background: var(--green); }
 .ob-icon { font-size: 36px; text-align: center; }
 .ob-panel { animation: menuFadeIn 0.35s cubic-bezier(0.22,1,0.36,1); }
+/* "Your business" opens the sign-up form over the app (openBusinessForm) */
+#onboardScreen.ob-edit {
+  position: fixed; inset: 0; z-index: 900;
+  overflow-y: auto; align-items: flex-start;
+}
+#onboardScreen.ob-edit .ob-steps { display: none; }
+.ob-cancel { text-align: center; width: 100%; margin-top: 4px; }
+.ob-cancel[hidden] { display: none; }
+.auth-label-optional { font-weight: 400; text-transform: none; color: var(--text3); }
 .ob-demo-box {
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -2543,7 +2552,6 @@ body.report-locked #micDock { opacity: 0.4; }
 .send-review-gaps .send-review-label { margin-top: 0; color: var(--yellow); }
 .send-review-body { resize: vertical; font-size: 13px; line-height: 1.5; }
 .send-review-cancel { align-self: center; margin-top: 2px; }
-.agreement-template-input { resize: vertical; font-size: 11px; line-height: 1.5; }
 .signoff-agreement { font-size: 12px; color: var(--text3); line-height: 1.5; }
 .signoff-agreement.signed { color: var(--green); font-weight: 600; }
 .link-btn {
@@ -3098,31 +3106,6 @@ body.report-locked #micDock { opacity: 0.4; }
   padding: 0 16px 20px;
 }
 
-.dashboard-tabs {
-  display: flex;
-  gap: 6px;
-  padding: 0 16px 14px;
-  flex-shrink: 0;
-}
-.dashboard-tab {
-  flex: 1;
-  padding: 7px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text3);
-  font-family: 'Inter', sans-serif;
-  font-size: 11.5px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.dashboard-tab.active {
-  border-color: rgba(var(--accent-rgb),0.4);
-  background: rgba(var(--accent-rgb),0.1);
-  color: var(--accent2);
-}
-
 .dashboard-stat-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3243,43 +3226,7 @@ body.report-locked #micDock { opacity: 0.4; }
 
 .toast-icon { font-size: 15px; flex-shrink: 0; }
 
-/* ── TEAM PANEL ── */
-.team-invite-wrap { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
-.team-invite-btn {
-  display:flex; align-items:center; justify-content:center; gap:6px;
-  padding:9px 14px; background:var(--accent); border:none; border-radius:8px;
-  color:#fff; font-family:'Inter',sans-serif; font-size:13px; font-weight:700;
-  cursor:pointer; transition:opacity 0.2s;
-}
-.team-invite-btn:hover { opacity:0.85; }
-.team-invite-btn:disabled { opacity:0.4; cursor:not-allowed; }
 .voice-privacy-hint { font-size: 11px; color: var(--text3); line-height: 1.5; margin: 6px 2px 0; }
-.team-invite-hint { font-size:10px; color:var(--text3); line-height:1.5; }
-
-.team-list { display:flex; flex-direction:column; gap:6px; }
-.team-loading { font-size:12px; color:var(--text3); padding:6px 0; }
-.team-member {
-  display:flex; align-items:center; gap:10px;
-  padding:9px 10px; background:var(--surface2);
-  border:1px solid var(--border); border-radius:8px;
-}
-.team-member-avatar {
-  width:30px; height:30px; border-radius:50%;
-  background:rgba(var(--accent-rgb),0.15);
-  display:flex; align-items:center; justify-content:center;
-  font-size:12px; font-weight:700; color:var(--accent2);
-  flex-shrink:0;
-}
-.team-member-info { flex:1; min-width:0; }
-.team-member-name { font-size:12px; font-weight:600; color:var(--text); }
-.team-member-email { font-size:10.5px; color:var(--text3); margin-top:1px; }
-.team-member-role {
-  font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
-  padding:2px 7px; border-radius:99px;
-}
-.team-member-role.owner { background:rgba(var(--accent-rgb),0.12); color:var(--accent2); }
-.team-member-role.technician { background:var(--surface3); color:var(--text3); }
-.team-member-role.pending { background:rgba(255,182,72,0.12); color:var(--yellow); }
 
 .profile-menu-wrap { position: relative; }
 .profile-btn {
@@ -3306,13 +3253,8 @@ body.report-locked #micDock { opacity: 0.4; }
 .profile-dropdown-name { font-size: 13px; font-weight: 700; color: var(--text); }
 .profile-dropdown-email { font-size: 11px; color: var(--text3); margin-top: 2px; word-break: break-all; }
 .profile-dropdown-business { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11.5px; color: var(--text2); }
-.profile-role-badge {
-  font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-  padding: 2px 7px; border-radius: 99px; margin-left: auto;
-}
-.profile-role-badge.owner { background: rgba(var(--accent-rgb),0.12); color: var(--accent2); }
-.profile-role-badge.technician { background: var(--surface3); color: var(--text3); }
 .profile-dropdown-divider { height: 1px; background: var(--border); margin: 10px 0; }
+.profile-dropdown-item[hidden] { display: none; }
 .profile-dropdown-item {
   display: flex; align-items: center; gap: 8px; width: 100%;
   padding: 9px 8px; background: none; border: none; border-radius: 7px;
@@ -3891,7 +3833,3 @@ button:focus-visible,
    MOBILE LAYOUT
    ══════════════════════════════════════════════════════════════════════ */
 
-/* Company details a technician sees but can't change (js/business-sync.js) */
-.company-team-note { color: var(--accent2); font-weight: 600; margin: 0 0 10px; }
-.company-team-note[hidden] { display: none; }
-[data-company-setting]:disabled { opacity: 0.6; cursor: not-allowed; }
