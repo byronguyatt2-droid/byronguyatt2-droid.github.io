@@ -660,5 +660,5 @@ function buildTreatmentCertificatePDF(q) {
 
   drawPdfDocFooters(doc, `Certificate ${number}${company.name ? `  ·  ${company.name}` : ''}`);
   const safe = (q.address || 'Property').replace(/[^\w]+/g, '_').substring(0, 25);
-  return { blob: doc.output('blob'), fname: `KORVUS_Treatment_Certificate_${number.replace(/[^\w-]+/g, '')}_${safe}.pdf` };
+  return { blob: doc.output('blob'), fname: `SAYON_Treatment_Certificate_${number.replace(/[^\w-]+/g, '')}_${safe}.pdf` };
 }
