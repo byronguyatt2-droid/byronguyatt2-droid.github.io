@@ -95,16 +95,76 @@ function shouldShowOnboarding() {
 function showOnboarding() {
   document.getElementById('authScreen').style.display   = 'none';
   document.getElementById('onboardScreen').style.display = 'flex';
-  // Pre-fill business name from auth metadata if available
+  fillBusinessForm();
+}
+
+// ── YOUR BUSINESS ─────────────────────────────────────────────────────────
+// The business details every report, quote and certificate prints. They're
+// entered at sign-up (onboarding step 0) and changed later from the account
+// menu, through that same form; there's no separate menu page.
+let businessFormEditing = null; // null while onboarding, else { onSaved }
+
+function fillBusinessForm() {
+  const d = getCompanyDetails();
   const meta = authUser?.user_metadata || {};
-  if (meta.business_name) {
-    const el = document.getElementById('ob-companyName');
-    if (el) el.value = meta.business_name;
+  const set = (id, v) => { document.getElementById(id).value = v || ''; };
+  set('ob-companyName', d.name || meta.business_name || authBusiness?.name);
+  set('ob-licence', d.licence);
+  set('ob-phone', d.phone);
+  set('ob-email', d.email || authUser?.email);
+  set('ob-abn', d.abn);
+  renderCompanyLogoPreview(d.logo);
+}
+
+function canEditBusiness() {
+  return !authBusiness || isBusinessOwner();
+}
+
+function openBusinessForm(onSaved) {
+  if (!canEditBusiness()) { showToast('Your business owner sets these details', 'info'); return; }
+  businessFormEditing = { onSaved };
+  fillBusinessForm();
+  document.getElementById('obBusinessTitle').textContent = 'Your business';
+  document.getElementById('obBusinessSave').textContent = 'Save';
+  document.getElementById('obBusinessCancel').hidden = false;
+  const screen = document.getElementById('onboardScreen');
+  screen.classList.add('ob-edit');
+  screen.style.display = 'flex';
+  obShowPanel(0);
+}
+
+function closeBusinessForm() {
+  const screen = document.getElementById('onboardScreen');
+  screen.style.display = 'none';
+  screen.classList.remove('ob-edit');
+  document.getElementById('obBusinessTitle').textContent = 'Set up your business';
+  document.getElementById('obBusinessSave').textContent = 'Continue →';
+  document.getElementById('obBusinessCancel').hidden = true;
+  businessFormEditing = null;
+}
+
+function openBusinessFromProfile() {
+  closeProfileMenu();
+  openBusinessForm();
+}
+
+// Saves the form. Returns false (and says why) when the business name is missing.
+function saveBusinessForm() {
+  const val = id => document.getElementById(id).value.trim();
+  const form = { name: val('ob-companyName'), licence: val('ob-licence'), phone: val('ob-phone'), email: val('ob-email'), abn: val('ob-abn') };
+  if (!form.name) {
+    showToast('Add your business name', 'error');
+    document.getElementById('ob-companyName').focus();
+    return false;
   }
-  if (authBusiness?.name) {
-    const el = document.getElementById('ob-companyName');
-    if (el && !el.value) el.value = authBusiness.name;
-  }
+  if (!canEditBusiness()) return true;
+  const d = getCompanyDetails();
+  // Editing writes the form as it stands, so a field can be cleared. Sign-up
+  // only fills in what was typed, so blanks never wipe details that already
+  // exist for this business (from another phone).
+  Object.entries(form).forEach(([k, v]) => { if (businessFormEditing || v) d[k] = v; });
+  storeCompanyDetails(d);
+  return true;
 }
 
 function obShowPanel(idx) {
@@ -119,22 +179,20 @@ function obShowPanel(idx) {
 
 function obNext(currentStep) {
   if (currentStep === 0) {
-    // Save company details from onboarding
-    const name    = document.getElementById('ob-companyName').value.trim();
+    if (!saveBusinessForm()) return;
+    if (businessFormEditing) {
+      const { onSaved } = businessFormEditing;
+      closeBusinessForm();
+      renderProfileMenu();
+      showToast('Business details saved', 'success');
+      if (onSaved) onSaved();
+      return;
+    }
+    // The business licence is usually the inspector's own on a first report
     const licence = document.getElementById('ob-licence').value.trim();
-    const phone   = document.getElementById('ob-phone').value.trim();
-    const abn     = document.getElementById('ob-abn').value.trim();
-    if (name) {
-      document.getElementById('companyName').value    = name;
-      document.getElementById('companyLicence').value = licence;
-      document.getElementById('companyPhone').value   = phone;
-      document.getElementById('companyABN').value     = abn;
-      saveCompanyDetails();
-      // Also save licence to inspector licence field
-      if (licence) {
-        const licEl = document.getElementById('inspectorLicence');
-        if (licEl) { licEl.value = licence; reportData.inspectorLicence = licence; }
-      }
+    if (licence) {
+      const licEl = document.getElementById('inspectorLicence');
+      if (licEl) { licEl.value = licence; reportData.inspectorLicence = licence; }
     }
   }
   obShowPanel(currentStep + 1);
@@ -171,12 +229,6 @@ function obRunDemo() {
       }, 600);
     }
   }, 22);
-}
-
-function obSkip() {
-  localStorage.setItem(OB_KEY, '1');
-  document.getElementById('onboardScreen').style.display = 'none';
-  document.getElementById('mainMenu').style.display      = 'flex';
 }
 
 function obFinish() {
@@ -493,188 +545,6 @@ function restoreResState() {
   if (!reportData.hinderedAreas) return;
   const isNo = reportData.hinderedAreas.startsWith('NIL');
   setRestrictedAccess(!isNo);
-}
-
-async function sendInvite() {
-  if (!authBusiness) { showToast('Business account required to invite team members', 'error'); return; }
-  const email = document.getElementById('inviteEmail').value.trim().toLowerCase();
-  const btn   = document.getElementById('inviteBtn');
-  if (!email || !email.includes('@')) { showToast('Enter a valid email address', 'error'); return; }
-
-  btn.disabled = true; btn.textContent = 'Sending…';
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/invites`, {
-      method: 'POST',
-      headers: { ...getAuthHeaders(), 'Prefer': 'return=representation' },
-      body: JSON.stringify({
-        business_id: authBusiness.id,
-        email,
-        role: 'technician',
-        invited_by: authUser.id,
-      }),
-    });
-
-    if (!res.ok) { const err = await res.json(); showToast(err.message || 'Invite failed', 'error'); return; }
-    await res.json();
-
-    showToast(`Invite recorded for ${email} — ask them to sign up at the SAYON app and they'll join your team automatically`, 'success');
-    document.getElementById('inviteEmail').value = '';
-    loadTeam();
-  } catch(e) {
-    showToast('Network error — please try again', 'error');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22 11 13 2 9l20-7z"/></svg> Send Invite`;
-  }
-}
-
-async function loadTeam() {
-  if (!authBusiness) return;
-  const list = document.getElementById('teamList');
-  if (!list) return;
-  try {
-    const membersRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/team_members?business_id=eq.${authBusiness.id}&order=joined_at.asc`,
-      { headers: getAuthHeaders() }
-    );
-    const members = membersRes.ok ? await membersRes.json() : [];
-
-    const invitesRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/invites?business_id=eq.${authBusiness.id}&status=eq.pending&order=created_at.desc`,
-      { headers: getAuthHeaders() }
-    );
-    const invites = invitesRes.ok ? await invitesRes.json() : [];
-
-    const isOwner = !!(authBusiness && authUser && authBusiness.owner_id === authUser.id);
-    renderTeam(members, invites, isOwner);
-    const total = members.length + invites.length;
-    const summary = document.getElementById('teamPanelSummary');
-    if (summary) summary.textContent = total > 0 ? String(total) : '';
-  } catch(e) {
-    if (list) list.innerHTML = '<div class="team-loading">Unable to load team</div>';
-  }
-}
-
-function renderTeam(members, invites, isOwner) {
-  const list = document.getElementById('teamList');
-  if (!list) return;
-  if (members.length === 0 && invites.length === 0) {
-    list.innerHTML = '<div class="team-loading">No team members yet — invite your first technician above.</div>';
-    return;
-  }
-  const removeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>`;
-  list.innerHTML = [
-    ...members.map(m => {
-      const initial = escapeHtml((m.name || m.email || '?')[0].toUpperCase());
-      const isYou = m.user_id === authUser?.id;
-      const canRemove = isOwner && !isYou && m.role !== 'owner';
-      const safeName = escapeHtml(m.name || m.email || '').replace(/'/g, "\\'");
-      return `<div class="team-member">
-        <div class="team-member-avatar">${initial}</div>
-        <div class="team-member-info">
-          <div class="team-member-name">${escapeHtml(m.name || m.email || '')}${isYou ? ' (you)' : ''}</div>
-          <div class="team-member-email">${escapeHtml(m.email || '')}</div>
-        </div>
-        <span class="team-member-role ${m.role}">${escapeHtml(m.role || '')}</span>
-        ${canRemove ? `<button class="team-job-delete" onclick="removeMember('${m.user_id}', '${safeName}')" aria-label="Remove team member" title="Remove from team">${removeIcon}</button>` : ''}
-      </div>`;
-    }),
-    ...invites.map(i => {
-      const safeEmail = escapeHtml(i.email || '').replace(/'/g, "\\'");
-      return `<div class="team-member">
-      <div class="team-member-avatar" style="background:rgba(255,182,72,0.1);color:var(--yellow)">?</div>
-      <div class="team-member-info">
-        <div class="team-member-name">${escapeHtml(i.email || '')}</div>
-        <div class="team-member-email">Invite pending — awaiting sign-up</div>
-      </div>
-      <span class="team-member-role pending">Pending</span>
-      ${isOwner ? `<button class="team-job-delete" onclick="cancelInvite('${i.id}', '${safeEmail}')" aria-label="Cancel invite" title="Cancel invite">${removeIcon}</button>` : ''}
-    </div>`;
-    }),
-  ].join('');
-}
-
-async function removeMember(userId, name) {
-  if (!authBusiness || !authUser) return;
-  if (userId === authUser.id) { showToast("You can't remove yourself from the team", 'error'); return; }
-  if (!confirm(`Remove ${name || 'this technician'} from your team? They'll lose access to the business account immediately.`)) return;
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/team_members?business_id=eq.${authBusiness.id}&user_id=eq.${userId}`,
-      { method: 'DELETE', headers: getAuthHeaders() }
-    );
-    if (!res.ok) { showToast('Could not remove team member', 'error'); return; }
-    showToast('Team member removed', 'success');
-    loadTeam();
-  } catch(e) {
-    showToast('Network error — please try again', 'error');
-  }
-}
-
-async function cancelInvite(inviteId, email) {
-  if (!confirm(`Cancel the pending invite for ${email}?`)) return;
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/invites?id=eq.${inviteId}`,
-      { method: 'DELETE', headers: getAuthHeaders() }
-    );
-    if (!res.ok) { showToast('Could not cancel invite', 'error'); return; }
-    showToast('Invite cancelled', 'success');
-    loadTeam();
-  } catch(e) {
-    showToast('Network error — please try again', 'error');
-  }
-}
-
-async function checkAndAcceptInvite() {
-  if (!authUser?.email) return;
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/invites?email=eq.${encodeURIComponent(authUser.email)}&status=eq.pending&limit=1`,
-      { headers: getAuthHeaders() }
-    );
-    if (!res.ok) return;
-    const invites = await res.json();
-    if (invites.length === 0) return;
-    const invite = invites[0];
-
-    // Add to team
-    await fetch(`${SUPABASE_URL}/rest/v1/team_members`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        business_id: invite.business_id,
-        user_id:     authUser.id,
-        role:        invite.role || 'technician',
-        name:        authUser.user_metadata?.name || authUser.email,
-        email:       authUser.email,
-      }),
-    });
-
-    // Mark accepted
-    await fetch(`${SUPABASE_URL}/rest/v1/invites?id=eq.${invite.id}`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ status: 'accepted' }),
-    });
-
-    // Load their business
-    const bizRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/businesses?id=eq.${invite.business_id}&limit=1`,
-      { headers: getAuthHeaders() }
-    );
-    if (bizRes.ok) {
-      const rows = await bizRes.json();
-      if (rows[0]) {
-        authBusiness = rows[0];
-        showToast(`Joined ${rows[0].name}`, 'success');
-        // loadBusiness() (called right after this) no-ops once authBusiness is
-        // already set, so this is the only chance this session gets to load
-        // billing status for a technician who just accepted a team invite.
-        loadBillingStatus();
-      }
-    }
-  } catch(e) { console.warn('checkAndAcceptInvite:', e); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1457,7 +1327,6 @@ function openApp(appName) {
     enableKeyboardActivation();
     restoreA11ySettings();
     restoreAudioCaptureSetting();
-    loadCompanyDetails();
     loadJobInfo();
     if (restored) lastLocalSaveAt = Date.now();
     updateSyncStatus();
@@ -5826,23 +5695,6 @@ function migrateLegacyCompanyDetails() {
   } catch(e) {}
 }
 
-function saveCompanyDetails() {
-  // Merge into the existing record rather than replacing it outright —
-  // the logo (set separately, via file upload) has to survive an edit
-  // to any of these text fields.
-  const details = getCompanyDetails();
-  details.name    = document.getElementById('companyName').value.trim();
-  details.licence = document.getElementById('companyLicence').value.trim();
-  details.phone   = document.getElementById('companyPhone').value.trim();
-  details.abn     = document.getElementById('companyABN').value.trim();
-  details.email   = document.getElementById('companyEmail').value.trim();
-  // Kept empty while it matches the default, so the business picks up
-  // improvements to the default wording until they've customised it.
-  const agreementText = document.getElementById('companyAgreementText').value;
-  details.agreementText = agreementText.trim() === DEFAULT_AGREEMENT_TEXT.trim() ? '' : agreementText;
-  storeCompanyDetails(details);
-}
-
 // Every change to the company details goes through here, so the account
 // copy knows which is newer (see js/business-sync.js). False if the phone
 // couldn't store it.
@@ -5854,37 +5706,7 @@ function storeCompanyDetails(details) {
   return true;
 }
 
-function loadCompanyDetails() {
-  try {
-    const stored = localStorage.getItem(companyStorageKey());
-    // Always reset first - otherwise switching to a business with no saved
-    // details yet would keep showing whatever the previous business left in
-    // these inputs from earlier in the same page session.
-    document.getElementById('companyName').value    = '';
-    document.getElementById('companyLicence').value = '';
-    document.getElementById('companyPhone').value   = '';
-    document.getElementById('companyABN').value     = '';
-    document.getElementById('companyEmail').value   = '';
-    document.getElementById('companyAgreementText').value = DEFAULT_AGREEMENT_TEXT;
-    if (!stored) { renderCompanyLogoPreview(null); return; }
-    const d = JSON.parse(stored);
-    if (d.name)    document.getElementById('companyName').value    = d.name;
-    if (d.licence) document.getElementById('companyLicence').value = d.licence;
-    if (d.phone)   document.getElementById('companyPhone').value   = d.phone;
-    if (d.abn)     document.getElementById('companyABN').value     = d.abn;
-    if (d.email)   document.getElementById('companyEmail').value   = d.email;
-    if (d.agreementText) document.getElementById('companyAgreementText').value = d.agreementText;
-    renderCompanyLogoPreview(d.logo || null);
-  } catch(e) {}
-}
-
-function resetAgreementTemplate() {
-  if (!confirm('Replace your agreement wording with the default?')) return;
-  document.getElementById('companyAgreementText').value = DEFAULT_AGREEMENT_TEXT;
-  saveCompanyDetails();
-}
-
-// Company details a client-facing PDF should carry, by what's missing.
+// Business details a client-facing PDF should carry, by what's missing.
 function companyDetailGaps() {
   const c = getCompanyDetails();
   return [['name', 'business name'], ['licence', 'licence number'], ['abn', 'ABN'], ['phone', 'phone number']]
@@ -6298,7 +6120,6 @@ async function signUp() {
       saveSession(data);
       localStorage.setItem('korva_last_user_id', data.user.id);
 
-      await checkAndAcceptInvite();
       await loadBusiness();
       startAuthAutoRefresh();
       enterApp();
@@ -6350,7 +6171,6 @@ async function signIn() {
     }
     localStorage.setItem('korva_last_user_id', data.user.id);
 
-    await checkAndAcceptInvite();
     await loadBusiness();
     startAuthAutoRefresh();
     enterApp();
@@ -6456,7 +6276,7 @@ async function endSessionOnDevice() {
 // phone's copy.
 const DELETE_ACCOUNT_BLOCKERS = {
   ACTIVE_SUBSCRIPTION: 'Your plan is still active. Cancel it in Menu › Billing › Manage first, then delete your account.',
-  HAS_TEAM: 'Other people are still on your team. Remove them in Team first, then delete your account.',
+  HAS_TEAM: 'Other people are still linked to your business, so it can\'t be deleted from the app yet. Contact SAYON support to have them removed first.',
 };
 
 async function deleteAccountRpc(dryRun) {
@@ -6562,7 +6382,7 @@ async function ensureOwnerTeamMember() {
 let _loadBusinessInFlight = null;
 async function loadBusiness() {
   if (!authUser) return;
-  if (authBusiness) return; // already loaded (e.g. by checkAndAcceptInvite) — don't overwrite it
+  if (authBusiness) return; // already loaded — don't overwrite it
   if (_loadBusinessInFlight) return _loadBusinessInFlight;
   _loadBusinessInFlight = _loadBusinessImpl().finally(() => { _loadBusinessInFlight = null; });
   return _loadBusinessInFlight;
@@ -6698,27 +6518,19 @@ function enterApp() {
   migrateLegacySavedReports();
 
   if (authBusiness) {
-    // Claim any pre-fix legacy data for this business, then load this
-    // business's own (now correctly per-id scoped) record. loadCompanyDetails()
-    // clears the inputs before loading, which matters here: signOut() doesn't
-    // reload the page or reset these fields, so without that clear, switching
-    // accounts in one browser tab without a refresh would otherwise carry the
-    // PREVIOUS business's still-filled-in company inputs into this business's
-    // first save.
+    // Claim any pre-fix legacy data for this business, then take the
+    // account's copy if it's newer than this phone's.
     migrateLegacyCompanyDetails();
     applyCloudBusinessSettings();
-    loadCompanyDetails();
-    // The sign-up name fills an empty form, but isn't stamped as an edit:
+    // The sign-up name fills an empty record, but isn't stamped as an edit:
     // it mustn't count as newer than real details on another phone.
-    if (!document.getElementById('companyName').value && isBusinessOwner() && authBusiness.name) {
-      document.getElementById('companyName').value = authBusiness.name;
-      const details = getCompanyDetails();
+    const details = getCompanyDetails();
+    if (!details.name && isBusinessOwner() && authBusiness.name) {
       details.name = authBusiness.name;
       try { localStorage.setItem(companyStorageKey(), JSON.stringify(details)); } catch (e) {}
     }
   }
   renderProfileMenu();
-  loadTeam();
   migrateLocalReportsToCloud();
 
   // FIX: this was the actual cause of "reports aren't saving after logging
@@ -6759,17 +6571,13 @@ function renderProfileMenu() {
   if (emailEl) emailEl.textContent = authUser.email;
   const bizRow = document.getElementById('profileBusinessRow');
   if (bizRow) {
-    if (authBusiness) {
-      const isOwner = authBusiness.owner_id === authUser.id;
-      document.getElementById('profileBusinessName').textContent = authBusiness.name || '';
-      const badge = document.getElementById('profileRoleBadge');
-      badge.textContent = isOwner ? 'Owner' : 'Technician';
-      badge.className = 'profile-role-badge ' + (isOwner ? 'owner' : 'technician');
-      bizRow.style.display = 'flex';
-    } else {
-      bizRow.style.display = 'none';
-    }
+    // The name the PDFs print, which "Your business" edits
+    const bizName = getCompanyDetails().name || authBusiness?.name || '';
+    document.getElementById('profileBusinessName').textContent = bizName;
+    bizRow.style.display = authBusiness && bizName ? 'flex' : 'none';
   }
+  const bizBtn = document.getElementById('profileYourBusiness');
+  if (bizBtn) bizBtn.hidden = !canEditBusiness();
 }
 function toggleProfileMenu() {
   const dd = document.getElementById('profileDropdown');
@@ -7639,37 +7447,15 @@ function resetReportState() {
   setStandard('AS 3660.2-2017');
 }
 
-// ── DASHBOARD (single-user preview) ─────────────────────────────────────
-// Reads the same saved-reports data already on this device. This is a
-// preview: it has no concept of "who" saved a report, since login is
-// currently bypassed. Once real accounts are back, this becomes the
-// technician's own view and an owner-only team-wide view is added
-// alongside it — the stat-gathering logic here does not need to change,
-// only what it's filtered by.
+// ── DASHBOARD ─────────────────────────────────────────────────────────────
+// Totals and recent jobs from the reports saved on this device.
 function openDashboard() {
   document.getElementById('dashboardOverlay').classList.add('open');
-  const isOwner = !!(authBusiness && authUser && authBusiness.owner_id === authUser.id);
-  const teamTabBtn = document.getElementById('dashTabTeam');
-  if (teamTabBtn) teamTabBtn.style.display = isOwner ? '' : 'none';
-  switchDashboardTab('overview');
+  renderDashboard();
 }
 
 function closeDashboard() {
   document.getElementById('dashboardOverlay').classList.remove('open');
-}
-
-function switchDashboardTab(tab) {
-  const overviewBtn = document.getElementById('dashTabOverview');
-  const teamBtn     = document.getElementById('dashTabTeam');
-  if (overviewBtn) overviewBtn.classList.toggle('active', tab === 'overview');
-  if (teamBtn) teamBtn.classList.toggle('active', tab === 'team');
-  const subtitleEl = document.getElementById('dashboardSubtitle');
-  if (subtitleEl) {
-    subtitleEl.textContent = tab === 'team' ? 'All reports synced from your business — owner view'
-      : 'Reports saved on this device — preview';
-  }
-  if (tab === 'team') renderTeamDashboard();
-  else renderDashboard();
 }
 
 function parseFeeToNumber(feeStr) {
@@ -7736,117 +7522,6 @@ function renderDashboard() {
       `).join('')}
     </div>
   `;
-}
-
-async function renderTeamDashboard() {
-  const body = document.getElementById('dashboardBody');
-  if (!body) return;
-  const isOwner = !!(authBusiness && authUser && authBusiness.owner_id === authUser.id);
-  if (!isOwner || !authBusiness) {
-    body.innerHTML = '<div class="dashboard-empty">Team view is only available to business owners.</div>';
-    return;
-  }
-  body.innerHTML = '<div class="dashboard-empty">Loading team activity…</div>';
-  try {
-    const [reportsRes, membersRes] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/reports?business_id=eq.${authBusiness.id}&order=saved_at.desc`, { headers: getAuthHeaders() }),
-      fetch(`${SUPABASE_URL}/rest/v1/team_members?business_id=eq.${authBusiness.id}`, { headers: getAuthHeaders() }),
-    ]);
-    // Guard against a slow response landing after the owner has already switched tabs
-    const teamBtn = document.getElementById('dashTabTeam');
-    if (!teamBtn || !teamBtn.classList.contains('active')) return;
-
-    if (!reportsRes.ok) {
-      body.innerHTML = '<div class="dashboard-empty">Could not load team reports.<br>Your account may not yet have permission to read your team\'s data — see the note in Settings.</div>';
-      return;
-    }
-
-    const rows    = await reportsRes.json();
-    const members = membersRes.ok ? await membersRes.json() : [];
-    const nameByUserId = {};
-    members.forEach(m => { nameByUserId[m.user_id] = m.name || m.email || 'Unknown'; });
-
-    if (rows.length === 0) {
-      body.innerHTML = '<div class="dashboard-empty">No reports synced from your team yet.<br>Reports appear here once a technician saves one while signed in.</div>';
-      return;
-    }
-
-    const now = Date.now();
-    const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
-    const thisWeek = rows.filter(r => now - new Date(r.saved_at).getTime() <= oneWeekMs);
-
-    const totalJobs    = rows.length;
-    const jobsThisWeek  = thisWeek.length;
-    // .filter(Boolean) - a legacy/anonymous report with no user_id (e.g. synced
-    // before auth was required) would otherwise count as its own "technician",
-    // inflating this headcount for a row nobody actually did.
-    const activeTechs   = new Set(rows.map(r => r.user_id).filter(Boolean)).size;
-    const totalRevenue  = rows.reduce((sum, r) => sum + parseFeeToNumber(r.data && r.data.reportData && r.data.reportData.jobFee), 0);
-
-    const byTech = {};
-    rows.forEach(r => {
-      const uid = r.user_id || 'unknown';
-      if (!byTech[uid]) byTech[uid] = { count: 0, revenue: 0 };
-      byTech[uid].count++;
-      byTech[uid].revenue += parseFeeToNumber(r.data && r.data.reportData && r.data.reportData.jobFee);
-    });
-    const techBreakdown = Object.entries(byTech)
-      .map(([uid, stats]) => ({ name: nameByUserId[uid] || 'Unknown', ...stats }))
-      .sort((a, b) => b.count - a.count);
-
-    const recent = rows.slice(0, 8);
-    const fmtDate  = (iso) => new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
-    const fmtMoney = (n) => n > 0 ? `$${n.toLocaleString('en-AU', { maximumFractionDigits: 0 })}` : '—';
-    const initials = (name) => (name || '?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
-
-    body.innerHTML = `
-      <div class="dashboard-stat-grid">
-        <div class="dashboard-stat-card">
-          <div class="dashboard-stat-value">${totalJobs}</div>
-          <div class="dashboard-stat-label">Team Jobs</div>
-        </div>
-        <div class="dashboard-stat-card">
-          <div class="dashboard-stat-value">${jobsThisWeek}</div>
-          <div class="dashboard-stat-label">This Week</div>
-        </div>
-        <div class="dashboard-stat-card">
-          <div class="dashboard-stat-value">${activeTechs}</div>
-          <div class="dashboard-stat-label">Active Technicians</div>
-        </div>
-        <div class="dashboard-stat-card">
-          <div class="dashboard-stat-value">${fmtMoney(totalRevenue)}</div>
-          <div class="dashboard-stat-label">Recorded Fees</div>
-        </div>
-      </div>
-      <div class="dashboard-section-label">By Technician</div>
-      <div class="team-list" style="margin-bottom:18px">
-        ${techBreakdown.map(t => `
-          <div class="team-member">
-            <div class="team-member-avatar">${escapeHtml(initials(t.name))}</div>
-            <div class="team-member-info">
-              <div class="team-member-name">${escapeHtml(t.name)}</div>
-              <div class="team-member-email">${t.count} job${t.count === 1 ? '' : 's'}${t.revenue > 0 ? ' · ' + fmtMoney(t.revenue) : ''}</div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-      <div class="dashboard-section-label">Recent Team Activity</div>
-      <div>
-        ${recent.map(r => `
-          <div class="dashboard-recent-item">
-            <div>
-              <div class="dashboard-recent-addr">${escapeHtml(r.address || 'No address')}</div>
-              <div class="dashboard-recent-meta">${fmtDate(r.saved_at)} · ${escapeHtml(nameByUserId[r.user_id] || 'Unknown')}${r.client ? ' · ' + escapeHtml(r.client) : ''}</div>
-            </div>
-            <div class="dashboard-recent-completion">${(r.data && r.data.completion) || 0}%</div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  } catch(e) {
-    console.warn('renderTeamDashboard error:', e);
-    body.innerHTML = '<div class="dashboard-empty">Could not load team activity — check your connection.</div>';
-  }
 }
 
 function renderSavedList() {
@@ -8441,7 +8116,7 @@ function openSendReview() {
 
   const gaps = reportPrepItems();
   const companyGaps = companyDetailGaps();
-  if (companyGaps.length) gaps.push(`Your ${joinWithAnd(companyGaps)} ${companyGaps.length === 1 ? 'is' : 'are'} missing from Company details, so the PDFs won't show ${companyGaps.length === 1 ? 'it' : 'them'}`);
+  if (companyGaps.length) gaps.push(`Your ${joinWithAnd(companyGaps)} ${companyGaps.length === 1 ? 'is' : 'are'} missing from Your business (tap your initials, top right), so the PDFs won't show ${companyGaps.length === 1 ? 'it' : 'them'}`);
   const gapsWrap = document.getElementById('sendReviewGaps');
   gapsWrap.style.display = gaps.length ? '' : 'none';
   gapsWrap.innerHTML = `<div class="send-review-label">Worth checking first</div><ul class="send-review-list">${gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul>`;
