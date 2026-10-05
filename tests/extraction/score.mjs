@@ -45,6 +45,17 @@ function runCheck(c, obj) {
       const hits = c.terms.filter(term => t.includes(term.toLowerCase()));
       return { ok: !hits.length, got: hits.join(', ') || 'none' };
     }
+    case 'every': {
+      // Every element of the array at `path` must pass all sub-checks
+      // (a sub-check with no path looks at the whole element). An empty or
+      // missing array passes, so pair this with a `count` check.
+      const bad = [];
+      (Array.isArray(v) ? v : []).forEach((el, i) => {
+        const fails = c.checks.map(s => ({ s, r: runCheck(s, el) })).filter(x => !x.r.ok);
+        if (fails.length) bad.push(`[${i}] ` + fails.map(x => `${x.s.path || '(any field)'}: ${x.r.why || JSON.stringify(x.r.got)}`).join('; '));
+      });
+      return { ok: !bad.length, got: v, why: bad.join(' | ') };
+    }
     default:
       throw new Error(`unknown check kind ${c.kind} (${c.id})`);
   }
@@ -91,7 +102,15 @@ const parseOut = p => {
 const tally = new Map();
 for (const p of outPaths) {
   let out;
-  try { out = parseOut(p); } catch (e) { console.log(`\n${p}: NOT VALID JSON (${e.message})`); continue; }
+  try { out = parseOut(p); } catch (e) {
+    // The app can't use an answer it can't parse, so every check fails this run.
+    console.log(`\n${p}: NOT VALID JSON (${e.message}), counted as failing every check`);
+    for (const c of gold.checks) if (c.kind !== 'manual') {
+      const t = tally.get(c.id) || { pass: 0, runs: 0 };
+      t.runs++; tally.set(c.id, t);
+    }
+    continue;
+  }
   const results = scoreRun(gold, out);
   const total = results.reduce((s, r) => s + (r.c.weight ?? 1), 0);
   const got = results.reduce((s, r) => s + (r.ok ? (r.c.weight ?? 1) : 0), 0);
