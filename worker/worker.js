@@ -1,5 +1,5 @@
 /**
- * KORVUS - Anthropic API Proxy + Audio Transcription + Stripe billing
+ * SAYON - Anthropic API Proxy + Audio Transcription + Stripe billing
  * Cloudflare Worker deployed as `korva` (korva.byronguyatt2.workers.dev).
  * The API keys are stored as Cloudflare secrets and never exposed to the
  * browser or public repo. See worker/README.md for setup and deploy steps.
@@ -48,12 +48,12 @@
  *    pulling every request back down to 3000 regardless of what the
  *    client asked for - so that client-side fix was NOT actually taking
  *    effect against the real deployed Worker. Raised to 4096 to match.
- * 2. NEW: a `/transcribe` endpoint for Korvus's experimental, opt-in,
+ * 2. NEW: a `/transcribe` endpoint for Sayon's experimental, opt-in,
  *    higher-accuracy dictation path (see index.html's
  *    startAudioCapture()/tryServerSideTranscription() - there's a
  *    Settings toggle for it, off by default). Takes a multipart/form-data
  *    upload (an `audio` file field, an optional `initial_prompt` text
- *    field carrying Korvus's brand/species vocabulary for biasing), runs
+ *    field carrying Sayon's brand/species vocabulary for biasing), runs
  *    it through Workers AI's whisper-large-v3-turbo model, and returns
  *    { transcript }. Goes through the EXACT SAME CORS/Bearer-auth/plan-
  *    and-usage gate as the existing Anthropic proxy below before this
@@ -135,7 +135,7 @@ const MAX_IMAGE_BASE64_CHARS = 8000000;
 // memory/CPU and Workers AI cost per call.
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 
-// Monthly AI-call allowance per plan. Matches the tiers in the Korvus
+// Monthly AI-call allowance per plan. Matches the tiers in the Sayon
 // Pricing Strategy doc (Starter/Pro/Business) plus a 'trial' tier for the
 // 14-day free trial. 'business' is "unlimited" in the sales copy but still
 // fair-use capped here - see the pricing doc's rationale.
@@ -381,7 +381,7 @@ async function checkPlanAndUsage(userId, env) {
       return { allowed: false, status: 402, message: 'Subscription canceled — please resubscribe to continue using AI features' };
     }
     if (sub.status === 'trialing' && new Date(sub.trial_ends_at).getTime() < Date.now()) {
-      return { allowed: false, status: 402, message: 'Your 14-day trial has ended — subscribe to keep using Korvus AI features' };
+      return { allowed: false, status: 402, message: 'Your 14-day trial has ended — subscribe to keep using Sayon AI features' };
     }
 
     const { rolledOver, effectiveUsed } = effectiveUsage(sub);
@@ -737,7 +737,7 @@ async function handleSendEmail(request, user, env, origin) {
     const sub = found.sub;
     const trialOver = sub.status === 'trialing' && new Date(sub.trial_ends_at).getTime() < Date.now();
     if (sub.status === 'canceled' || trialOver) {
-      return reply(402, { message: 'Your plan has ended. Subscribe to send from KORVUS' });
+      return reply(402, { message: 'Your plan has ended. Subscribe to send from SAYON' });
     }
 
     const to = cleanEmail(body.to);
@@ -761,7 +761,7 @@ async function handleSendEmail(request, user, env, origin) {
     }
     if (totalChars > MAX_EMAIL_BASE64_CHARS) return reply(413, { message: 'The PDFs are too large to email' });
 
-    const fromName = (typeof body.fromName === 'string' ? body.fromName : '').replace(/[<>"\r\n]+/g, '').trim().slice(0, 80) || 'KORVUS';
+    const fromName = (typeof body.fromName === 'string' ? body.fromName : '').replace(/[<>"\r\n]+/g, '').trim().slice(0, 80) || 'SAYON';
     const replyTo = cleanEmail(body.replyTo);
     const copyTo = cleanEmail(body.copyTo);
 
@@ -797,7 +797,7 @@ function cleanEmail(value) {
 
 // ── TRANSCRIBE ───────────────────────────────────────────────────────────
 
-// NEW (v7): audio transcription endpoint for Korvus's experimental,
+// NEW (v7): audio transcription endpoint for Sayon's experimental,
 // opt-in higher-accuracy dictation path. Only ever reached after the same
 // CORS/Bearer-auth/plan-gate checks in fetch() above have already passed
 // for this request - see the routing comment there. Uses Cloudflare's own
@@ -825,7 +825,7 @@ async function handleTranscribe(request, origin, gate, env) {
     return new Response(`Invalid request: audio exceeds ${Math.floor(MAX_AUDIO_BYTES / 1_000_000)}MB limit`, { status: 413, headers: corsHeaders(origin) });
   }
 
-  // Optional - the client sends Korvus's brand/species vocabulary here to
+  // Optional - the client sends Sayon's brand/species vocabulary here to
   // bias recognition (see buildTranscriptionVocabHint() in index.html).
   // Capped defensively; this is a short hint, not arbitrary user text to
   // forward to the model unchecked.
