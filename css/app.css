@@ -1731,15 +1731,6 @@ header {
   background: transparent;
   color: var(--text2);
 }
-/* TEMP DEBUG — see matching comment near #confDebugLine in the HTML */
-.conf-debug {
-  margin-top: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
-  color: #999;
-  word-break: break-all;
-}
-
 .pending-notes-bar {
   margin-top: 8px;
   padding: 9px 10px;

@@ -44,8 +44,6 @@ let currentTranscript = '';
 // technician notices while still on site and can redo that bit immediately
 // instead of only discovering it later during report review.
 let lowConfidenceFlagged = false;
-// TEMP DEBUG — see matching comment near #confDebugLine in the HTML.
-let confDebugLog = [];
 
 // ── EXPERIMENTAL: server-side audio transcription (beta, opt-in) ──────────
 // Runs ALONGSIDE the Web Speech API transcript above, never instead of it —
@@ -68,6 +66,11 @@ let audioCaptureSupportCache = null; // null = not checked yet; else true/false,
 let audioCaptureFailedThisSession = false;
 let serverTranscriptSuggestion = null;
 let serverTranscriptOriginalText = null;
+// The audio behind a suggestion covers one tap of the mic, but the box
+// holds every recording since the last Extract. This is the box's text from
+// before that recording, so a suggestion replaces only the part it heard.
+let recordingStartText = '';
+let serverTranscriptBefore = '';
 
 let reportData = {};
 let editOn = false;
@@ -1152,6 +1155,7 @@ CRITICAL — termiteActivity is a three-state field, not binary, and reflects re
 - "NONE": no termites and no evidence of termites or their workings at all.
 - If species, damage description, or activity location are mentioned but the technician does NOT confirm a live sighting, default to "INACTIVE" rather than "ACTIVE" — never assume live presence just because damage or workings exist. Only set "ACTIVE" when live presence is explicitly or very clearly stated.
 - If termiteActivity is "NONE", leave species/damageDescription/activityLocation/nestLocated/structuralConcern as null.
+- species is only ever a species or genus the technician actually names. If they talk about identification without naming one ("species couldn't be identified", which dictation often turns into "species can be identified"), set species to "Species not identified — further investigation required". Never pick a species they didn't say.
 
 CRITICAL — damageDescription must NEVER contain a severity opinion:
 - damageDescription captures ONLY what is objectively observable: the affected timber/element (e.g. "skirting board", "wall plate", "tree stump"), the specific location (e.g. "bedroom four, hallway", "rear section of property"), and visible characteristics (hollow sounding, mud tubes, bubbling paint, frass, exit holes, gallery patterns). This mirrors real AS 4349.3 report language such as "top wall plate timbers — bedroom four, lounge room, hallway."
@@ -1174,12 +1178,19 @@ Transcripts come from on-device voice dictation, not a human typist, and dictati
 - "insulation" immediately before "termite management system" or "barrier" → usually "installation"
 - "bats" near roof void/manhole/ceiling → usually "batts" (roof/ceiling insulation batts), not the animal
 - "access moisture" / "causing access moisture" → usually "excess moisture"
-- "weep poles" → usually "weep holes"
+- "weep poles" / "wee poles" → usually "weep holes"
 - a garbled, vaguely Latin-sounding word (e.g. "copter terms") → likely a mangled genus name; match it to the closest species in the known-species list above (e.g. "Coptotermes")
 - "construction error" → usually "construction era"
 - a stray duplicated word or fragment immediately before the real word (e.g. "enact inactive", "separate separately") → drop the fragment, use the real word that follows
 - "eastern bearer" (a structural timber member) → commonly mangled to "Easter Barra" / "Easter bearer" / similar — a bearer is a structural timber term, not a reference to the Easter holiday
-- "Joyce and bears" / "joys and bearers" (subfloor or framing context) → "joists and bearers"
+- "Joyce and bears" / "joys and bearers" (subfloor or framing context) → "joists and bearers"; "barer" (e.g. "rear barer") → "bearer"
+- "sub for" / "some flow" (e.g. "sub for vents", "some flow entered from the side door") → "subfloor"
+- "repairs" or "pairs" where piers belong (e.g. "brick repairs with caps on all of them") → "piers", and "caps" on piers → "ant caps"
+- "skirting balls" → "skirting boards"
+- "borrowers", "bores" or "balls" in a list of timber pests (e.g. "no balls, no wood decay", "no borrowers or decay") → "borers"
+- "called roof" → "tiled roof"; "water strains" → "water stains"
+- "live termite scene" → "live termites seen"; "Tims" (e.g. "Tims around the base of the tree") → "timbers"
+- "batting system" → "baiting system"
 - a brand name sitting where an ordinary word belongs → the ordinary word, e.g. "active Termimesh found in the tree" means active termites, and "Exterra perimeter of the house" means the exterior perimeter. Only treat a brand name as real when it names an installed system, a product used, or a durable notice
 - a phonetically plausible but contextually nonsensical phrase (e.g. "cold on", "quote on", "code on", "called on") immediately before "physical termite barrier" → almost always "Kordon", a termite barrier brand name
 - PROPER NOUNS AND BRAND NAMES generally: dictation engines have no training data for niche industry brand names (Kordon, Termimesh, HomeGuard Blue, etc.) and will substitute the nearest common English words instead. When a product/brand-shaped slot in the sentence (e.g. "there's a ___ installed", "existing system is ___") is filled with ordinary words that don't fit grammatically or semantically, treat it as a mangled brand name and match it to the closest entry in the known products/systems list above rather than transcribing the literal (nonsensical) words.
@@ -1508,7 +1519,6 @@ function openNotesVoice(key) {
   lowConfidenceFlagged = false;
   const warnElNotes = document.getElementById('lowConfidenceWarning');
   if (warnElNotes) warnElNotes.classList.remove('show');
-  resetConfDebug();
   dismissCleanupSuggestion();
   dismissServerTranscript();
 }
@@ -1554,7 +1564,6 @@ function resetVoicePopoverToDefault() {
   lowConfidenceFlagged = false;
   const warnElReset = document.getElementById('lowConfidenceWarning');
   if (warnElReset) warnElReset.classList.remove('show');
-  resetConfDebug();
   dismissCleanupSuggestion();
   dismissServerTranscript();
 }
@@ -1701,20 +1710,29 @@ function correctKnownMishearings(text) {
   // adding to this alternation as new variants turn up.
   text = text.replace(/\b(cold on|quote on|code on|called on|coded on|caught on)\b(?=\s+physical termite barrier)/gi, 'Kordon');
   // "bearer" (a structural timber term) has now been seen mangled three
-  // different ways across two test rounds: "Easter Barra", "eastern
-  // barrel" (direction word correct, only "bearer" wrong this time), and
-  // bare "subfloor barer". Handled as three narrow, evidence-based
-  // patterns rather than one broad fuzzy match, since "barrel" alone is a
-  // real, common word that could legitimately appear elsewhere.
+  // different ways: "Easter Barra", "eastern barrel" (direction word
+  // correct, only "bearer" wrong this time), and "barer" ("subfloor
+  // barer", "rear barer"). "barrel" is a real, common word, so it's only
+  // fixed after a direction; "barer" never comes up in an inspection, so
+  // it's fixed wherever it appears.
   text = text.replace(/\beaster\s+(?:barra|barrow|bearer)\b/gi, 'eastern bearer');
   text = text.replace(/\b(eastern|western|northern|southern)\s+barrel\b/gi, '$1 bearer');
-  text = text.replace(/\bsubfloor\s+barer\b/gi, 'subfloor bearer');
+  text = text.replace(/\bbarer\b/gi, 'bearer');
   // The three below mirror patterns already vetted in SYSTEM_PROMPT's
   // homophone-handling section (so they're evidence-based, not new guesses)
   // - ported here so they're also fixed in the transcript box itself.
   text = text.replace(/\binsulation\b(?=\s+(?:termite management system|barrier))/gi, 'installation');
   text = text.replace(/\baccess moisture\b/gi, 'excess moisture');
-  text = text.replace(/\bweep poles\b/gi, 'weep holes');
+  text = text.replace(/\bweep? poles\b/gi, 'weep holes');
+  // Heard once, in the second house test. They're here despite the rule
+  // above because none has a sensible literal reading in an inspection,
+  // so a wrong fix can't cost anything.
+  text = text.replace(/\bsub for\b(?=\s+vents?\b)/gi, 'subfloor');
+  text = text.replace(/\bskirting balls\b/gi, 'skirting boards');
+  text = text.replace(/\bborrowers\b/gi, 'borers');
+  text = text.replace(/\bbatting system\b/gi, 'baiting system');
+  text = text.replace(/\bwater strains\b/gi, 'water stains');
+  text = text.replace(/\bcalled roof\b/gi, 'tiled roof');
   // "strawberry" directly before "along the boundary" (or similar) only -
   // left narrower than the AI prompt's version since "strawberry" alone is
   // a real word that could legitimately come up (e.g. a garden bed).
@@ -1751,7 +1769,7 @@ const TRANSCRIPTION_VOCAB = [
 // shows the inspector exactly what it would change and waits for Apply.
 const TRANSCRIPT_CLEANUP_PROMPT = `You are proofreading a voice-dictated transcript from an Australian termite/pest inspection technician (SAYON app). The transcript came from on-device speech recognition and may contain mishearings - a garbled word or phrase standing in for the real one, based on how it sounds.
 
-Your job: produce a corrected version of the transcript, fixing ONLY mishearings you can confidently resolve from context - the same judgement an experienced inspector would use proofreading a colleague's dictation. Known categories to watch for: brand/product names (Kordon, Termidor, Altriset, Phantom, Bifenthrin, Biflex, Maxxthor, Talstar, Exterra, Sentricon, Trelona, Termimesh, HomeGuard Blue), species names (e.g. Coptotermes acinaciformis), and pest-inspection technical terms (e.g. "bearer", "joists", "weep holes", "shrubbery", "installation", "subfloor", "exterior"). A brand name can also be wrong: if one sits where an ordinary word belongs (e.g. "active Termimesh found in the tree"), restore the ordinary word ("termites").
+Your job: produce a corrected version of the transcript, fixing ONLY mishearings you can confidently resolve from context - the same judgement an experienced inspector would use proofreading a colleague's dictation. Known categories to watch for: brand/product names (Kordon, Termidor, Altriset, Phantom, Bifenthrin, Biflex, Maxxthor, Talstar, Exterra, Sentricon, Trelona, Termimesh, HomeGuard Blue), species names (e.g. Coptotermes acinaciformis), and pest-inspection technical terms (e.g. "bearer", "joists", "piers", "ant caps", "skirting boards", "borers", "weep holes", "shrubbery", "installation", "subfloor", "exterior", "baiting system"). A brand name can also be wrong: if one sits where an ordinary word belongs (e.g. "active Termimesh found in the tree"), restore the ordinary word ("termites").
 
 CRITICAL: if a stretch of the transcript is too garbled to confidently reconstruct - not a mispronounced word, but content that doesn't resemble anything sensible in a pest-inspection context at all - do NOT invent or guess what it might have meant. Leave that exact stretch exactly as transcribed, and set hasUncertainSections to true. It is always better to leave garbage as garbage than to fabricate plausible-sounding content for a professional report. Only rewrite what you're genuinely confident about.
 
@@ -1773,10 +1791,10 @@ async function suggestTranscriptCleanup() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        // Bumped alongside processTranscript()'s limit (see the matching
-        // comment there) - a long continuous dictation's cleaned-up
-        // transcript plus JSON wrapper can get close to the old ceiling too.
-        max_tokens: 2500,
+        // Thinking counts toward max_tokens (see requestExtraction()), and
+        // the answer repeats the whole transcript, so leave room for both.
+        max_tokens: 8000,
+        output_config: { effort: 'low' },
         system: TRANSCRIPT_CLEANUP_PROMPT,
         messages: [{ role: 'user', content: currentTranscript }]
       })
@@ -1841,13 +1859,6 @@ function dismissCleanupSuggestion() {
   cleanupOriginalText = null;
   const panel = document.getElementById('cleanupPanel');
   if (panel) panel.style.display = 'none';
-}
-
-// TEMP DEBUG — see matching comment near #confDebugLine in the HTML.
-function resetConfDebug() {
-  confDebugLog = [];
-  const el = document.getElementById('confDebugLine');
-  if (el) el.textContent = '';
 }
 
 // ── EXPERIMENTAL AUDIO CAPTURE / SERVER-SIDE TRANSCRIPTION ─────────────────
@@ -1982,7 +1993,7 @@ function buildTranscriptionVocabHint() {
 // Served by the Worker's /transcribe route (worker/worker.js, v7+), which
 // expects multipart `audio` + optional `initial_prompt` and returns
 // { transcript }.
-async function tryServerSideTranscription(blob) {
+async function tryServerSideTranscription(blob, before) {
   if (!blob) return;
   try {
     const formData = new FormData();
@@ -1996,19 +2007,20 @@ async function tryServerSideTranscription(blob) {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     if (!data || typeof data.transcript !== 'string' || !data.transcript.trim()) throw new Error('Unexpected response shape');
-    showServerTranscriptionSuggestion(data.transcript.trim());
+    showServerTranscriptionSuggestion(data.transcript.trim(), before);
   } catch (err) {
     console.warn('Server-side transcription unavailable this recording — keeping the on-device transcript:', err && err.message);
   }
 }
 
-function showServerTranscriptionSuggestion(transcript) {
+function showServerTranscriptionSuggestion(transcript, before) {
   // Guard against a slow response landing after the technician already
   // moved on (extracted, started a new recording, navigated away) — only
   // show it if we're still looking at the same transcript this capture
   // started with.
-  if (currentTranscript !== serverTranscriptOriginalText) return;
+  if (isRecording || currentTranscript !== serverTranscriptOriginalText || !currentTranscript.startsWith(before)) return;
   serverTranscriptSuggestion = transcript;
+  serverTranscriptBefore = before;
   const panel = document.getElementById('serverTranscriptPanel');
   const textEl = document.getElementById('serverTranscriptPanelText');
   if (!panel || !textEl) return;
@@ -2023,16 +2035,19 @@ function applyServerTranscript() {
     dismissServerTranscript();
     return;
   }
-  currentTranscript = serverTranscriptSuggestion;
+  const before = serverTranscriptBefore;
+  const gap = before && !/\s$/.test(before) ? ' ' : '';
+  currentTranscript = before + gap + serverTranscriptSuggestion + ' ';
   const box = document.getElementById('transcriptBox');
   if (box) { box.textContent = currentTranscript; box.classList.add('active'); }
-  showToast('Switched to the server transcription — review before extracting', 'success');
+  showToast('Swapped in the other version of your last recording. Check it before you extract', 'success');
   dismissServerTranscript();
 }
 
 function dismissServerTranscript() {
   serverTranscriptSuggestion = null;
   serverTranscriptOriginalText = null;
+  serverTranscriptBefore = '';
   const panel = document.getElementById('serverTranscriptPanel');
   if (panel) panel.style.display = 'none';
 }
@@ -2044,9 +2059,9 @@ function startRecording() {
   lowConfidenceFlagged = false;
   const warnEl0 = document.getElementById('lowConfidenceWarning');
   if (warnEl0) warnEl0.classList.remove('show');
-  resetConfDebug();
   dismissCleanupSuggestion();
   dismissServerTranscript();
+  recordingStartText = currentTranscript;
 
   recognition = new SR();
   recognition.continuous = true;
@@ -2081,12 +2096,6 @@ function startRecording() {
         if (typeof conf === 'number' && conf > 0 && conf < 0.6) {
           lowConfidenceFlagged = true;
         }
-        // TEMP DEBUG — see matching comment near #confDebugLine in the HTML.
-        confDebugLog.push(typeof conf === 'number' ? conf.toFixed(2) : String(conf));
-        if (confDebugLog.length > 8) confDebugLog.shift();
-        const confEl = document.getElementById('confDebugLine');
-        if (confEl) confEl.textContent = 'DEBUG conf: ' + confDebugLog.join(', ');
-
         finalChunk = correctKnownMishearings(finalChunk);
         final += finalChunk + ' ';
       }
@@ -2168,9 +2177,11 @@ function stopRecording() {
   // late phrase made the transcript "changed" and the suggestion was
   // silently dropped.
   if (audioCaptureEnabled && !audioCaptureFailedThisSession) {
+    const before = recordingStartText;
     Promise.all([stopAudioCapture(), recognitionEnded]).then(([blob]) => {
+      if (isRecording) return;
       serverTranscriptOriginalText = currentTranscript;
-      tryServerSideTranscription(blob);
+      tryServerSideTranscription(blob, before);
     });
   } else {
     stopAudioCaptureTracks();
@@ -2706,7 +2717,7 @@ function buildSpeciesIntelHTML(data) {
 // internet (offline, a dropped connection or no answer in time), and with
 // .status set when the Worker refuses the call (expired sign-in, plan
 // ended, usage limit). Either way the note waits rather than being lost.
-const EXTRACTION_TIMEOUT_MS = 60000;
+const EXTRACTION_TIMEOUT_MS = 120000;
 
 async function requestExtraction(text) {
   const noSignal = (msg) => Object.assign(new Error(msg), { noSignal: true });
@@ -2721,14 +2732,13 @@ async function requestExtraction(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        // FIX: was 3000 - a long, multi-section dictation (several findings,
-        // full property details, existing-system verification fields all at
-        // once) produces a JSON response that can exceed that, which gets
-        // cut off mid-structure, and JSON.parse() on a truncated response
-        // throws ("JSON Parse error: Unexpected EOF" on Safari), losing the
-        // whole extraction. Bumped with real headroom rather than just
-        // enough for today's test case.
-        max_tokens: 4096,
+        // The model thinks before it answers, and that thinking counts
+        // toward max_tokens. At 4096 and its default (high) effort, a
+        // whole-house note thought for so long the JSON was cut off.
+        // Medium effort keeps the thinking proportionate; the Worker caps
+        // max_tokens at its own ceiling.
+        max_tokens: 16000,
+        output_config: { effort: 'medium' },
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: text }]
       }),
@@ -2826,7 +2836,6 @@ async function processTranscript() {
   lowConfidenceFlagged = false;
   const warnElDone = document.getElementById('lowConfidenceWarning');
   if (warnElDone) warnElDone.classList.remove('show');
-  resetConfDebug();
   dismissCleanupSuggestion();
   dismissServerTranscript();
 }
@@ -2990,7 +2999,10 @@ async function scanCompliancePlate() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        max_tokens: 300,
+        // Room for the model's thinking as well as the small JSON answer
+        // (see requestExtraction()).
+        max_tokens: 2000,
+        output_config: { effort: 'low' },
         system: PLATE_SYSTEM_PROMPT,
         messages: [{
           role: 'user',
@@ -3096,7 +3108,10 @@ async function analyzeGalleryPhoto(photoId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        max_tokens: 300,
+        // Room for the model's thinking as well as the small JSON answer
+        // (see requestExtraction()).
+        max_tokens: 4000,
+        output_config: { effort: 'medium' },
         system: INSECT_ID_SYSTEM_PROMPT,
         messages: [{
           role: 'user',
