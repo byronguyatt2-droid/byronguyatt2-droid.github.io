@@ -76,7 +76,7 @@ Closing line 9010: "This report must be read in its entirety…"
 - `SYSTEM_PROMPT` runs from js/app.js:1095 to 1205. The JSON schema is at 1117.
 - No severity words in `damageDescription`, borer details or decay details (1160–1163; borers 1141, decay 1143).
 - `structuralConcern` means "refer", not a structural verdict (1164).
-- `riskLevel` is inferred as HIGH/MEDIUM/HIGH-LOW rules at 1199–1203, with "Never base riskLevel on the termite species" at 1203. The prompt calls this "a legitimate, subjective, comparative rating under AS 4349.3/AEPMA guidance" (1199).
+- `riskLevel` is inferred as HIGH/MEDIUM/LOW rules at 1199–1203, with "Never base riskLevel on the termite species" at 1203. The prompt calls this "a legitimate, subjective, comparative rating under AS 4349.3/AEPMA guidance" (1199).
 
 ### Bugs in client-facing output (found by reading the code, not yet fixed)
 

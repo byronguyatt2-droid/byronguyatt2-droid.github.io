@@ -155,4 +155,7 @@ Live versus `main` (after `git fetch origin`):
 | `docs/handover/state.md` | Always, second: current state, decisions and open work |
 | `docs/handover/extraction.md` | You touch voice capture, transcript cleanup, `SYSTEM_PROMPT`, or how notes fill the report |
 | `docs/handover/report-wording.md` | You change wording the client sees: the report, quote and certificate PDFs, or emails |
+| `docs/handover/extraction-notes.md` | Added by the extraction rewrite (if present): what changed, what's left, what `hinderedAreas` now holds |
+| `docs/handover/report-wording-review.md` | Added by the wording review (if present): the review table and its handoff |
+| `docs/handover/inspector-review.md` | Added by the inspector walk-through (if present): the top ten changes |
 | `tests/extraction/README.md` | You run or extend the extraction bench: transcripts, answer keys, `score.mjs`, `eval-workflow.js`, `run-api.mjs`. Transcripts and answer keys use a made-up address and client name; keep it that way, and never say whose house they are |

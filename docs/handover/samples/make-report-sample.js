@@ -1,5 +1,10 @@
 // Builds the house-test-2 report (as an ideal extraction would fill it, with a
 // made-up address and names) and saves the report PDF.
+//
+// Usage, with the repo served on PORT (python3 -m http.server 8790):
+//   NODE_PATH=/opt/node-tools/node_modules node docs/handover/samples/make-report-sample.js <dir> <out.pdf> [PORT=8790]
+// <dir> holds npm jspdf's unpacked package/ folder (npm pack jspdf, then tar xzf),
+// because the sandbox may not reach the CDN.
 const { chromium } = require('playwright'); const fs = require('fs');
 const SP = process.argv[2], OUT = process.argv[3], PORT = process.argv[4] || '8790';
 const uid = 'u-owner';
