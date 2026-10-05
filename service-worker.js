@@ -14,7 +14,7 @@
 // with every index.html change from here on - it's what forces activate() to
 // drop the old cache and install() to pre-cache the new files, so a redeploy
 // takes effect on the very next load instead of needing an extra refresh.
-const CACHE_VERSION = 'korva-v47';
+const CACHE_VERSION = 'korva-v48';
 
 const APP_SHELL = [
   './',
@@ -31,6 +31,8 @@ const APP_SHELL = [
   './icon-maskable-512.png',
 ];
 
+const APP_SHELL_PATHS = new Set(APP_SHELL.map((path) => new URL(path, self.location).pathname));
+
 // External resources the app needs (jsPDF + fonts) - cached so PDF
 // generation and styling keep working offline after first load.
 const EXTERNAL_ASSETS = [
@@ -41,9 +43,17 @@ const EXTERNAL_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION).then((cache) => {
-      return cache.addAll([...APP_SHELL, ...EXTERNAL_ASSETS]).catch((err) => {
-        // Don't fail install if an external asset can't be fetched right now -
-        // app shell caching is the priority.
+      // cache: 'reload' skips the browser's HTTP cache. GitHub Pages lets files
+      // sit there for up to 10 minutes, so without it a new cache could pair a
+      // fresh index.html with a stale script from the last version, and the
+      // app would load blank.
+      const fresh = (url) => new Request(url, { cache: 'reload' });
+      // Externals go in separately: addAll is all-or-nothing, so one CDN
+      // hiccup used to leave the app shell uncached too.
+      return Promise.all([
+        cache.addAll(APP_SHELL.map(fresh)),
+        cache.addAll(EXTERNAL_ASSETS.map(fresh)),
+      ]).catch((err) => {
         console.warn('Service worker: some assets failed to pre-cache', err);
       });
     })
@@ -73,7 +83,10 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  const isAppShell = APP_SHELL.some((path) => request.url.endsWith(path.replace('./', '')));
+  // Match whole paths. An endsWith('') check on './' used to match every
+  // request, Supabase included, and served it all cache-first.
+  const isAppShell = url.origin === self.location.origin &&
+    APP_SHELL_PATHS.has(url.pathname) && !url.search;
   const isExternal = EXTERNAL_ASSETS.includes(request.url);
   const isFont = url.hostname.includes('fonts.googleapis.com') || url.hostname.includes('fonts.gstatic.com');
 
@@ -82,7 +95,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.open(CACHE_VERSION).then((cache) =>
         cache.match(request).then((cached) => {
-          const networkFetch = fetch(request)
+          // no-cache revalidates with the server instead of reusing a stale copy.
+          // By URL, because a navigation Request can't take extra options.
+          const networkFetch = (isAppShell ? fetch(request.url, { cache: 'no-cache' }) : fetch(request))
             .then((response) => {
               if (response.ok) cache.put(request, response.clone());
               return response;
