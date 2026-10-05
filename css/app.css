@@ -238,7 +238,8 @@ body.large-touch .saved-item-delete { width: 36px; height: 36px; }
 /* "Your business" opens the sign-up form over the app (openBusinessForm) */
 #onboardScreen.ob-edit {
   position: fixed; inset: 0; z-index: 900;
-  overflow-y: auto; align-items: flex-start;
+  min-height: 0; overflow-y: auto; align-items: flex-start;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
 #onboardScreen.ob-edit .ob-steps { display: none; }
 .ob-cancel { text-align: center; width: 100%; margin-top: 4px; }

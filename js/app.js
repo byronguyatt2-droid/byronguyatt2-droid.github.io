@@ -95,7 +95,9 @@ function shouldShowOnboarding() {
 function showOnboarding() {
   document.getElementById('authScreen').style.display   = 'none';
   document.getElementById('onboardScreen').style.display = 'flex';
-  fillBusinessForm();
+  // A technician gets the owner's business details, so starts at the voice demo
+  if (canEditBusiness()) { fillBusinessForm(); obShowPanel(0); }
+  else obShowPanel(1);
 }
 
 // ── YOUR BUSINESS ─────────────────────────────────────────────────────────
@@ -103,6 +105,12 @@ function showOnboarding() {
 // entered at sign-up (onboarding step 0) and changed later from the account
 // menu, through that same form; there's no separate menu page.
 let businessFormEditing = null; // null while onboarding, else { onSaved }
+// A logo picked in the form, kept until Save: undefined while unchanged,
+// null once removed, else { logo, logoWidth, logoHeight }.
+let businessFormLogo;
+// The licence the form opened with. Only a licence typed at sign-up is the
+// inspector's own (see obNext).
+let businessFormLicence = '';
 
 function fillBusinessForm() {
   const d = getCompanyDetails();
@@ -111,16 +119,25 @@ function fillBusinessForm() {
   set('ob-companyName', d.name || meta.business_name || authBusiness?.name);
   set('ob-licence', d.licence);
   set('ob-phone', d.phone);
-  set('ob-email', d.email || authUser?.email);
+  // A new business starts with the login email. Once details are saved the
+  // form shows what was saved, even a deliberate blank.
+  set('ob-email', d.updatedAt ? d.email : (d.email || authUser?.email));
   set('ob-abn', d.abn);
+  businessFormLogo = undefined;
+  businessFormLicence = d.licence || '';
   renderCompanyLogoPreview(d.logo);
 }
 
+// Only the owner changes the business details. A technician on the business
+// gets the owner's through the account copy (js/business-sync.js).
 function canEditBusiness() {
   return !authBusiness || isBusinessOwner();
 }
 
 function openBusinessForm(onSaved) {
+  // Without the business loaded (no signal at launch) an edit would land
+  // in the wrong place on this phone and never reach the account.
+  if (!authBusiness) { showToast('Your business details load when you have signal. Try again then', 'info'); return; }
   if (!canEditBusiness()) { showToast('Your business owner sets these details', 'info'); return; }
   businessFormEditing = { onSaved };
   fillBusinessForm();
@@ -163,7 +180,13 @@ function saveBusinessForm() {
   // only fills in what was typed, so blanks never wipe details that already
   // exist for this business (from another phone).
   Object.entries(form).forEach(([k, v]) => { if (businessFormEditing || v) d[k] = v; });
-  storeCompanyDetails(d);
+  if (businessFormLogo === null) { delete d.logo; delete d.logoWidth; delete d.logoHeight; }
+  else if (businessFormLogo) Object.assign(d, businessFormLogo);
+  if (!storeCompanyDetails(d)) {
+    // A big logo is the likely reason the phone is out of room
+    showToast(businessFormLogo ? 'Could not save. Try a smaller logo' : 'Could not save. This phone is out of room', 'error');
+    return false;
+  }
   return true;
 }
 
@@ -188,9 +211,10 @@ function obNext(currentStep) {
       if (onSaved) onSaved();
       return;
     }
-    // The business licence is usually the inspector's own on a first report
+    // A licence typed at sign-up is usually the inspector's own, so the first
+    // report starts with it. One that came from the account copy may not be.
     const licence = document.getElementById('ob-licence').value.trim();
-    if (licence) {
+    if (licence && licence !== businessFormLicence) {
       const licEl = document.getElementById('inspectorLicence');
       if (licEl) { licEl.value = licence; reportData.inspectorLicence = licence; }
     }
@@ -5466,7 +5490,7 @@ function toggleDrawer() {
 }
 
 // ── MENU ─────────────────────────────────────────────────────────────────
-// Full screen. It opens on a list of groups (This job, Jobs, Business, App);
+// Full screen. It opens on a list of groups (This job, Jobs, Account, App);
 // tapping an item opens it as its own page, with Back to return to the list.
 // Each item is a drawer panel: its header is the list row, its body the page.
 function openMenuPage(panelId) {
@@ -5748,16 +5772,9 @@ function handleCompanyLogoUpload(input) {
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
       const dataUrl = canvas.toDataURL('image/png');
-      const details = getCompanyDetails();
-      details.logo = dataUrl;
-      details.logoWidth = w;
-      details.logoHeight = h;
-      if (storeCompanyDetails(details)) {
-        renderCompanyLogoPreview(dataUrl);
-        showToast('Logo saved', 'success');
-      } else {
-        showToast('Could not save logo — try a smaller image', 'error');
-      }
+      // Saved with the rest of the form (saveBusinessForm)
+      businessFormLogo = { logo: dataUrl, logoWidth: w, logoHeight: h };
+      renderCompanyLogoPreview(dataUrl);
     };
     img.src = reader.result;
   };
@@ -5766,11 +5783,7 @@ function handleCompanyLogoUpload(input) {
 }
 
 function removeCompanyLogo() {
-  const details = getCompanyDetails();
-  delete details.logo;
-  delete details.logoWidth;
-  delete details.logoHeight;
-  storeCompanyDetails(details);
+  businessFormLogo = null;
   renderCompanyLogoPreview(null);
 }
 
@@ -6404,9 +6417,8 @@ async function _loadBusinessImpl() {
       }
     }
 
-    // Not an owner — check if they're already a team member of someone
-    // else's business (a returning technician, whose invite was accepted
-    // in an earlier session, so there's no pending invite left to catch this)
+    // Not an owner — check if they're a technician already on someone
+    // else's business (accounts that joined before Team was removed)
     const tmRes = await fetch(
       `${SUPABASE_URL}/rest/v1/team_members?user_id=eq.${authUser.id}&limit=1`,
       { headers: getAuthHeaders() }
@@ -8116,7 +8128,7 @@ function openSendReview() {
 
   const gaps = reportPrepItems();
   const companyGaps = companyDetailGaps();
-  if (companyGaps.length) gaps.push(`Your ${joinWithAnd(companyGaps)} ${companyGaps.length === 1 ? 'is' : 'are'} missing from Your business (tap your initials, top right), so the PDFs won't show ${companyGaps.length === 1 ? 'it' : 'them'}`);
+  if (companyGaps.length) gaps.push(`Your ${joinWithAnd(companyGaps)} ${companyGaps.length === 1 ? 'is' : 'are'} missing from ${canEditBusiness() ? 'Your business (tap your initials, top right)' : 'the details your business owner set'}, so the PDFs won't show ${companyGaps.length === 1 ? 'it' : 'them'}`);
   const gapsWrap = document.getElementById('sendReviewGaps');
   gapsWrap.style.display = gaps.length ? '' : 'none';
   gapsWrap.innerHTML = `<div class="send-review-label">Worth checking first</div><ul class="send-review-list">${gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul>`;
