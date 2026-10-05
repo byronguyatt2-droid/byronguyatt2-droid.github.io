@@ -2,7 +2,9 @@
 
 A voice-to-report PWA for Australian timber pest inspectors. The chain is: pre-inspection agreement → voice inspection report → quote → client's answer and signature → treatment record and certificate, each sent to the client. It is a static site on GitHub Pages: no build step and no framework. Plain HTML, CSS and JS that load in the browser.
 
-Read only the files your task needs. `js/app.js` is about 10k lines, so jump to a section with `grep -n "── SECTION NAME" js/app.js` instead of reading it whole.
+**New to this repo, or starting a larger task? Read `docs/handover/README.md` first.** It covers the owner, what's live, the go-live recipe and the traps, and points to the rest.
+
+Read only the files your task needs. `js/app.js` is about 9,200 lines, so jump to a section with `grep -n "SECTION NAME" js/app.js` instead of reading it whole.
 
 ## File map
 
@@ -18,6 +20,8 @@ Read only the files your task needs. `js/app.js` is about 10k lines, so jump to 
 | `worker/worker.js` | Cloudflare Worker `korva`: AI proxy, `/transcribe`, Stripe, `/send-email`. Pasted into Cloudflare by hand |
 | `supabase/*.sql` | SQL baz applies in the Supabase SQL editor |
 | `terms.html`, `privacy.html` | Legal pages |
+| `docs/handover/` | Handover docs: start-here guide, current state, extraction and report-wording maps, a sample report PDF |
+| `tests/extraction/` | Extraction test bench: real transcripts (made-up address), answer keys, scorer and runners |
 
 ## `js/app.js` sections (grep the banner text)
 
