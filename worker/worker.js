@@ -18,6 +18,13 @@
  * can send, only PDFs can be attached, and sending doesn't use AI calls.
  * Every other path behaves exactly as v8 did.
  *
+ * CHANGES FROM v8 -> v8.1 (also in this version):
+ * Claude Sonnet 5 thinks before it answers, and its thinking counts
+ * toward max_tokens. A whole-house dictation used up the old 4096 ceiling
+ * before the JSON answer was finished, so the app lost the whole note.
+ * MAX_TOKENS_CEILING is now 16000, and the app's own `output_config.effort`
+ * (low, medium or high) is passed through so it can keep thinking short.
+ *
  * CHANGES FROM v7 -> v8:
  * Adds the Stripe billing routes that index.html already calls (see the
  * BILLING / STRIPE section there), plus the webhook Stripe needs to keep
@@ -110,14 +117,12 @@ const DEFAULT_APP_URL = 'https://byronguyatt2-droid.github.io/';
 const ALLOWED_MODEL = 'claude-sonnet-5';
 
 // Hard ceiling on tokens generated per call, regardless of what the caller
-// requests.
-// FIX (v7): was 3000. index.html's processTranscript() now requests 4096
-// (bumped there this session to stop long, multi-section dictations
-// truncating mid-JSON) - but this ceiling was silently clamping every
-// request back down to 3000 regardless, which meant that client-side fix
-// had no real effect against this deployed Worker. Raised to match, with
-// the same "real headroom, not just enough for today's case" reasoning.
-const MAX_TOKENS_CEILING = 4096;
+// requests. The model's thinking counts toward this as well as its answer.
+const MAX_TOKENS_CEILING = 16000;
+
+// How hard the model may think, when the caller asks. Anything else is
+// dropped and the model's default applies.
+const ALLOWED_EFFORTS = ['low', 'medium', 'high'];
 
 // Hard ceiling on characters of text accepted per call (summed across every
 // text block in every message, whether content is a plain string or an
@@ -255,6 +260,8 @@ export default {
       system: body.system,
       messages: body.messages,
     };
+    const effort = body.output_config && body.output_config.effort;
+    if (ALLOWED_EFFORTS.includes(effort)) safeBody.output_config = { effort };
 
     const anthropicResponse = await fetch(ANTHROPIC_API, {
       method: 'POST',

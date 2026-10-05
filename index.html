@@ -1590,19 +1590,13 @@
          panel's styling (not its state) since the two panels are visually
          equivalent proposals. See tryServerSideTranscription(). -->
     <div class="cleanup-panel" id="serverTranscriptPanel" style="display:none">
-      <div class="cleanup-panel-label">Alternate transcription available (experimental)</div>
+      <div class="cleanup-panel-label">Another version of your last recording (experimental)</div>
       <div class="cleanup-panel-text" id="serverTranscriptPanelText"></div>
       <div class="cleanup-panel-actions">
-        <button class="cleanup-apply-btn" onclick="applyServerTranscript()">Use this instead</button>
+        <button class="cleanup-apply-btn" onclick="applyServerTranscript()">Use this for that part</button>
         <button class="cleanup-dismiss-btn" onclick="dismissServerTranscript()">Keep original</button>
       </div>
     </div>
-
-    <!-- TEMP DEBUG — remove once we've confirmed what confidence values this
-         device/browser actually sends back. Shows the raw confidence number
-         per final chunk so we can tell "always unpopulated" apart from
-         "falsely high" without needing devtools on a phone. -->
-    <div class="conf-debug" id="confDebugLine"></div>
 
     <!-- Notes dictated with no signal, waiting to be sent to the AI.
          See the NO-SIGNAL QUEUE in js/app.js. -->
