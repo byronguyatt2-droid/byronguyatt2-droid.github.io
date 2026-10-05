@@ -11,6 +11,7 @@ calls:
 | `POST /stripe/create-checkout-session` | Upgrade buttons | Returns a Stripe Checkout link for `starter`, `pro` or `business` |
 | `POST /stripe/create-portal-session` | Manage button | Returns a Stripe Billing Portal link (change plan, card, cancel) |
 | `POST /stripe/webhook` | Stripe | Updates the `subscriptions` row when someone pays, changes plan or cancels |
+| `POST /send-email` | Send, Email to client, Email certificate, Email invoice | Emails the PDFs to the client from the business through Resend, with a copy to the business; answers 501 until Resend is set up, and the app then uses the phone's mail app |
 | `POST /transcribe` | Experimental AI audio transcription | Runs the recording through Whisper on Workers AI and returns `{ transcript }`; counts as one AI call |
 
 Only the business owner can start checkout or open the portal. The AI proxy's
@@ -20,6 +21,24 @@ else the Worker did before is unchanged.
 `/transcribe` needs a Workers AI binding named exactly `AI` (korva › Settings ›
 Bindings › Add › Workers AI). Without it the route answers 501 and the app
 quietly keeps the on-device transcript.
+
+## Sending email (Resend)
+
+Until both secrets below are set, KORVUS keeps sending through the phone's mail
+app. Emails need to come from your own domain, or they land in spam.
+
+1. Sign up at resend.com (free up to 3,000 emails a month).
+2. Resend › Domains › Add domain › your domain. Add the DNS records it shows
+   at your domain provider, then wait for Resend to show it as Verified.
+3. Resend › API Keys › Create API key (Sending access). Copy it (starts with `re_`).
+4. Cloudflare › Workers & Pages › `korva` › Settings › Variables and Secrets ›
+   Add, as type **Secret**:
+   - `RESEND_API_KEY`: the key from step 3
+   - `MAIL_FROM`: the address to send from, e.g. `reports@yourdomain.com.au`
+
+Clients see the business's name (Company details) as the sender, and replies
+go to the business email in Company details, which also gets a copy of every
+email sent.
 
 ## One-time Stripe setup
 
