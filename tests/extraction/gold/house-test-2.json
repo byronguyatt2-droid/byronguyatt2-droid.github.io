@@ -1,0 +1,1263 @@
+{
+  "id": "house-test-2",
+  "transcript": "transcripts/house-test-2.txt",
+  "about": "A full pre-purchase inspection dictated spot by spot, full of dictation slips. It tests dropped negations ('not a slab', 'species can be identified', 'no damage visible'), a hedged 'possible nest', partly inspected areas, a street name that is also a suburb, and keeping invented brands, species and structural opinions out.",
+  "checks": [
+    {
+      "id": "address",
+      "kind": "mentions",
+      "path": "propertyStreetAddress",
+      "all": [
+        [
+          "7",
+          "seven"
+        ],
+        [
+          "banksia"
+        ],
+        [
+          "dr"
+        ]
+      ],
+      "none": [
+        "nsw",
+        "new south wales"
+      ],
+      "weight": 2,
+      "why": "said 'seven Banksia Drive' and nothing more"
+    },
+    {
+      "id": "no-suburb",
+      "kind": "absent",
+      "path": "propertySuburb",
+      "weight": 3,
+      "why": "no suburb was said; Banksia is the street, even though it is also a real Sydney suburb"
+    },
+    {
+      "id": "no-state",
+      "kind": "absent",
+      "path": "propertyState",
+      "weight": 3,
+      "why": "no state was said; do not default to NSW"
+    },
+    {
+      "id": "no-postcode",
+      "kind": "absent",
+      "path": "propertyPostcode",
+      "weight": 3,
+      "why": "no postcode was said"
+    },
+    {
+      "id": "client-name",
+      "kind": "mentions",
+      "path": "clientName",
+      "all": [
+        [
+          "sam"
+        ],
+        [
+          "taylor"
+        ]
+      ],
+      "none": [
+        "brick",
+        "house"
+      ],
+      "weight": 2,
+      "why": "said 'clients name is Sam Taylor'; the name stops before 'double brick house'"
+    },
+    {
+      "id": "inspection-type",
+      "kind": "equals",
+      "path": "inspectionType",
+      "values": [
+        "Pre-Purchase — Timber Pest"
+      ],
+      "weight": 2,
+      "why": "said 'pre-purchased timber inspection' (pre-purchase)"
+    },
+    {
+      "id": "structure-house",
+      "kind": "mentions",
+      "path": "structureType",
+      "all": [
+        [
+          "house",
+          "dwelling"
+        ]
+      ],
+      "none": [
+        "unit",
+        "townhouse",
+        "semi-detached",
+        "semi detached",
+        "duplex",
+        "veneer",
+        "slab"
+      ],
+      "weight": 2,
+      "why": "said 'house'"
+    },
+    {
+      "id": "walls-double-brick",
+      "kind": "mentions",
+      "path": "wallConstruction",
+      "all": [
+        [
+          "double brick",
+          "double-brick",
+          "cavity brick",
+          "full brick",
+          "solid brick"
+        ]
+      ],
+      "none": [
+        "veneer",
+        "timber frame",
+        "weatherboard",
+        "fibro"
+      ],
+      "weight": 3,
+      "why": "said 'double brick'; the 1970s era table must not turn it into brick veneer"
+    },
+    {
+      "id": "floor-suspended-timber",
+      "kind": "mentions",
+      "path": "floorType",
+      "all": [
+        [
+          "suspend"
+        ],
+        [
+          "timber"
+        ]
+      ],
+      "none": [
+        "slab on ground",
+        "slab-on-ground",
+        "on-ground slab",
+        "stump",
+        "combination"
+      ],
+      "weight": 3,
+      "why": "said 'suspended timber floor not a slab'"
+    },
+    {
+      "id": "no-slab-edge",
+      "kind": "absent",
+      "path": "slabEdge",
+      "weight": 2,
+      "why": "there is no slab, so there is no slab edge to rate"
+    },
+    {
+      "id": "roof-tiled-timber",
+      "kind": "mentions",
+      "path": "roofType",
+      "all": [
+        [
+          "tile"
+        ],
+        [
+          "timber"
+        ]
+      ],
+      "none": [
+        "terracotta",
+        "concrete",
+        "colorbond",
+        "metal",
+        "iron",
+        "called"
+      ],
+      "weight": 2,
+      "why": "said 'tiled roof with timber framing' (and 'called roof' = tiled); tile material not said"
+    },
+    {
+      "id": "no-height",
+      "kind": "absent",
+      "path": "height",
+      "weight": 2,
+      "why": "no storey count was said"
+    },
+    {
+      "id": "facade-north",
+      "kind": "mentions",
+      "path": "facadeDirection",
+      "all": [
+        [
+          "north",
+          "n"
+        ]
+      ],
+      "none": [
+        "south",
+        "east",
+        "west"
+      ],
+      "weight": 2,
+      "why": "said 'the front of the house faces north'"
+    },
+    {
+      "id": "occupied",
+      "kind": "mentions",
+      "path": "occupancyStatus",
+      "all": [
+        [
+          "occupied"
+        ]
+      ],
+      "none": [
+        "unoccupied",
+        "vacant",
+        "tenanted",
+        "owner"
+      ],
+      "weight": 2,
+      "why": "said 'occupied and furnished'"
+    },
+    {
+      "id": "weather",
+      "kind": "mentions",
+      "path": "weatherConditions",
+      "all": [
+        [
+          "fine"
+        ],
+        [
+          "dry"
+        ]
+      ],
+      "weight": 1,
+      "why": "said 'fine and dry'"
+    },
+    {
+      "id": "era",
+      "kind": "equals",
+      "path": "constructionEra",
+      "values": [
+        "1965-1985"
+      ],
+      "weight": 2,
+      "why": "said 'built around the 1970s'"
+    },
+    {
+      "id": "restrictions-answered",
+      "kind": "mentions",
+      "path": "hinderedAreas",
+      "none": [
+        "nil",
+        "n/a",
+        "readily accessible"
+      ],
+      "weight": 3,
+      "why": "restrictions were said; empty, NIL or a list of inspected areas makes the PDF answer NO to 'conditions that restricted inspection'"
+    },
+    {
+      "id": "restrictions-said",
+      "kind": "mentions",
+      "path": "hinderedAreas",
+      "all": [
+        [
+          "clearance",
+          "furniture",
+          "corner",
+          "outer side",
+          "outer edge",
+          "bedroom wall"
+        ]
+      ],
+      "none": [
+        "tree",
+        "backyard"
+      ],
+      "weight": 2,
+      "why": "names a said restriction: roof-void outer sides and corners (low clearance) or bedroom walls behind furniture"
+    },
+    {
+      "id": "restriction-nature",
+      "kind": "mentions",
+      "path": "hinderedAreasDetail",
+      "all": [
+        [
+          "clearance",
+          "furniture"
+        ]
+      ],
+      "none": [
+        "nil",
+        "n/a"
+      ],
+      "weight": 2,
+      "why": "the nature of the restriction: low clearance (preferred) or furniture"
+    },
+    {
+      "id": "obstructions",
+      "kind": "mentions",
+      "path": "obstructions",
+      "all": [
+        [
+          "subfloor",
+          "sub-floor",
+          "sub floor"
+        ],
+        [
+          "back",
+          "rear"
+        ],
+        [
+          "roof"
+        ],
+        [
+          "corner",
+          "outer",
+          "edge"
+        ]
+      ],
+      "none": [
+        "nil",
+        "none",
+        "gum tree",
+        "backyard",
+        "access door",
+        "side access",
+        "block access",
+        "blocks access",
+        "blocking access",
+        "blocked access",
+        "access blocked",
+        "access is blocked",
+        "access was blocked",
+        "access to the back",
+        "access to the rear",
+        "subfloor access",
+        "access to subfloor",
+        "access to the subfloor"
+      ],
+      "weight": 2,
+      "why": "back of the subfloor not inspected and roof-void outer sides and corners not reached; no 'access' wording in the subfloor part (the app would tick 'No access to subfloor')"
+    },
+    {
+      "id": "restricted-access",
+      "kind": "mentions",
+      "path": "restrictedAccess",
+      "all": [
+        [
+          "stored"
+        ],
+        [
+          "clearance"
+        ],
+        [
+          "furniture"
+        ]
+      ],
+      "none": [
+        "nil",
+        "none",
+        "access door",
+        "side access",
+        "block access",
+        "blocks access",
+        "blocking access",
+        "blocked access",
+        "access blocked",
+        "access is blocked",
+        "access was blocked",
+        "access to the back",
+        "access to the rear",
+        "subfloor access",
+        "access to subfloor",
+        "access to the subfloor"
+      ],
+      "weight": 2,
+      "why": "stored items block the back of the subfloor, low clearance in the roof void, furniture against bedroom walls; no 'access' wording in the subfloor part"
+    },
+    {
+      "id": "restricted-access-matcher-words",
+      "kind": "mentions",
+      "path": "restrictedAccess",
+      "all": [
+        [
+          "subfloor"
+        ],
+        [
+          "stored articles"
+        ],
+        [
+          "roof void"
+        ],
+        [
+          "low clearance"
+        ],
+        [
+          "interior"
+        ],
+        [
+          "furniture"
+        ]
+      ],
+      "weight": 1,
+      "why": "uses the reason words the app ticks: 'Subfloor: stored articles', 'Roof void: low clearance', 'Interior: furniture'"
+    },
+    {
+      "id": "high-risk-back-subfloor",
+      "kind": "mentions",
+      "path": "highRiskAreas",
+      "all": [
+        [
+          "subfloor",
+          "sub-floor",
+          "sub floor"
+        ],
+        [
+          "back",
+          "rear"
+        ],
+        [
+          "stored",
+          "not inspected",
+          "blocked",
+          "uninspected"
+        ]
+      ],
+      "none": [
+        "tree",
+        "backyard",
+        "back yard",
+        "bearer",
+        "joist",
+        "live termite",
+        "under the back room",
+        "n/a"
+      ],
+      "weight": 2,
+      "why": "the back section of the subfloor, blocked by stored items; not the tree or bearer finding, and not placed under the back room"
+    },
+    {
+      "id": "area-interior",
+      "kind": "equals",
+      "path": "areaStatus.interior",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 3,
+      "why": "furniture against bedroom walls, 'not fully visible'"
+    },
+    {
+      "id": "area-exterior",
+      "kind": "equals",
+      "path": "areaStatus.exterior",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "said 'all the way around'"
+    },
+    {
+      "id": "area-subfloor",
+      "kind": "equals",
+      "path": "areaStatus.subfloor",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 3,
+      "why": "entered, but the back section was blocked by stored items and not inspected"
+    },
+    {
+      "id": "area-roofvoid",
+      "kind": "equals",
+      "path": "areaStatus.roofvoid",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 3,
+      "why": "couldn't reach the outer sides and corners (low clearance)"
+    },
+    {
+      "id": "area-site",
+      "kind": "equals",
+      "path": "areaStatus.site",
+      "values": [
+        "INSPECTED",
+        null
+      ],
+      "weight": 2,
+      "why": "yard described with no limitation; leaving it out is fine"
+    },
+    {
+      "id": "area-fences",
+      "kind": "equals",
+      "path": "areaStatus.fences",
+      "values": [
+        "INSPECTED",
+        null
+      ],
+      "weight": 2,
+      "why": "back fence described with no limitation; leaving it out is fine"
+    },
+    {
+      "id": "no-outbuildings-status",
+      "kind": "absent",
+      "path": "areaStatus.outbuildings",
+      "weight": 3,
+      "why": "the garage only appears in a recommendation; it was not inspected"
+    },
+    {
+      "id": "no-retaining-walls-status",
+      "kind": "absent",
+      "path": "areaStatus.retainingwalls",
+      "weight": 2,
+      "why": "retaining walls were never mentioned"
+    },
+    {
+      "id": "findings-count",
+      "kind": "count",
+      "path": "findings",
+      "min": 2,
+      "max": 3,
+      "weight": 2,
+      "why": "two findings (subfloor bearer, backyard tree); a third split-out entry for the timbers at the tree base is tolerated"
+    },
+    {
+      "id": "finding-subfloor",
+      "kind": "findingMatch",
+      "weight": 3,
+      "why": "rear bearer and joist under the back room: workings, 'no live termites, inactive', 'no damage visible'",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "INACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "subfloor",
+              "sub-floor",
+              "sub floor",
+              "bearer"
+            ]
+          ],
+          "none": [
+            "tree",
+            "backyard",
+            "back yard"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "damageDescription",
+          "all": [
+            [
+              "no damage",
+              "no visible damage",
+              "no apparent damage",
+              "no obvious damage",
+              "no evident damage",
+              "no sign of damage",
+              "no signs of damage",
+              "damage not visible",
+              "without visible damage",
+              "without damage",
+              "not damaged",
+              "undamaged",
+              "no timber damage",
+              "no termite damage",
+              "nil damage",
+              "no visible termite damage"
+            ]
+          ],
+          "none": [
+            "nest"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "species",
+          "all": [
+            [
+              "not",
+              "unidentif",
+              "unknown",
+              "n't",
+              "unable"
+            ]
+          ],
+          "none": [
+            "coptotermes",
+            "schedorhinotermes",
+            "nasutitermes",
+            "heterotermes",
+            "microcerotermes",
+            "cryptotermes",
+            "mastotermes",
+            "porotermes",
+            "acinaciformis",
+            "frenchi",
+            "intermedius",
+            "exitiosus",
+            "walkeri",
+            "ferox",
+            "copter"
+          ],
+          "nullOk": true
+        },
+        {
+          "kind": "equals",
+          "path": "nestLocated",
+          "values": [
+            null,
+            "NO"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "finding-tree",
+      "kind": "findingMatch",
+      "weight": 3,
+      "why": "live termites seen in the backyard gum tree, 'possible nest', species could not be identified",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "ACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "tree"
+            ]
+          ],
+          "none": [
+            "subfloor",
+            "sub-floor",
+            "bearer",
+            "inside the house"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "damageDescription",
+          "all": [
+            [
+              "nest"
+            ],
+            [
+              "possib",
+              "suspect",
+              "potential",
+              "probab",
+              "may be",
+              "might be",
+              "maybe",
+              "likely"
+            ]
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "species",
+          "all": [
+            [
+              "not",
+              "unidentif",
+              "unknown",
+              "n't",
+              "unable"
+            ]
+          ],
+          "none": [
+            "coptotermes",
+            "schedorhinotermes",
+            "nasutitermes",
+            "heterotermes",
+            "microcerotermes",
+            "cryptotermes",
+            "mastotermes",
+            "porotermes",
+            "acinaciformis",
+            "frenchi",
+            "intermedius",
+            "exitiosus",
+            "walkeri",
+            "ferox",
+            "copter"
+          ],
+          "nullOk": true
+        },
+        {
+          "kind": "equals",
+          "path": "nestLocated",
+          "values": [
+            "YES",
+            null
+          ]
+        }
+      ]
+    },
+    {
+      "id": "findings-only-the-two-said",
+      "kind": "every",
+      "path": "findings",
+      "weight": 3,
+      "why": "no 'NONE' cards for the clean areas and no termites put anywhere except the subfloor bearer and the backyard tree",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "ACTIVE",
+            "INACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "all": [
+            [
+              "tree",
+              "bearer",
+              "joist",
+              "subfloor",
+              "sub-floor",
+              "sub floor"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "findings-no-severity-or-referral",
+      "kind": "every",
+      "path": "findings",
+      "weight": 3,
+      "why": "no severity words or structural claims in any damage description, and no builder referral was said",
+      "checks": [
+        {
+          "kind": "mentions",
+          "path": "damageDescription",
+          "none": [
+            "minor",
+            "moderate",
+            "severe",
+            "extensive",
+            "significant",
+            "extreme",
+            "major",
+            "heavy",
+            "structural",
+            "compromised"
+          ],
+          "nullOk": true
+        },
+        {
+          "kind": "equals",
+          "path": "structuralConcern",
+          "values": [
+            null,
+            "NO"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "subfloor-finding-detail",
+      "kind": "mentions",
+      "path": "findings",
+      "all": [
+        [
+          "back room",
+          "rear room"
+        ],
+        [
+          "joist"
+        ],
+        [
+          "workings",
+          "mudding",
+          "mud lead",
+          "galler"
+        ]
+      ],
+      "none": [
+        "old "
+      ],
+      "weight": 2,
+      "why": "keeps 'termite workings', the joist above the bearer and 'under the back room'; does not add 'old'"
+    },
+    {
+      "id": "tree-finding-detail",
+      "kind": "mentions",
+      "path": "findings",
+      "all": [
+        [
+          "gum"
+        ],
+        [
+          "backyard",
+          "back yard",
+          "rear yard"
+        ],
+        [
+          "15 m",
+          "15m",
+          "15 metre",
+          "15 meter",
+          "fifteen"
+        ],
+        [
+          "eaten",
+          "chewed",
+          "hollow"
+        ],
+        [
+          "not identified",
+          "unidentified",
+          "not be identified",
+          "n't be identified",
+          "unable to",
+          "unknown"
+        ]
+      ],
+      "weight": 2,
+      "why": "keeps gum tree, backyard, about 15 m from the house, timbers at its base eaten out, and 'species could not be identified'"
+    },
+    {
+      "id": "water-leaks-no",
+      "kind": "equals",
+      "path": "waterLeaks",
+      "values": [
+        "NO"
+      ],
+      "weight": 3,
+      "why": "said 'no leaking taps, downpipes or hot water systems'; the back-room moisture source was not found"
+    },
+    {
+      "id": "no-leak-location",
+      "kind": "absent",
+      "path": "leakLocation",
+      "weight": 2,
+      "why": "no leak was found, so there is no leak location"
+    },
+    {
+      "id": "moisture-yes",
+      "kind": "equals",
+      "path": "moistureReadings",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "28% in the back room was called elevated"
+    },
+    {
+      "id": "meter-readings",
+      "kind": "mentions",
+      "path": "moistureMeterReadings",
+      "all": [
+        [
+          "back room",
+          "rear room"
+        ],
+        [
+          "28"
+        ],
+        [
+          "bathroom"
+        ],
+        [
+          "15"
+        ],
+        [
+          "kitchen"
+        ],
+        [
+          "14"
+        ]
+      ],
+      "none": [
+        "subfloor",
+        "sub-floor",
+        "soil"
+      ],
+      "weight": 2,
+      "why": "back room 28%, bathroom 15%, kitchen 14% (all interior; no soil reading was said)"
+    },
+    {
+      "id": "timber-soil-yes",
+      "kind": "equals",
+      "path": "timberSoil",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "timber lying on the subfloor soil; soil against the back fence timber"
+    },
+    {
+      "id": "weep-holes-clear",
+      "kind": "equals",
+      "path": "weepHoles",
+      "values": [
+        "CLEAR"
+      ],
+      "weight": 2,
+      "why": "said 'all weep holes clear'"
+    },
+    {
+      "id": "no-existing-system",
+      "kind": "absent",
+      "path": "existingSystem",
+      "weight": 3,
+      "why": "said no termite management system; the field stays empty, never 'None' or a brand"
+    },
+    {
+      "id": "durable-notice",
+      "kind": "equals",
+      "path": "durableNoticePresent",
+      "values": [
+        "NO",
+        null
+      ],
+      "weight": 3,
+      "why": "said 'no durable notice sticker'"
+    },
+    {
+      "id": "no-ant-cap-claim",
+      "kind": "absent",
+      "path": "antCapSoldered",
+      "weight": 2,
+      "why": "'ant caps on all of them' (the piers) says nothing about soldered joins"
+    },
+    {
+      "id": "no-zone-75",
+      "kind": "absent",
+      "path": "zone75mmVisible",
+      "weight": 1,
+      "why": "no system, so there is no inspection zone to judge"
+    },
+    {
+      "id": "treatment-recommended",
+      "kind": "equals",
+      "path": "treatmentRecommended",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "recommended treating the tree and installing a system"
+    },
+    {
+      "id": "treatment-type",
+      "kind": "mentions",
+      "path": "treatmentType",
+      "all": [
+        [
+          "tree"
+        ],
+        [
+          "treat"
+        ],
+        [
+          "install",
+          "management system"
+        ],
+        [
+          "chemical"
+        ],
+        [
+          "bait"
+        ]
+      ],
+      "none": [
+        "batting",
+        "species"
+      ],
+      "weight": 2,
+      "why": "treat the termites in the backyard tree, and install a system: 'either a chemical barrier or a baiting system'"
+    },
+    {
+      "id": "reinspect-3-months-first",
+      "kind": "mentions",
+      "path": "inspectionFrequency",
+      "all": [
+        [
+          "3 month",
+          "three month"
+        ]
+      ],
+      "none": [
+        "6 month",
+        "six month",
+        "after a 3",
+        "after 3",
+        "after the 3",
+        "after an initial",
+        "following a 3",
+        "following the 3",
+        "following an initial"
+      ],
+      "weight": 3,
+      "why": "said 'next inspection in three months'; '3 months' must be the first interval or the certificate date is wrong"
+    },
+    {
+      "id": "reinspect-then-12-months",
+      "kind": "mentions",
+      "path": "inspectionFrequency",
+      "all": [
+        [
+          "12 month",
+          "12-month",
+          "twelve month",
+          "annual",
+          "yearly",
+          "every year"
+        ]
+      ],
+      "weight": 2,
+      "why": "said 'and then every 12 months'"
+    },
+    {
+      "id": "risk-high",
+      "kind": "equals",
+      "path": "riskLevel",
+      "values": [
+        "HIGH"
+      ],
+      "weight": 3,
+      "why": "said 'overall risk of termite attack is high'"
+    },
+    {
+      "id": "borers-none",
+      "kind": "equals",
+      "path": "borerActivity",
+      "values": [
+        "NONE"
+      ],
+      "weight": 3,
+      "why": "said 'no borers' (interior, subfloor, roof void)"
+    },
+    {
+      "id": "borer-details-clean",
+      "kind": "mentions",
+      "path": "borerDetails",
+      "none": [
+        "anobium",
+        "lyctus",
+        "minor",
+        "moderate",
+        "severe",
+        "extensive",
+        "significant",
+        "extreme",
+        "major",
+        "heavy"
+      ],
+      "nullOk": true,
+      "weight": 2,
+      "why": "no borer type or severity was said"
+    },
+    {
+      "id": "decay-no",
+      "kind": "equals",
+      "path": "decayFound",
+      "values": [
+        "NO"
+      ],
+      "weight": 3,
+      "why": "said 'no wood decay' (interior, subfloor)"
+    },
+    {
+      "id": "decay-details-clean",
+      "kind": "mentions",
+      "path": "decayDetails",
+      "none": [
+        "minor",
+        "moderate",
+        "severe",
+        "extensive",
+        "significant",
+        "extreme",
+        "major",
+        "heavy"
+      ],
+      "nullOk": true,
+      "weight": 2,
+      "why": "no severity words in decay details"
+    },
+    {
+      "id": "no-brands",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "termimesh",
+        "kordon",
+        "exterra",
+        "sentricon",
+        "trelona",
+        "termidor",
+        "altriset",
+        "homeguard",
+        "home guard",
+        "biflex",
+        "phantom",
+        "maxxthor",
+        "talstar",
+        "fipronil",
+        "bifenthrin",
+        "chlorantraniliprole"
+      ],
+      "weight": 3,
+      "why": "no product or brand was said ('batting system' is a baiting system)"
+    },
+    {
+      "id": "no-species-named",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "coptotermes",
+        "schedorhinotermes",
+        "nasutitermes",
+        "heterotermes",
+        "microcerotermes",
+        "cryptotermes",
+        "mastotermes",
+        "porotermes",
+        "acinaciformis",
+        "frenchi",
+        "intermedius",
+        "exitiosus",
+        "walkeri",
+        "ferox",
+        "copter"
+      ],
+      "weight": 3,
+      "why": "no species was named; 'species can be identified' means it couldn't be"
+    },
+    {
+      "id": "no-nest-claimed",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "nest found",
+        "nest was found",
+        "nest located",
+        "nest was located",
+        "nest confirmed",
+        "confirmed nest",
+        "nest sighted",
+        "found a nest",
+        "found the nest",
+        "located a nest",
+        "located the nest"
+      ],
+      "weight": 3,
+      "why": "only a 'possible nest' was said; nothing may call a nest found, located or confirmed"
+    },
+    {
+      "id": "no-structural-verdict",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "compromised",
+        "structurally",
+        "structural damage",
+        "structural concern",
+        "structural integrity",
+        "structural issue",
+        "structural problem",
+        "structural failure",
+        "structural defect"
+      ],
+      "weight": 3,
+      "why": "no structural opinion was given either way"
+    },
+    {
+      "id": "no-mishearings",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "barer",
+        "borrower",
+        "balls",
+        "some flow",
+        "sub for ",
+        "wee pole",
+        "brick repair",
+        "called roof",
+        "water strain",
+        "termite scene",
+        "tims around",
+        "batting",
+        "act attack",
+        "pre-purchased"
+      ],
+      "weight": 2,
+      "why": "dictation slips are corrected, not copied (barer, borrowers, balls, some flow, batting ...)"
+    },
+    {
+      "id": "no-asbestos",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "asbestos"
+      ],
+      "weight": 2,
+      "why": "asbestos was not mentioned"
+    },
+    {
+      "id": "no-structural-verdict-in-any-words",
+      "kind": "manual",
+      "description": "Nothing says or implies the structure is, or is not, structurally compromised or sound, in any wording (the forbid list only catches the usual words)."
+    },
+    {
+      "id": "no-access-in-subfloor-phrase",
+      "kind": "manual",
+      "description": "In obstructions and restrictedAccess, no Subfloor phrase contains the word 'access' (the app would tick 'No access to subfloor' for a subfloor that was entered). The scored checks only catch common phrasings."
+    },
+    {
+      "id": "tree-not-touching-house",
+      "kind": "manual",
+      "description": "No field says the tree or its termites touch or bridge into the house ('not touching any building' is correct)."
+    },
+    {
+      "id": "nothing-invented",
+      "kind": "manual",
+      "description": "The garage gets no construction, condition or status (it is only named in a recommendation); no text bases the risk on the termite species; the 12-month interval never comes before the 3-month one."
+    }
+  ],
+  "schemaGaps": [
+    "No slot for the other recommendations: remove timber from the subfloor soil, clear the stored items, pull soil back from the garden beds, garage and fence, find and fix the back-room moisture.",
+    "'No termite management system found' has no slot: existingSystem stays empty, and durableNoticePresent sits in a panel that is hidden when existingSystem is empty.",
+    "No slot for the tree's distance from the house (~15 m) or that it isn't touching any building; activityLocation is the only place.",
+    "nestLocated is YES/NO only, so 'possible nest' survives only as text in damageDescription.",
+    "No activity-level slot for 'high activity in the tree'.",
+    "No slot for access points (subfloor east side door, roof manhole), piers with ant caps, clear subfloor vents, or tapping results (skirting boards and door frames all sound).",
+    "Damp soil under the back room and the location of the elevated reading have no slot (leakLocation only shows when waterLeaks is YES).",
+    "The 'elevated' flag on a meter reading can only ride inside the reading text.",
+    "timberSoil is one YES/NO, so where the contact is (subfloor soil, back fence) is lost; soil built up at garden beds has no general conducive-condition slot.",
+    "Garage: no status when it may be attached (outbuildings means detached).",
+    "No per-area negative results (no activity on the outside walls, inside or in the roof void; no water stains; no leaking taps).",
+    "Two-stage re-inspection (3 months, then every 12) fits only as free text; the certificate reads the first 'N months'."
+  ],
+  "notes": [
+    "Address and client: '7 Banksia Drive' and 'Sam Taylor'. No suburb, state or postcode was said; the 'Known NSW termite species' line in the prompt may nudge the state toward NSW.",
+    "structureType: 'house' was said; 'Detached house' is accepted as normal usage.",
+    "floorType: suspended timber on brick piers ('repairs with caps' = piers with ant caps), not a slab and not stumps.",
+    "roofType: tiled and timber framed; tile material was not said, so 'concrete' or 'terracotta' would be a guess.",
+    "constructionEra: 'around the 1970s' gives 1965-1985. The era table's 'brick veneer, concrete slab' must not override what was said.",
+    "Area status: interior, subfloor and roof void PARTIAL; exterior INSPECTED; site and fences INSPECTED or left out; no status for the garage.",
+    "hinderedAreas follows the PDF (areas where inspection was restricted), not the prompt wording (readily accessible areas inspected). Low clearance is the restriction; furniture is tolerated.",
+    "obstructions and restrictedAccess only tick reason buttons. Use the app's reason words ('stored articles', 'low clearance', 'furniture') and keep 'access' out of the subfloor phrase.",
+    "highRiskAreas: the back of the subfloor that was blocked by stored items. Not the tree, not the bearer, not under the back room.",
+    "Subfloor finding: INACTIVE (workings, no live termites), 'no damage visible' kept, nest null or NO, structuralConcern null or NO. 'Old' and 'mud' were not said.",
+    "Tree finding: ACTIVE ('live termite scene' = live termites seen), species not identified, nestLocated YES or null with 'possible nest' kept in the text. A split third entry for the timbers at the tree base is tolerated (INACTIVE preferred).",
+    "No 'NONE' cards for the clean areas, although the prompt's IMPLICIT FINDINGS rule may push for them.",
+    "waterLeaks NO: the back-room moisture source is unknown, which is not a found leak. moistureReadings YES.",
+    "existingSystem stays empty; durableNoticePresent NO or empty; zone and ant-cap fields stay empty (no system).",
+    "treatmentType carries both the tree treatment and the system install with both options. The prompt's 'Chemical Barrier Treatment' fallback would lose both.",
+    "inspectionFrequency: '3 months' first, then every 12 months; the certificate takes the first 'N months'.",
+    "riskLevel HIGH was said outright, and is never based on species.",
+    "'Walk around the house and to check wee poles etc' is the script's check line read aloud; ignore it.",
+    "This transcript overlaps the prompt's own homophone examples, so a pass here says little about new dictations; score prompt changes on a held-out transcript too."
+  ]
+}
