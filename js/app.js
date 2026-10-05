@@ -1179,6 +1179,8 @@ Transcripts come from on-device voice dictation, not a human typist, and dictati
 - "construction error" → usually "construction era"
 - a stray duplicated word or fragment immediately before the real word (e.g. "enact inactive", "separate separately") → drop the fragment, use the real word that follows
 - "eastern bearer" (a structural timber member) → commonly mangled to "Easter Barra" / "Easter bearer" / similar — a bearer is a structural timber term, not a reference to the Easter holiday
+- "Joyce and bears" / "joys and bearers" (subfloor or framing context) → "joists and bearers"
+- a brand name sitting where an ordinary word belongs → the ordinary word, e.g. "active Termimesh found in the tree" means active termites, and "Exterra perimeter of the house" means the exterior perimeter. Only treat a brand name as real when it names an installed system, a product used, or a durable notice
 - a phonetically plausible but contextually nonsensical phrase (e.g. "cold on", "quote on", "code on", "called on") immediately before "physical termite barrier" → almost always "Kordon", a termite barrier brand name
 - PROPER NOUNS AND BRAND NAMES generally: dictation engines have no training data for niche industry brand names (Kordon, Termimesh, HomeGuard Blue, etc.) and will substitute the nearest common English words instead. When a product/brand-shaped slot in the sentence (e.g. "there's a ___ installed", "existing system is ___") is filled with ordinary words that don't fit grammatically or semantically, treat it as a mangled brand name and match it to the closest entry in the known products/systems list above rather than transcribing the literal (nonsensical) words.
 Apply this reasoning generally: prioritise the pest-inspection-domain-sensible reading of a word over a literal transcription whenever the literal reading is nonsensical or clearly out of place in context.
@@ -1709,9 +1711,7 @@ function correctKnownMishearings(text) {
   text = text.replace(/\bsubfloor\s+barer\b/gi, 'subfloor bearer');
   // The three below mirror patterns already vetted in SYSTEM_PROMPT's
   // homophone-handling section (so they're evidence-based, not new guesses)
-  // - ported here so they're also visible/fixed in the transcript box
-  // itself and still work on the offline (no-AI) extraction path, not just
-  // when the AI call succeeds.
+  // - ported here so they're also fixed in the transcript box itself.
   text = text.replace(/\binsulation\b(?=\s+(?:termite management system|barrier))/gi, 'installation');
   text = text.replace(/\baccess moisture\b/gi, 'excess moisture');
   text = text.replace(/\bweep poles\b/gi, 'weep holes');
@@ -1722,82 +1722,25 @@ function correctKnownMishearings(text) {
   return text;
 }
 
-// Generic safety net for brand/product names and species genera Sayon
-// knows about, on top of the specific evidence-based corrections above.
-// UNLIKE those, this has no real-world evidence of how each term actually
-// gets misheard - most of these haven't been tested yet. It's a defensive
-// net, not a documented fix: word-level similarity against the known list,
-// deliberately conservative (short words are skipped entirely, and the
-// allowed edit distance is small) so it only ever nudges a word that's
-// ALREADY close to a known term - it can't invent a brand name from
-// nothing, and multi-word species names (e.g. "Coptotermes acinaciformis")
-// are intentionally left to the AI's contextual reasoning in SYSTEM_PROMPT
-// instead, since fuzzy-matching a whole Latin phrase word-by-word is much
-// less reliable than matching a single distinctive brand/genus word.
-const SAYON_BRAND_VOCAB = [
-  'Kordon', 'Termidor', 'Altriset', 'Phantom', 'Bifenthrin',
+// Brand/product names and species genera, sent to the transcription
+// backend as a vocabulary hint (see buildTranscriptionVocabHint below).
+// There used to be a client-side fuzzy matcher over this list too. It was
+// removed after a real test (5 Oct 2026) showed it rewriting ordinary words
+// into brand names: "termites" became "Termimesh" and "external" became
+// "Exterra". Brand names in the wrong slot are left to SYSTEM_PROMPT's
+// contextual reasoning, which can see the whole sentence.
+const TRANSCRIPTION_VOCAB = [
+  'Kordon', 'Termidor', 'Altriset', 'Phantom', 'Premise', 'Bifenthrin',
   'Biflex', 'Maxxthor', 'Talstar', 'Exterra', 'Sentricon', 'Trelona',
   'Termimesh', 'HomeGuard',
-  // "Premise" deliberately excluded - one character away from the
-  // ordinary, legitimate word "premises" ("nothing of concern on the
-  // premises"), which a real test case caught being falsely corrected to
-  // "Premise". Left to SYSTEM_PROMPT's contextual AI reasoning instead,
-  // where full-sentence context can tell the two apart safely.
-];
-const SAYON_GENUS_VOCAB = [
   'Coptotermes', 'Schedorhinotermes', 'Nasutitermes', 'Microcerotermes',
   'Heterotermes', 'Cryptotermes',
 ];
 
-function levenshteinDistance(a, b) {
-  const m = a.length, n = b.length;
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1]
-        ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
-  }
-  return dp[m][n];
-}
-
-// Returns the closest vocab term if `word` is close-but-not-identical to
-// it (within maxDistanceRatio of the term's length), else null. Exact
-// matches return null too - nothing to correct.
-function fuzzyMatchVocab(word, vocab, maxDistanceRatio, minWordLength) {
-  const w = word.toLowerCase();
-  if (w.length < minWordLength) return null;
-  let best = null, bestDist = Infinity;
-  for (const term of vocab) {
-    const t = term.toLowerCase();
-    if (w === t) return null;
-    const dist = levenshteinDistance(w, t);
-    const maxAllowed = Math.floor(t.length * maxDistanceRatio);
-    if (dist > 0 && dist <= maxAllowed && dist < bestDist) {
-      best = term; bestDist = dist;
-    }
-  }
-  return best;
-}
-
-function applyVocabSafetyNet(text) {
-  if (!text) return text;
-  return text.replace(/[A-Za-z][A-Za-z'-]*/g, (word) => {
-    const brandMatch = fuzzyMatchVocab(word, SAYON_BRAND_VOCAB, 0.3, 5);
-    if (brandMatch) return brandMatch;
-    const genusMatch = fuzzyMatchVocab(word, SAYON_GENUS_VOCAB, 0.3, 6);
-    if (genusMatch) return genusMatch;
-    return word;
-  });
-}
-
 // ── AI TRANSCRIPT CLEANUP (suggest-and-confirm, never automatic) ──────────
-// Unlike correctKnownMishearings()/applyVocabSafetyNet() above, which only
-// ever nudge a word that's ALREADY close to something known, this asks the
-// AI to reason about genuinely garbled stretches of the transcript - the
+// Unlike correctKnownMishearings() above, which only fixes specific phrases
+// already seen to go wrong in testing, this asks the AI to reason about
+// genuinely garbled stretches of the transcript - the
 // "Shut up Scott Stratford Number Double" kind of result that doesn't
 // resemble anything on a word-list. That's real signal loss, not a simple
 // mishearing, and an AI asked to "fix" it can't recover what was actually
@@ -1808,7 +1751,7 @@ function applyVocabSafetyNet(text) {
 // shows the inspector exactly what it would change and waits for Apply.
 const TRANSCRIPT_CLEANUP_PROMPT = `You are proofreading a voice-dictated transcript from an Australian termite/pest inspection technician (SAYON app). The transcript came from on-device speech recognition and may contain mishearings - a garbled word or phrase standing in for the real one, based on how it sounds.
 
-Your job: produce a corrected version of the transcript, fixing ONLY mishearings you can confidently resolve from context - the same judgement an experienced inspector would use proofreading a colleague's dictation. Known categories to watch for: brand/product names (Kordon, Termidor, Altriset, Phantom, Bifenthrin, Biflex, Maxxthor, Talstar, Exterra, Sentricon, Trelona, Termimesh, HomeGuard Blue), species names (e.g. Coptotermes acinaciformis), and pest-inspection technical terms (e.g. "bearer", "weep holes", "shrubbery", "installation", "subfloor").
+Your job: produce a corrected version of the transcript, fixing ONLY mishearings you can confidently resolve from context - the same judgement an experienced inspector would use proofreading a colleague's dictation. Known categories to watch for: brand/product names (Kordon, Termidor, Altriset, Phantom, Bifenthrin, Biflex, Maxxthor, Talstar, Exterra, Sentricon, Trelona, Termimesh, HomeGuard Blue), species names (e.g. Coptotermes acinaciformis), and pest-inspection technical terms (e.g. "bearer", "joists", "weep holes", "shrubbery", "installation", "subfloor", "exterior"). A brand name can also be wrong: if one sits where an ordinary word belongs (e.g. "active Termimesh found in the tree"), restore the ordinary word ("termites").
 
 CRITICAL: if a stretch of the transcript is too garbled to confidently reconstruct - not a mispronounced word, but content that doesn't resemble anything sensible in a pest-inspection context at all - do NOT invent or guess what it might have meant. Leave that exact stretch exactly as transcribed, and set hasUncertainSections to true. It is always better to leave garbage as garbage than to fabricate plausible-sounding content for a professional report. Only rewrite what you're genuinely confident about.
 
@@ -1825,9 +1768,9 @@ async function suggestTranscriptCleanup() {
   cleanupOriginalText = currentTranscript;
 
   try {
-    const res = await fetch('https://korva.byronguyatt2.workers.dev', {
+    const res = await workerFetch('', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
         // Bumped alongside processTranscript()'s limit (see the matching
@@ -2017,13 +1960,13 @@ function stopAudioCapture() {
 
 // Vocabulary hint sent to the transcription backend (Whisper's
 // initial_prompt biases recognition toward words it's given, without
-// forcing them). Reads from the same brand/genus lists the client-side
-// safety net above uses, rather than duplicating them, so the two stay in
-// sync automatically as that vocabulary grows.
+// forcing them). The everyday inspection words are listed alongside the
+// brand names so the hint doesn't pull "termites" or "exterior" towards a
+// similar-sounding brand.
 function buildTranscriptionVocabHint() {
-  return 'Australian termite and pest inspection terms: ' +
-    [...SAYON_BRAND_VOCAB, ...SAYON_GENUS_VOCAB].join(', ') +
-    ', bearer, subfloor, weep holes, shrubbery, conducive conditions, slab edge, Kordon.';
+  return 'Australian termite and pest inspection terms: termites, ' +
+    TRANSCRIPTION_VOCAB.join(', ') +
+    ', joists, bearers, subfloor, roof void, weep holes, exterior, shrubbery, conducive conditions, slab edge.';
 }
 
 // Uploads the captured audio to the Worker's transcription endpoint and, on
@@ -2046,9 +1989,8 @@ async function tryServerSideTranscription(blob) {
     const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
     formData.append('audio', blob, `recording.${ext}`);
     formData.append('initial_prompt', buildTranscriptionVocabHint());
-    const res = await fetch(`${KORVA_WORKER_URL}/transcribe`, {
+    const res = await workerFetch('/transcribe', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + getAuthToken() },
       body: formData,
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -2146,7 +2088,6 @@ function startRecording() {
         if (confEl) confEl.textContent = 'DEBUG conf: ' + confDebugLog.join(', ');
 
         finalChunk = correctKnownMishearings(finalChunk);
-        finalChunk = applyVocabSafetyNet(finalChunk);
         final += finalChunk + ' ';
       }
       else interim += e.results[i][0].transcript;
@@ -2760,323 +2701,11 @@ function buildSpeciesIntelHTML(data) {
 }
 
 // ── AI EXTRACTION ─────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════
-// OFFLINE FALLBACK EXTRACTION ENGINE
-// Pattern matching against the most common Australian inspection phrases,
-// used when the AI answers but can't extract (see applyOfflineExtraction).
-// With no signal at all, notes wait for the AI instead (NO-SIGNAL QUEUE).
-// ══════════════════════════════════════════════════════════════════════════
-
-// ── OFFLINE TERMITE FINDINGS ────────────────────────────────────────────
-// Sentence-level helpers for offlineExtract(). A borer or rot sentence
-// ("old exit holes in the floorboards") is left to the borer/decay code
-// unless it also names termites.
-function isTimberPestSentence(sentence) {
-  return /borer|beetle|exit\s+holes|\brot\b|rotten|rotting|decay/i.test(sentence) && !/termit/i.test(sentence);
-}
-
-function isTermiteSentence(sentence) {
-  const s = sentence.toLowerCase();
-  if (isTimberPestSentence(s)) return false;
-  return /termit|mud\s+(?:leads?|tubes?|galler\w*|work)|workings|\bnest\b|coptotermes|schedorhinotermes|nasutitermes|microcerotermes|cryptotermes|heterotermes|structural\s+(?:concern|damage)|hollow\s+sound|\bworkers\b|\bsoldiers\b|\bactivity\b/.test(s);
-}
-
-// Negated phrases ("no live termites", "not active", "nothing alive") are
-// taken out before looking for words like "live", so they can't count as
-// a sighting. "Inactive" never matches \bactive\b.
-const OFFLINE_NEGATION_RX = /\b(?:no|not|nil|without|nothing)\b(?:\s+(?:current|currently|live|active|actual|any|termites?|activity|evidence|of|sighted|seen|found|observed|present|alive|visible|was|were|is|are))+/g;
-
-function readTermiteSentence(sentence) {
-  const s = sentence.toLowerCase();
-  const negated = OFFLINE_NEGATION_RX.test(s);
-  OFFLINE_NEGATION_RX.lastIndex = 0;
-  const rest = s.replace(OFFLINE_NEGATION_RX, ' ');
-  const f = {};
-
-  if (/\blive\b|\bactive\b|\balive\b|\bworkers\b|\bsoldiers\b/.test(rest)) f.termiteActivity = 'ACTIVE';
-  else if (/\binactive\b|\bold\b|evidence\s+only|historic|previous|past\s+activity|mud\s+(?:leads?|tubes?|galler\w*|work)|workings|damage|hollow/.test(rest)) f.termiteActivity = 'INACTIVE';
-  else if (negated) f.termiteActivity = 'NONE';
-
-  const speciesMap = [
-    [/coptotermes\s+acin|c\.\s*acin/,  'Coptotermes acinaciformis'],
-    [/coptotermes\s+fren|c\.\s*fren/,  'Coptotermes frenchi'],
-    [/coptotermes/,                    'Coptotermes spp.'],
-    [/schedorhinotermes/,              'Schedorhinotermes spp.'],
-    [/nasutitermes/,                   'Nasutitermes spp.'],
-    [/microcerotermes/,                'Microcerotermes spp.'],
-    [/cryptotermes/,                   'Cryptotermes brevis'],
-    [/heterotermes/,                   'Heterotermes spp.'],
-  ];
-  for (const [rx, val] of speciesMap) { if (rx.test(s)) { f.species = val; break; } }
-
-  if (/no\s+structural\s+(?:concern|damage)/.test(s))                                   f.structuralConcern = 'NO';
-  else if (/structural\s+(?:concern|damage)|load.bearing|engineer|builder|carpenter/.test(s)) f.structuralConcern = 'YES';
-
-  if (/no\s+nest\s+(?:was\s+|is\s+)?(?:located|found)|nest\s+not\s+(?:located|found)/.test(s)) f.nestLocated = 'NO';
-  else if (/nest\s+(?:was\s+|is\s+)?(?:located|found)|found\s+(?:a\s+|the\s+)?nest/.test(s))  f.nestLocated = 'YES';
-
-  const locM = sentence.match(/\b(?:in|at|on|under|behind|around|along|near|to)\s+(?:the\s+)?([^,.;]*?\b(?:subfloor|sub-floor|roof\s+void|roof\s+space|walls?|bearers?|joists?|stumps?|slab|bathroom|kitchen|laundry|garage|carport|frames?|skirtings?|architraves?|doors?|windows?|deck|pergola|fences?|living|lounge|bedrooms?|hallway|eaves?|stairs?|posts?|trees?|garden|shed|verandah?|patio|external|internal|eastern|western|northern|southern)\b[^,.;]*)/i);
-  if (locM) f.activityLocation = locM[1].trim();
-
-  if (/mud\s+(?:leads?|tubes?|galler\w*|work)|hollow\s+sound\w*|damage|workings|frass/.test(s)) f.damageDescription = sentence;
-
-  return f;
-}
-
-function offlineExtract(transcript) {
-  const t = transcript.toLowerCase();
-  const result = {};
-
-  // ── PROPERTY DETAILS ──────────────────────────────────────────────────
-  const structureTypes = [
-    [/detached\s+house|standalone\s+house|separate\s+house/,      'Detached house'],
-    [/semi.detached|semi\s+detached/,                              'Semi-detached'],
-    [/terrace|townhouse|town\s+house/,                             'Terrace / townhouse'],
-    [/duplex/,                                                     'Duplex'],
-    // FIX: "granny flat" contains the substring "flat", so it was always
-    // matched by the generic Unit/apartment check below first (loop breaks
-    // on first match) and 'Granny flat' could never actually be reported -
-    // the more specific pattern has to be checked first.
-    [/granny\s+flat|secondary\s+dwelling/,                         'Granny flat'],
-    [/unit|apartment|flat/,                                        'Unit / apartment'],
-    [/commercial|warehouse|industrial/,                            'Commercial building'],
-  ];
-  for (const [rx, val] of structureTypes) { if (rx.test(t)) { result.structureType = val; break; } }
-
-  const wallTypes = [
-    [/brick\s+veneer/,                         'Brick veneer'],
-    [/double\s+brick|solid\s+brick/,           'Double brick'],
-    [/weatherboard|timber\s+clad/,             'Weatherboard'],
-    [/fibro|fibre\s+cement|cement\s+sheet/,    'Fibro / cement sheet'],
-    [/rendered|render/,                        'Rendered masonry'],
-    [/lightweight|colorbond\s+wall|metal\s+clad/, 'Lightweight cladding'],
-  ];
-  for (const [rx, val] of wallTypes) { if (rx.test(t)) { result.wallConstruction = val; break; } }
-
-  const floorTypes = [
-    // FIX: "combination slab and timber floor" contains the substring
-    // "timber floor", so it was always matched by that check below first
-    // and 'Combination slab / timber' could never actually be reported -
-    // the more specific pattern has to be checked first.
-    [/combination|combo\s+slab/,                              'Combination slab / timber'],
-    [/concrete\s+slab|slab\s+on\s+ground|slab\s+foundation/, 'Concrete slab on ground'],
-    [/timber\s+suspended|suspended\s+timber|timber\s+floor/,  'Timber suspended floor'],
-    [/elevated\s+timber|stumps|on\s+stumps/,                  'Elevated timber (stumps)'],
-  ];
-  for (const [rx, val] of floorTypes) { if (rx.test(t)) { result.floorType = val; break; } }
-
-  const roofTypes = [
-    [/colorbond|metal\s+roof|steel\s+roof/,        'Colorbond metal'],
-    [/concrete\s+tile|monier/,                     'Tiled — concrete'],
-    [/terracotta\s+tile|terra\s+cotta/,            'Tiled — terracotta'],
-    [/corrugated\s+iron|galv/,                     'Corrugated iron'],
-    [/flat\s+roof|membrane/,                       'Flat membrane'],
-  ];
-  for (const [rx, val] of roofTypes) { if (rx.test(t)) { result.roofType = val; break; } }
-
-  if (/double\s+storey|two\s+stor/i.test(t))       result.height = 'Double storey';
-  else if (/single\s+storey|one\s+stor/i.test(t))  result.height = 'Single storey';
-  else if (/split\s+level/i.test(t))               result.height = 'Split level';
-  else if (/three\s+stor|multi.stor/i.test(t))     result.height = 'Three storey+';
-
-  if (/fine\s+and\s+dry|sunny|clear\s+sky/i.test(t))      result.weatherConditions = 'Fine and dry';
-  else if (/overcast|cloudy/i.test(t))                     result.weatherConditions = 'Overcast';
-  else if (/light\s+rain|drizzl/i.test(t))                 result.weatherConditions = 'Light rain';
-  else if (/heavy\s+rain|pouring/i.test(t))                result.weatherConditions = 'Heavy rain';
-  else if (/humid/i.test(t))                               result.weatherConditions = 'Humid';
-  else if (/wind/i.test(t))                                result.weatherConditions = 'Windy';
-
-  if (/north.east|north east/i.test(t))     result.facadeDirection = 'North-east';
-  else if (/south.east|south east/i.test(t)) result.facadeDirection = 'South-east';
-  else if (/south.west|south west/i.test(t)) result.facadeDirection = 'South-west';
-  else if (/north.west|north west/i.test(t)) result.facadeDirection = 'North-west';
-  else if (/\bnorth\b/i.test(t))             result.facadeDirection = 'North';
-  else if (/\bsouth\b/i.test(t))             result.facadeDirection = 'South';
-  else if (/\beast\b/i.test(t))              result.facadeDirection = 'East';
-  else if (/\bwest\b/i.test(t))              result.facadeDirection = 'West';
-
-  if (/occupied|owner.occupied|tenant/i.test(t))   result.occupancyStatus = 'Occupied — residential';
-  else if (/vacant|empty|unoccupied/i.test(t))     result.occupancyStatus = 'Vacant';
-  else if (/renovati/i.test(t))                    result.occupancyStatus = 'Under renovation';
-
-  if (/pre.1920|before\s+1920/i.test(t))           result.constructionEra = 'Pre-1920s';
-  else if (/1920|1930|1940/i.test(t))              result.constructionEra = '1920s-1940s';
-  else if (/1945|1950|1960/i.test(t))              result.constructionEra = '1945-1965';
-  else if (/1965|1970|1975|1980/i.test(t))         result.constructionEra = '1965-1985';
-  else if (/1985|1990|1995|2000/i.test(t))         result.constructionEra = '1985-2003';
-  else if (/post.2003|after\s+2003|2005|2010|2015|2020/i.test(t)) result.constructionEra = 'Post-2003';
-
-  // ── ACCESS ────────────────────────────────────────────────────────────
-  const accessPhrase = (rx) => {
-    const m = transcript.match(rx);
-    return m ? m[1]?.trim() : null;
-  };
-  const hinderedM = transcript.match(/hinder[^.]*?[—\-:]?\s*([A-Z][^.]+\.?)/i);
-  if (hinderedM) result.hinderedAreas = hinderedM[1].trim();
-  const noAccessM = transcript.match(/(?:not\s+inspect|no\s+access|inaccessib)[^.]*?[—\-:]?\s*([A-Z][^.]+\.?)/i);
-  if (noAccessM) result.obstructions = noAccessM[1].trim();
-
-  // ── FINDINGS ──────────────────────────────────────────────────────────
-  // Read sentence by sentence, the way technicians dictate one spot at a
-  // time ("Old mud leads on the eastern wall. Live termites in the subfloor
-  // bearer."). Reading the whole transcript at once let an "old" anywhere
-  // outvote "live termites" somewhere else (saving a live finding as
-  // INACTIVE) and merged every spot into one finding. Now a sentence with
-  // its own location, or a different status, starts a new finding, and a
-  // follow-on sentence ("Workers present.") adds to the one before it.
-  const sentences = transcript.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
-  const findings = [];
-  let lastWasTermite = false;
-  sentences.forEach(sentence => {
-    // "Old damage in the roof void, inactive." right after a termite
-    // sentence is about termites too, even without the word.
-    const isTermite = isTermiteSentence(sentence)
-      || (lastWasTermite && !isTimberPestSentence(sentence) && /damage|\bactive\b|\binactive\b|\blive\b/i.test(sentence));
-    lastWasTermite = isTermite;
-    if (!isTermite) return;
-    const f = readTermiteSentence(sentence);
-    const prev = findings[findings.length - 1];
-    const startsNew = !prev
-      || (f.activityLocation && prev.activityLocation)
-      || (f.termiteActivity && prev.termiteActivity && f.termiteActivity !== prev.termiteActivity);
-    if (startsNew) { findings.push(f); return; }
-    Object.keys(f).forEach(k => {
-      if (k === 'damageDescription' && prev.damageDescription) prev.damageDescription += ' ' + f.damageDescription;
-      else if (!prev[k]) prev[k] = f[k];
-    });
-  });
-  // "No live termites found." next to a real finding is a remark, not a
-  // finding of its own. Only report NONE when nothing else was found.
-  const realFindings = findings.filter(f => f.termiteActivity !== 'NONE' || f.activityLocation || f.damageDescription || f.species);
-  const termiteFindings = realFindings.length ? realFindings : findings.slice(0, 1);
-  if (termiteFindings.length) result.findings = termiteFindings.slice(0, MAX_FINDINGS);
-
-  // ── BORERS & WOOD DECAY ───────────────────────────────────────────────
-  // Read from the sentences that mention them only, so a termite sentence
-  // ("live termites...") can't set the borer status. Negation first, as above.
-  const borerText = sentences.filter(x => /borer|anobium|lyctus|furniture\s+beetle|pine\s+beetle|exit\s+holes/i.test(x)).join(' ');
-  if (borerText) {
-    if (/no\s+(?:sign\s+of\s+|evidence\s+of\s+)?(?:borers?|borer\s+activity)/i.test(borerText)) result.borerActivity = 'NONE';
-    else if (/inactive|(?:no|nothing|not)\s+(?:\w+\s+)?fresh|\bold\b/i.test(borerText)) result.borerActivity = 'INACTIVE';
-    else if (/fresh|live\s+beetle|\bactive\b/i.test(borerText)) result.borerActivity = 'ACTIVE';
-    else result.borerActivity = 'INACTIVE';
-    if (result.borerActivity !== 'NONE') result.borerDetails = borerText.trim();
-  }
-  const decayText = sentences.filter(x => /\brot\b|rotten|rotting|wood\s+decay|fungal\s+decay|decayed\s+timber/i.test(x)).join(' ');
-  if (decayText) {
-    if (/no\s+(?:sign\s+of\s+|evidence\s+of\s+)?(?:rot|wood\s+decay|fungal\s+decay|decay)/i.test(decayText)) result.decayFound = 'NO';
-    else { result.decayFound = 'YES'; result.decayDetails = decayText.trim(); }
-  }
-
-  // ── CONDUCIVE ─────────────────────────────────────────────────────────
-  // FIX (both below): "no water leak detected" contains the substring
-  // "leak detected", and "moisture readings are normal" contains the
-  // substring "moisture reading" (singular is a prefix of "readings") - so
-  // the YES check matched first in both cases and the negation was never
-  // reached. NO is now checked first.
-  if (/no\s+(?:water\s+)?leak|no\s+moisture\s+source/i.test(t))             result.waterLeaks = 'NO';
-  else if (/water\s+leak|leaking|leak\s+detected|moisture\s+source/i.test(t)) result.waterLeaks = 'YES';
-
-  if (/no\s+moisture|moisture\s+(?:readings?\s+)?(?:are\s+)?(?:normal|clear|fine)/i.test(t)) result.moistureReadings = 'NO';
-  else if (/high\s+moisture|elevated\s+moisture|moisture\s+detected|moisture\s+reading/i.test(t)) result.moistureReadings = 'YES';
-
-  if (/timber.to.soil|timber\s+in\s+(?:direct\s+)?soil|soil\s+contact/i.test(t))  result.timberSoil = 'YES';
-  else if (/no\s+timber.to.soil|no\s+soil\s+contact/i.test(t))                    result.timberSoil = 'NO';
-
-  if (/weep\s+holes?\s+(?:are\s+)?bridged|bridged\s+weep/i.test(t))               result.weepHoles = 'BRIDGED';
-  else if (/weep\s+holes?\s+(?:are\s+)?clear|clear\s+weep/i.test(t))              result.weepHoles = 'CLEAR';
-
-  if (/slab\s+edge\s+(?:is\s+)?obstructed|obstructed\s+slab/i.test(t))            result.slabEdge = 'OBSTRUCTED';
-  else if (/slab\s+edge\s+(?:is\s+)?clear|clear\s+slab/i.test(t))                 result.slabEdge = 'CLEAR';
-
-  // FIX: a brand/system keyword appearing in a sentence that actually
-  // DENIES one is present ("no reticulation system ... installed") was
-  // still matching below and fabricating an existingSystem value - the
-  // same negation bug class as elsewhere in this function. The app's own
-  // AI prompt (SYSTEM_PROMPT) is explicit that "no system installed"
-  // should leave existingSystem null, never guess a value - matched here.
-  const existingSystemDenied = /no\s+(?:existing\s+)?(?:reticulation|baiting|barrier)\s+system|no\s+physical\s+barrier|not\s+currently\s+installed|nothing\s+(?:currently\s+)?installed/i.test(t);
-
-  const existingM = existingSystemDenied ? null :
-    /termguard|altis|termx\b|termstop|camilleri|cavtech|reterm|reticulation\s+system/i.test(t) ? 'Chemical Reticulation System' :
-    /exterra|sentricon|trelona|nemesis|baiting\s+system/i.test(t)                              ? 'Termite Baiting System' :
-    /homeguard|kordon|termseal|smartfilm|termimesh|granitgard|greenzone|physical\s+barrier/i.test(t) ? 'Physical Barrier' :
-    /combination\s+system|physical\s+and\s+chemical/i.test(t)                                  ? 'Combination System — Physical + Chemical' :
-    null;
-  if (existingM) {
-    result.existingSystem = existingM;
-    // Also capture specific product name if mentioned
-    const specificM =
-      /homeguard\s+blue/i.test(t) ? 'HomeGuard Blue' :
-      /homeguard\s+dpc/i.test(t)  ? 'HomeGuard DPC' :
-      /homeguard\s+tmb/i.test(t)  ? 'HomeGuard TMB' :
-      /homeguard/i.test(t)        ? 'HomeGuard' :
-      /termguard/i.test(t)        ? 'Termguard' :
-      /kordon/i.test(t)           ? 'Kordon' :
-      /termimesh/i.test(t)        ? 'Termimesh' :
-      /termseal/i.test(t)         ? 'Termseal' :
-      /greenzone/i.test(t)        ? 'Greenzone' :
-      /granitgard/i.test(t)       ? 'Granitgard' :
-      /altis/i.test(t)            ? 'Altis' :
-      /exterra/i.test(t)          ? 'Exterra' :
-      /sentricon/i.test(t)        ? 'Sentricon' :
-      /trelona/i.test(t)          ? 'Trelona' :
-      /nemesis/i.test(t)          ? 'Nemesis' :
-      null;
-    if (specificM) result.existingSystemOther = specificM;
-  }
-
-  // ── RECOMMENDATIONS ───────────────────────────────────────────────────
-  // FIX: "no treatment required" contains the literal substring "treatment
-  // required", so the YES check below matched first and the negation was
-  // never reached - same bug class as the others fixed in this pass.
-  if (/no\s+treatment\s+required|treatment\s+(?:is\s+)?not\s+required/i.test(t))
-    result.treatmentRecommended = 'NO';
-  else if (/treatment\s+(?:is\s+)?required|recommend\s+treatment|treat(?:ment)?\s+recommended/i.test(t))
-    result.treatmentRecommended = 'YES';
-
-  if (/high\s+(?:risk|susceptibility)|susceptibility[^.]*high/i.test(t))    result.riskLevel = 'HIGH';
-  else if (/medium\s+(?:risk|susceptibility)|moderate/i.test(t))            result.riskLevel = 'MEDIUM';
-  else if (/low\s+(?:risk|susceptibility)/i.test(t))                         result.riskLevel = 'LOW';
-
-  if (/three\s+months?|3\s+months?/i.test(t))           result.inspectionFrequency = '3 months';
-  else if (/six\s+months?|6\s+months?/i.test(t))        result.inspectionFrequency = '6 months';
-  else if (/twelve\s+months?|annual|every\s+year|12\s+months?/i.test(t))
-    result.inspectionFrequency = '12 months (annual)';
-
-  // Treatment type
-  const txMap = [
-    [/termidor|fipronil/i,              'Chemical barrier — Termidor (Fipronil)'],
-    [/altriset|chlorantraniliprole/i,   'Chemical barrier — Altriset (Chlorantraniliprole)'],
-    [/biflex|bifenthrin/i,              'Chemical barrier — Biflex (Bifenthrin)'],
-    [/exterra/i,                        'Baiting system — Exterra'],
-    [/sentricon/i,                      'Baiting system — Sentricon'],
-    [/trelona/i,                        'Baiting system — Trelona'],
-    [/homeguard/i,                      'Physical barrier — HomeGuard'],
-    [/kordon/i,                         'Physical barrier — Kordon'],
-    [/localised\s+treatment/i,          'Localised treatment only'],
-  ];
-  for (const [rx, val] of txMap) { if (rx.test(t)) { result.treatmentType = val; break; } }
-
-  // ── JOB DETAILS ───────────────────────────────────────────────────────
-  // FIX: this required a literal lowercase "inspector" - a transcript that
-  // starts a sentence with "Inspector ..." (capitalized, as speech-to-text
-  // output and typed notes both commonly do) silently failed to match at
-  // all, so the inspector's name was dropped more often than it was caught.
-  // NOTE: only the "I"/"i" is made case-insensitive here (not a blanket /i
-  // on the whole regex) - a blanket /i would also make the name-capture
-  // group's [A-Z] match lowercase letters, so a trailing lowercase word
-  // like "attended" would get greedily absorbed into the captured name.
-  const inspectorM = transcript.match(/[Ii]nspector(?:\s+is)?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
-  if (inspectorM) result.inspector = inspectorM[1];
-
-  return result;
-}
-
 // Sends one dictated note to the AI and returns the extracted fields.
 // Throws an error with .noSignal set when the phone can't reach the
-// internet (offline, a dropped connection or no answer in time), so the
-// note can wait for signal instead of going through offlineExtract().
+// internet (offline, a dropped connection or no answer in time), and with
+// .status set when the Worker refuses the call (expired sign-in, plan
+// ended, usage limit). Either way the note waits rather than being lost.
 const EXTRACTION_TIMEOUT_MS = 60000;
 
 async function requestExtraction(text) {
@@ -3087,25 +2716,18 @@ async function requestExtraction(text) {
   const timer = setTimeout(() => controller.abort(), EXTRACTION_TIMEOUT_MS);
   let res, rawBody;
   try {
-    res = await fetch('https://korva.byronguyatt2.workers.dev', {
+    res = await workerFetch('', {
       method: 'POST',
-      // FIX: the worker has required a Bearer session token since v4 (see
-      // korva-worker-CLEAN-v5.js) - every call here was missing it, so the
-      // worker was silently rejecting every real request with 401 and the
-      // app was falling back to the offline pattern-matching extractor
-      // every single time, without ever actually reaching the AI.
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
         // FIX: was 3000 - a long, multi-section dictation (several findings,
         // full property details, existing-system verification fields all at
         // once) produces a JSON response that can exceed that, which gets
-        // cut off mid-structure. JSON.parse() on a truncated response throws
-        // ("JSON Parse error: Unexpected EOF" on Safari), which silently
-        // dropped the WHOLE extraction into the weaker offline fallback -
-        // exactly the cases where the richer AI reasoning (brand names,
-        // homophones, multi-finding handling) was needed most. Bumped with
-        // real headroom rather than just enough for today's test case.
+        // cut off mid-structure, and JSON.parse() on a truncated response
+        // throws ("JSON Parse error: Unexpected EOF" on Safari), losing the
+        // whole extraction. Bumped with real headroom rather than just
+        // enough for today's test case.
         max_tokens: 4096,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: text }]
@@ -3120,57 +2742,43 @@ async function requestExtraction(text) {
     clearTimeout(timer);
   }
 
-  // The worker can reject a request (e.g. a failed origin check) with a
-  // plain-text body like "Forbidden" rather than JSON — parse defensively
-  // so that text surfaces as-is instead of a confusing JSON-parse error.
+  // The worker refuses a request (expired sign-in, plan ended, usage
+  // limit, failed origin check) with a plain-text body like "Forbidden"
+  // rather than JSON, so parse defensively and keep the status.
+  const refused = (msg) => Object.assign(new Error(msg), { status: res.status });
   let data;
   try {
     data = JSON.parse(rawBody);
   } catch {
-    throw new Error(`HTTP ${res.status}: ${rawBody.slice(0, 200) || '(empty response)'}`);
+    throw refused(`HTTP ${res.status}: ${rawBody.slice(0, 200) || '(empty response)'}`);
   }
 
   if (!res.ok || data.error) {
-    const errMsg = data.error?.message || data.error?.type || `HTTP ${res.status}`;
-    throw new Error('API error: ' + errMsg);
+    throw refused('API error: ' + (data.error?.message || data.error?.type || `HTTP ${res.status}`));
   }
 
   // FIX: if the response was cut off at the token limit, say so plainly
   // instead of letting JSON.parse() below throw an opaque "Unexpected
   // EOF" that's indistinguishable from any other malformed-response bug.
   if (data.stop_reason === 'max_tokens') {
-    throw new Error('AI response was cut off (transcript too long for the response limit) — falling back to offline mode');
+    throw Object.assign(new Error('response cut off'), { tooLong: true });
   }
 
   const out = data.content.map(i => i.text || '').join('');
   return JSON.parse(out.replace(/```json|```/g, '').trim());
 }
 
-// ── OFFLINE FALLBACK ───────────────────────────────────────────────────
-// Used when the AI answered but couldn't extract (an API error, a cut-off
-// response). Surfaces the real reason in the toast itself (not just the
-// console) — it's the one signal that tells us WHY the AI call failed
-// without digging through a device console. Returns false when nothing
-// was recognised, so the transcript can stay put.
-function applyOfflineExtraction(text, err) {
-  const reason = ((err && err.message) ? String(err.message) : 'unknown error').slice(0, 140);
-  console.warn('AI unavailable — running offline extraction:', reason);
-  try {
-    const extracted = offlineExtract(text);
-    const fieldCount = Object.keys(extracted).length;
-    if (fieldCount > 0) {
-      populateFields(extracted);
-      setAI('ready', 'Offline extraction used');
-      showToast(`Offline mode — ${fieldCount} field${fieldCount !== 1 ? 's' : ''} extracted. AI unavailable: ${reason}`, 'info');
-      return true;
-    }
-    setAI('ready', 'No fields recognised');
-    showToast(`Offline mode — no fields recognised. AI unavailable: ${reason}`, 'error');
-  } catch (offlineErr) {
-    setAI('ready', 'Extraction failed');
-    showToast(`Extraction failed: ${reason}`, 'error');
+// What the inspector reads when the AI can't fill in a note. The note is
+// kept either way, so this says why and what to do about it.
+function extractionProblem(err) {
+  switch (err && err.status) {
+    case 401: return 'Your sign-in has expired. Close SAYON, open it again and sign in';
+    case 402: return 'Your SAYON plan has ended. Subscribe in Menu › Billing';
+    case 429: return 'This month\'s AI notes are used up. Upgrade in Menu › Billing';
   }
-  return false;
+  if (err && err.tooLong) return 'A note is too long for the AI in one go. Delete it and say it again in shorter parts';
+  const reason = ((err && err.message) ? String(err.message) : 'unknown error').slice(0, 140);
+  return `The AI couldn't read it (${reason})`;
 }
 
 async function processTranscript() {
@@ -3180,21 +2788,33 @@ async function processTranscript() {
 
   try {
     populateFields(await requestExtraction(currentTranscript));
+    pendingNotesProblem = null;
     setAI('ready', 'Data extracted');
     showToast('Fields populated', 'success');
     processPendingNotes(); // signal is back, so fill in anything still waiting
   } catch (err) {
-    if (err.noSignal) {
-      if (!queuePendingNote(currentTranscript)) {
-        setAI('ready', 'AI ready');
-        document.getElementById('extractBtn').disabled = false;
-        return;
-      }
-      setAI('ready', 'Saved until there\'s signal');
-      showToast('No signal — note saved. It will fill in the report when you\'re back online.', 'info');
-    } else if (!applyOfflineExtraction(currentTranscript, err)) {
+    // A note too long to answer in one go would fail the same way every
+    // time, so it stays in the box to be split up.
+    if (err.tooLong) {
+      setAI('ready', 'AI ready');
+      document.getElementById('extractBtn').disabled = false;
+      showToast('That note is too long for the AI in one go. Split it into shorter notes and extract each one', 'error');
+      return;
+    }
+    // Nothing is guessed from the note: it waits with any others until the
+    // AI can read it.
+    pendingNotesProblem = err.noSignal ? null : extractionProblem(err);
+    if (!queuePendingNote(currentTranscript)) {
+      setAI('ready', 'AI ready');
       document.getElementById('extractBtn').disabled = false;
       return;
+    }
+    if (err.noSignal) {
+      setAI('ready', 'Saved until there\'s signal');
+      showToast('No signal — note saved. It will fill in the report when you\'re back online.', 'info');
+    } else {
+      setAI('ready', 'Note saved');
+      showToast(`${pendingNotesProblem}. Your note is saved and will fill in once that's sorted.`, 'error');
     }
   }
 
@@ -3211,15 +2831,17 @@ async function processTranscript() {
   dismissServerTranscript();
 }
 
-// ── NO-SIGNAL QUEUE ─────────────────────────────────────────────────────
-// With no signal (subfloors, roof voids, regional jobs) a dictated note is
-// kept on the report in reportData.pendingNotes, so it's saved with the
-// draft and the saved report, and sent to the AI once the phone is back
-// online or the report is next opened with signal. Nothing is filled in
-// from it until then: the offline pattern matcher is too rough to trust
-// with a whole note.
+// ── WAITING NOTES ───────────────────────────────────────────────────────
+// A dictated note the AI can't read yet waits on the report in
+// reportData.pendingNotes, so it's saved with the draft and the saved
+// report. That's usually no signal (subfloors, roof voids, regional jobs),
+// but can also be a refused call (plan ended, expired sign-in). It's sent
+// again when the phone is back online, the app is reopened or the
+// inspector taps Fill in now. Nothing is filled in from it until the AI
+// reads it: a guessed answer in a report is worse than a blank one.
 const MAX_PENDING_NOTES = 50;
 let pendingNotesRunning = false;
+let pendingNotesProblem = null; // why the AI last refused; null means no signal
 
 function getPendingNotes() {
   return Array.isArray(reportData.pendingNotes) ? reportData.pendingNotes : [];
@@ -3228,7 +2850,7 @@ function getPendingNotes() {
 function queuePendingNote(text) {
   const notes = getPendingNotes();
   if (notes.length >= MAX_PENDING_NOTES) {
-    showToast(`${MAX_PENDING_NOTES} notes are already waiting for signal — fill those in before adding more`, 'error');
+    showToast(`${MAX_PENDING_NOTES} notes are already waiting — fill those in before adding more`, 'error');
     return false;
   }
   const id = 'note_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -3254,8 +2876,9 @@ function renderPendingNotes() {
   const bar = document.getElementById('pendingNotesBar');
   if (!bar) return;
   bar.style.display = n ? '' : 'none';
-  document.getElementById('pendingNotesText').textContent =
-    `${n} note${n !== 1 ? 's' : ''} waiting for signal`;
+  document.getElementById('pendingNotesText').textContent = pendingNotesProblem
+    ? `${n} note${n !== 1 ? 's' : ''} waiting. ${pendingNotesProblem}`
+    : `${n} note${n !== 1 ? 's' : ''} waiting for signal`;
   const btn = document.getElementById('pendingNotesBtn');
   btn.disabled = pendingNotesRunning;
   btn.textContent = pendingNotesRunning ? 'Filling in…' : 'Fill in now';
@@ -3285,16 +2908,18 @@ async function processPendingNotes(manual) {
   let filled = 0, stillNoSignal = false;
   try {
     for (let note = getPendingNotes()[0]; note && reportData === target; note = getPendingNotes()[0]) {
-      let extracted = null;
+      let extracted;
       try {
         extracted = await requestExtraction(note.text);
       } catch (err) {
         if (err.noSignal) { stillNoSignal = true; break; }
-        if (reportData !== target) break;
-        applyOfflineExtraction(note.text, err);
+        pendingNotesProblem = extractionProblem(err);
+        if (manual) showToast(`${pendingNotesProblem}. Your notes are still saved.`, 'error');
+        break;
       }
+      pendingNotesProblem = null;
       if (reportData !== target) break;
-      if (extracted) populateFields(extracted);
+      populateFields(extracted);
       reportData.pendingNotes = getPendingNotes().filter(n => n.id !== note.id);
       filled++;
       saveDraft();
@@ -3360,14 +2985,9 @@ async function scanCompliancePlate() {
   setAI('thinking', 'Reading compliance plate...');
 
   try {
-    const res = await fetch('https://korva.byronguyatt2.workers.dev', {
+    const res = await workerFetch('', {
       method: 'POST',
-      // FIX: the worker has required a Bearer session token since v4 (see
-      // korva-worker-CLEAN-v5.js) - every call here was missing it, so the
-      // worker was silently rejecting every real request with 401 and the
-      // app was falling back to the offline pattern-matching extractor
-      // every single time, without ever actually reaching the AI.
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
         max_tokens: 300,
@@ -3471,14 +3091,9 @@ async function analyzeGalleryPhoto(photoId) {
   setAI('thinking', 'Analyzing photo...');
 
   try {
-    const res = await fetch('https://korva.byronguyatt2.workers.dev', {
+    const res = await workerFetch('', {
       method: 'POST',
-      // FIX: the worker has required a Bearer session token since v4 (see
-      // korva-worker-CLEAN-v5.js) - every call here was missing it, so the
-      // worker was silently rejecting every real request with 401 and the
-      // app was falling back to the offline pattern-matching extractor
-      // every single time, without ever actually reaching the AI.
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
         max_tokens: 300,
@@ -5818,6 +5433,23 @@ function getAuthToken() {
   return authSession?.access_token || SUPABASE_KEY;
 }
 
+// Every call to the Worker goes through here. A phone that was locked or
+// had the app in the background sleeps through the 5-minute token refresh
+// below, so the sign-in is checked first, and a call refused for an
+// expired sign-in is refreshed and sent once more.
+async function workerFetch(path, init = {}) {
+  await maybeRefreshAuthSession();
+  const send = () => fetch(KORVA_WORKER_URL + path, {
+    ...init,
+    headers: { ...init.headers, 'Authorization': 'Bearer ' + getAuthToken() },
+  });
+  let res = await send();
+  if (res.status === 401 && authSession?.refresh_token && await refreshSession(authSession.refresh_token)) {
+    res = await send();
+  }
+  return res;
+}
+
 function getAuthHeaders(extra = {}) {
   const token = getAuthToken();
   return {
@@ -5873,10 +5505,7 @@ async function loadBillingStatus() {
   if (el) el.textContent = 'Loading…';
   if (manageBtn) manageBtn.style.display = 'none';
   try {
-    const res = await fetch(`${KORVA_WORKER_URL}/stripe/subscription-status`, {
-      method: 'GET',
-      headers: { 'Authorization': 'Bearer ' + getAuthToken() },
-    });
+    const res = await workerFetch('/stripe/subscription-status', { method: 'GET' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const sub = await res.json();
     // Signed out, or into another account, while this was loading.
@@ -5911,9 +5540,9 @@ function billingReturnUrl(marker) {
 async function openCheckout(plan) {
   if (!authUser) { showToast('Sign in first', 'error'); return; }
   try {
-    const res = await fetch(`${KORVA_WORKER_URL}/stripe/create-checkout-session`, {
+    const res = await workerFetch('/stripe/create-checkout-session', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         plan,
         successUrl: billingReturnUrl('success'),
@@ -5961,9 +5590,9 @@ function handleBillingReturn() {
 async function openBillingPortal() {
   if (!authUser) { showToast('Sign in first', 'error'); return; }
   try {
-    const res = await fetch(`${KORVA_WORKER_URL}/stripe/create-portal-session`, {
+    const res = await workerFetch('/stripe/create-portal-session', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ returnUrl: billingReturnUrl('updated') }),
     });
     const rawBody = await res.text();
@@ -6082,12 +5711,15 @@ let authAutoRefreshTimer = null;
 const AUTH_AUTO_REFRESH_CHECK_MS = 5 * 60 * 1000;   // re-check every 5 minutes
 const AUTH_REFRESH_LEAD_SECONDS  = 10 * 60;         // refresh once within 10 min of expiry
 
+let authRefreshInFlight = null; // shared, so callers at the same moment refresh once
+
 async function maybeRefreshAuthSession() {
   if (!authSession?.refresh_token) return;
   const exp = authSession.expires_at || 0;
   const now = Math.floor(Date.now() / 1000);
   if (now > exp - AUTH_REFRESH_LEAD_SECONDS) {
-    await refreshSession(authSession.refresh_token);
+    authRefreshInFlight ||= refreshSession(authSession.refresh_token).finally(() => { authRefreshInFlight = null; });
+    await authRefreshInFlight;
   }
 }
 
@@ -6905,7 +6537,13 @@ window.addEventListener('offline', () => updateSyncStatus());
 
 // Make sure a pending debounced save is never lost if the app is backgrounded
 // or closed before the debounce timer would otherwise have fired.
-document.addEventListener('visibilitychange', () => { if (document.hidden) flushDraftSave(); else processPendingNotes(); });
+// Coming back to the app: the sign-in may have expired while the phone
+// slept, so refresh it before anything talks to the server.
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden) { flushDraftSave(); return; }
+  await maybeRefreshAuthSession();
+  processPendingNotes();
+});
 window.addEventListener('pagehide', flushDraftSave);
 window.addEventListener('beforeunload', flushDraftSave);
 
@@ -7800,7 +7438,7 @@ function reportPrepItems() {
   const unmarked = Object.keys(OBS_ZONES).filter(z => !areaStatusOf(z)).length;
   if (unmarked) items.push(`${unmarked} area${unmarked === 1 ? ' has' : 's have'} no inspection status`);
   const pending = (reportData.pendingNotes || []).length;
-  if (pending) items.push(`${pending} voice note${pending === 1 ? ' is' : 's are'} still waiting for signal`);
+  if (pending) items.push(`${pending} voice note${pending === 1 ? ' is' : 's are'} still waiting to be filled in`);
   if (!reportData.inspectorSignature) items.push('The inspector hasn\'t signed');
   if (!reportData.agreement) items.push('No pre-inspection agreement is recorded');
   return items;
@@ -8001,9 +7639,9 @@ async function checkDirectEmail() {
   if (!authUser) return;
   const forUser = authUser.id;
   try {
-    const res = await fetch(`${KORVA_WORKER_URL}/send-email`, {
+    const res = await workerFetch('/send-email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ check: true }),
     });
     const data = res.ok ? await res.json() : {};
@@ -8050,9 +7688,9 @@ async function sendPdfsDirect({ files, to, subject, body }) {
       filename: f.fname,
       content: (await blobToDataUrl(f.blob)).split(',')[1],
     })));
-    const res = await fetch(`${KORVA_WORKER_URL}/send-email`, {
+    const res = await workerFetch('/send-email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to, subject, text: body, attachments, fromName: company.name || '', replyTo: copyTo, copyTo }),
     });
     if (!res.ok) {
