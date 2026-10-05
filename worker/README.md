@@ -14,9 +14,10 @@ calls:
 | `POST /send-email` | Send, Email to client, Email certificate | Emails the PDFs to the client from the business through Resend, with a copy to the business; answers 501 until Resend is set up, and the app then uses the phone's mail app |
 | `POST /transcribe` | Experimental AI audio transcription | Runs the recording through Whisper on Workers AI and returns `{ transcript }`; counts as one AI call |
 
-Only the business owner can start checkout or open the portal. The AI proxy's
-token cap is now 4096 (was 3000) to match what the app asks for. Everything
-else the Worker did before is unchanged.
+Only the business owner can start checkout or open the portal. The AI proxy
+caps each answer at 16000 tokens, which covers the model's thinking as well as
+its answer, and passes on the app's `output_config.effort` (`low`, `medium` or
+`high`). Everything else the Worker did before is unchanged.
 
 `/transcribe` needs a Workers AI binding named exactly `AI` (korva › Settings ›
 Bindings › Add › Workers AI). Without it the route answers 501 and the app
