@@ -147,11 +147,12 @@
       <div class="ob-step" id="ob-step-2"></div>
     </div>
 
-    <!-- Step 1: Business setup -->
+    <!-- Step 1: Business setup. The same form edits the details later
+         (account menu › Your business): see openBusinessForm(). -->
     <div class="auth-card ob-panel" id="ob-panel-0">
       <div class="ob-icon">🏢</div>
-      <h2 class="auth-title">Set up your business</h2>
-      <p class="auth-subtitle">This appears on every PDF report you send to clients.</p>
+      <h2 class="auth-title" id="obBusinessTitle">Set up your business</h2>
+      <p class="auth-subtitle">This appears on every report, quote and certificate you send to clients.</p>
       <div class="auth-field">
         <label class="auth-label">Business Name</label>
         <input class="auth-input" id="ob-companyName" placeholder="e.g. ABC Pest Control">
@@ -165,11 +166,28 @@
         <input class="auth-input" id="ob-phone" type="tel" placeholder="e.g. 0400 000 000">
       </div>
       <div class="auth-field">
-        <label class="auth-label">ABN <span style="font-weight:400;text-transform:none;color:var(--text3)">(optional)</span></label>
+        <label class="auth-label">Business Email</label>
+        <input class="auth-input" id="ob-email" type="email" placeholder="e.g. office@abcpest.com.au">
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">ABN <span class="auth-label-optional">(optional)</span></label>
         <input class="auth-input" id="ob-abn" placeholder="e.g. 12 345 678 901">
       </div>
-      <button class="auth-btn" onclick="obNext(0)">Continue →</button>
-      <button class="auth-link" style="text-align:center;width:100%;margin-top:4px" onclick="obSkip()">Skip for now</button>
+      <div class="auth-field">
+        <label class="auth-label">Logo <span class="auth-label-optional">(optional)</span></label>
+        <div class="logo-upload-row">
+          <div class="logo-preview" id="companyLogoPreview">
+            <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.5-3.5a2 2 0 0 0-2.8 0L5 21"/></svg>
+          </div>
+          <div class="logo-upload-actions">
+            <button type="button" class="logo-upload-btn" onclick="document.getElementById('companyLogoInput').click()">Upload Logo</button>
+            <button type="button" class="logo-remove-btn" id="companyLogoRemoveBtn" onclick="removeCompanyLogo()" style="display:none">Remove</button>
+          </div>
+          <input type="file" id="companyLogoInput" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="handleCompanyLogoUpload(this)">
+        </div>
+      </div>
+      <button class="auth-btn" id="obBusinessSave" onclick="obNext(0)">Continue →</button>
+      <button class="auth-link ob-cancel" id="obBusinessCancel" onclick="closeBusinessForm()" hidden>Cancel</button>
     </div>
 
     <!-- Step 2: Voice demo -->
@@ -545,9 +563,12 @@
           <div class="profile-dropdown-email" id="profileEmail">—</div>
           <div class="profile-dropdown-business" id="profileBusinessRow" style="display:none">
             <span id="profileBusinessName"></span>
-            <span class="profile-role-badge" id="profileRoleBadge"></span>
           </div>
           <div class="profile-dropdown-divider"></div>
+          <button class="profile-dropdown-item" id="profileYourBusiness" onclick="openBusinessFromProfile()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+            Your business
+          </button>
           <button class="profile-dropdown-item" onclick="openSettingsFromProfile()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Settings
@@ -575,10 +596,6 @@
         </button>
       </div>
       <div class="dashboard-panel-subtitle" id="dashboardSubtitle">Reports saved on this device — preview</div>
-      <div class="dashboard-tabs">
-        <button class="dashboard-tab active" id="dashTabOverview" onclick="switchDashboardTab('overview')">Overview</button>
-        <button class="dashboard-tab" id="dashTabTeam" onclick="switchDashboardTab('team')" style="display:none">Team</button>
-      </div>
       <div class="dashboard-panel-body" id="dashboardBody"></div>
     </div>
   </div>
@@ -770,92 +787,7 @@
         </button>
       </div>
 
-      <div class="drawer-group-label">Business</div>
-
-      <!-- Company Details -->
-      <div class="job-panel" id="companyPanelWrap">
-        <button class="panel-label panel-label-toggle" onclick="openMenuPage('companyPanelWrap')" id="companyPanelToggle">
-          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></span>
-          <span class="panel-title">Company details</span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-        </button>
-        <div class="job-panel-body" id="companyPanel">
-          <p class="drawer-hint company-team-note" id="companyTeamNote" hidden>Your business owner sets these, and they come to your phone automatically.</p>
-          <div class="job-field">
-            <div class="job-field-label">Company Logo — optional</div>
-            <div class="logo-upload-row">
-              <div class="logo-preview" id="companyLogoPreview">
-                <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.5-3.5a2 2 0 0 0-2.8 0L5 21"/></svg>
-              </div>
-              <div class="logo-upload-actions">
-                <button type="button" class="logo-upload-btn" data-company-setting onclick="document.getElementById('companyLogoInput').click()">Upload Logo</button>
-                <button type="button" class="logo-remove-btn" data-company-setting id="companyLogoRemoveBtn" onclick="removeCompanyLogo()" style="display:none">Remove</button>
-              </div>
-              <input type="file" id="companyLogoInput" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="handleCompanyLogoUpload(this)">
-            </div>
-            <p class="drawer-hint">Used on your PDF report cover.</p>
-          </div>
-          <div class="job-field">
-            <div class="job-field-label">Company Name</div>
-            <input class="job-input" id="companyName" data-company-setting placeholder="e.g. ABC Pest Control" oninput="saveCompanyDetails()">
-          </div>
-          <div class="job-row">
-            <div class="job-field">
-              <div class="job-field-label">Licence No.</div>
-              <input class="job-input" id="companyLicence" data-company-setting placeholder="e.g. PL12345" oninput="saveCompanyDetails()">
-            </div>
-            <div class="job-field">
-              <div class="job-field-label">Phone</div>
-              <input class="job-input" id="companyPhone" data-company-setting placeholder="e.g. 0400 000 000" oninput="saveCompanyDetails()">
-            </div>
-          </div>
-          <div class="job-field">
-            <div class="job-field-label">ABN</div>
-            <input class="job-input" id="companyABN" data-company-setting placeholder="e.g. 12 345 678 901" oninput="saveCompanyDetails()">
-          </div>
-          <div class="job-field">
-            <div class="job-field-label">Business Email</div>
-            <input class="job-input" id="companyEmail" data-company-setting type="email" placeholder="e.g. office@abcpest.com.au" oninput="saveCompanyDetails()">
-          </div>
-          <div class="job-field">
-            <div class="job-field-label">Pre-Inspection Agreement Wording</div>
-            <textarea class="job-input agreement-template-input" id="companyAgreementText" data-company-setting rows="8" oninput="saveCompanyDetails()"></textarea>
-            <p class="drawer-hint">What clients sign before each inspection. {company}, {client}, {address}, {date}, {standard}, {inspectionType}, {fee} and {notes} are filled in for each job. This is a starting template: have your lawyer or industry body check it for your state. <button type="button" class="link-btn" data-company-setting onclick="resetAgreementTemplate()">Reset to the default wording</button></p>
-          </div>
-          <p class="drawer-hint">These details appear on every report, quote and treatment certificate. Fill them in once — they're saved to this device.</p>
-        </div>
-      </div>
-
-      <!-- Team Management -->
-      <div class="job-panel" id="teamPanel">
-        <button class="panel-label panel-label-toggle" onclick="openMenuPage('teamPanel')" id="teamPanelToggle">
-          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-          <span class="panel-title">Team</span>
-          <span class="job-panel-summary" id="teamPanelSummary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-        </button>
-        <div class="job-panel-body" id="teamPanelBody">
-
-          <!-- Invite form -->
-          <div class="team-invite-wrap">
-            <div class="job-field">
-              <div class="job-field-label">Invite a Technician</div>
-              <input class="job-input" id="inviteEmail" type="email" placeholder="tech@company.com" autocomplete="off">
-            </div>
-            <button class="team-invite-btn" id="inviteBtn" onclick="sendInvite()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22 11 13 2 9l20-7z"/></svg>
-              Send Invite
-            </button>
-            <p class="team-invite-hint">They'll receive an email to create their SAYON account and join your business.</p>
-          </div>
-
-          <!-- Team member list -->
-          <div class="team-list" id="teamList">
-            <div class="team-loading">Loading team…</div>
-          </div>
-
-        </div>
-      </div>
+      <div class="drawer-group-label">Account</div>
 
       <!-- Billing -->
       <div class="saved-panel settings-panel" id="billingPanel">
