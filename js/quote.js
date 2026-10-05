@@ -898,7 +898,7 @@ function exportQuotePDF() {
     ensureJsPDFLoaded()
       .then(() => buildQuotePDF(quoteState))
       .then(({ blob, fname }) => deliverPdfBlob(blob, fname, {
-        title: 'KORVUS Quote',
+        title: 'SAYON Quote',
         text: `Treatment quote — ${quoteState.address || 'Property'}`,
         readyToast: 'Quote ready — choose where to save or send it',
       }))
@@ -929,7 +929,7 @@ function rememberQuotePrices(q) {
 // the label minimum, and never less than the label rate (the label is the
 // legal document; using less is an offence under state pesticide law).
 // Concentrate = mix × the label's mL per 100 L; cost = concentrate × pack
-// price ÷ pack size; labour and markup on top. KORVUS holds no label figures
+// price ÷ pack size; labour and markup on top. SAYON holds no label figures
 // itself: the owner copies them from each label, once, and they're kept with
 // the business's settings (quotePriceMemory().__chemicals, synced like the
 // rest). Owners only: it shows what the business pays.
@@ -1193,7 +1193,7 @@ function drawPdfDocCover(doc, company, { kicker, title, date, left, right, compa
   doc.setFillColor(...C.accent); doc.rect(0, 0, 4, bandH, 'F');
   drawPdfCompanyMark(doc, company);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(240, 234, 224);
-  doc.text(company.name || 'KORVUS', 40, 22);
+  doc.text(company.name || 'SAYON', 40, 22);
   const sub = [];
   if (company.licence) sub.push(`Lic: ${company.licence}`);
   if (company.phone) sub.push(company.phone);
@@ -1470,5 +1470,5 @@ function buildQuotePDF(q) {
   drawPdfDocFooters(doc, `Quote ${q.number || ''}${company.name ? `  ·  ${company.name}` : ''}`);
 
   const safe = (q.address || 'Property').replace(/[^\w]+/g, '_').substring(0, 25);
-  return { blob: doc.output('blob'), fname: `KORVUS_Quote_${(q.number || '').replace(/[^\w-]+/g, '')}_${safe}.pdf` };
+  return { blob: doc.output('blob'), fname: `SAYON_Quote_${(q.number || '').replace(/[^\w-]+/g, '')}_${safe}.pdf` };
 }

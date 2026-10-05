@@ -347,5 +347,5 @@ function buildInvoicePDF(q) {
 
   drawPdfDocFooters(doc, `${docName} ${inv.number}${company.name ? `  ·  ${company.name}` : ''}${company.abn ? `  ·  ABN ${company.abn}` : ''}`);
   const safe = (q.address || 'Property').replace(/[^\w]+/g, '_').substring(0, 25);
-  return { blob: doc.output('blob'), fname: `KORVUS_Invoice_${inv.number.replace(/[^\w-]+/g, '')}_${safe}.pdf` };
+  return { blob: doc.output('blob'), fname: `SAYON_Invoice_${inv.number.replace(/[^\w-]+/g, '')}_${safe}.pdf` };
 }

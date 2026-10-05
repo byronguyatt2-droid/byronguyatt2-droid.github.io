@@ -72,7 +72,7 @@ let serverTranscriptOriginalText = null;
 let reportData = {};
 let editOn = false;
 let activeEditEl = null;
-let appInitialised = false; // tracks whether Korvus's one-time setup has run
+let appInitialised = false; // tracks whether Sayon's one-time setup has run
 // Tracks which signed-in account's data is currently live in reportData/the
 // open form — see the reset block at the top of enterApp() for why this
 // exists: without it, switching accounts in one browser tab (sign out, sign
@@ -517,7 +517,7 @@ async function sendInvite() {
     if (!res.ok) { const err = await res.json(); showToast(err.message || 'Invite failed', 'error'); return; }
     await res.json();
 
-    showToast(`Invite recorded for ${email} — ask them to sign up at the KORVUS app and they'll join your team automatically`, 'success');
+    showToast(`Invite recorded for ${email} — ask them to sign up at the SAYON app and they'll join your team automatically`, 'success');
     document.getElementById('inviteEmail').value = '';
     loadTeam();
   } catch(e) {
@@ -1317,7 +1317,7 @@ const SECTIONS = {
   signoff:         { fields:['inspectorLicence','inspectorSignature','agreement'], total:3 }
 };
 
-const SYSTEM_PROMPT = `You are a data extraction AI for KORVUS, an Australian termite inspection app compliant with AS 3660.2-2017.
+const SYSTEM_PROMPT = `You are a data extraction AI for SAYON, an Australian termite inspection app compliant with AS 3660.2-2017.
 Extract structured data from a pest control technician's spoken inspection notes. Return ONLY a valid JSON object.
 
 Known NSW termite species: Coptotermes acinaciformis, Coptotermes frenchi, Schedorhinotermes intermedius, Nasutitermes walkeri, Nasutitermes exitiosus, Microcerotermes spp., Heterotermes ferox, Cryptotermes brevis.
@@ -1951,7 +1951,7 @@ function correctKnownMishearings(text) {
   return text;
 }
 
-// Generic safety net for brand/product names and species genera Korvus
+// Generic safety net for brand/product names and species genera Sayon
 // knows about, on top of the specific evidence-based corrections above.
 // UNLIKE those, this has no real-world evidence of how each term actually
 // gets misheard - most of these haven't been tested yet. It's a defensive
@@ -1963,7 +1963,7 @@ function correctKnownMishearings(text) {
 // are intentionally left to the AI's contextual reasoning in SYSTEM_PROMPT
 // instead, since fuzzy-matching a whole Latin phrase word-by-word is much
 // less reliable than matching a single distinctive brand/genus word.
-const KORVUS_BRAND_VOCAB = [
+const SAYON_BRAND_VOCAB = [
   'Kordon', 'Termidor', 'Altriset', 'Phantom', 'Bifenthrin',
   'Biflex', 'Maxxthor', 'Talstar', 'Exterra', 'Sentricon', 'Trelona',
   'Termimesh', 'HomeGuard',
@@ -1973,7 +1973,7 @@ const KORVUS_BRAND_VOCAB = [
   // "Premise". Left to SYSTEM_PROMPT's contextual AI reasoning instead,
   // where full-sentence context can tell the two apart safely.
 ];
-const KORVUS_GENUS_VOCAB = [
+const SAYON_GENUS_VOCAB = [
   'Coptotermes', 'Schedorhinotermes', 'Nasutitermes', 'Microcerotermes',
   'Heterotermes', 'Cryptotermes',
 ];
@@ -2015,9 +2015,9 @@ function fuzzyMatchVocab(word, vocab, maxDistanceRatio, minWordLength) {
 function applyVocabSafetyNet(text) {
   if (!text) return text;
   return text.replace(/[A-Za-z][A-Za-z'-]*/g, (word) => {
-    const brandMatch = fuzzyMatchVocab(word, KORVUS_BRAND_VOCAB, 0.3, 5);
+    const brandMatch = fuzzyMatchVocab(word, SAYON_BRAND_VOCAB, 0.3, 5);
     if (brandMatch) return brandMatch;
-    const genusMatch = fuzzyMatchVocab(word, KORVUS_GENUS_VOCAB, 0.3, 6);
+    const genusMatch = fuzzyMatchVocab(word, SAYON_GENUS_VOCAB, 0.3, 6);
     if (genusMatch) return genusMatch;
     return word;
   });
@@ -2035,7 +2035,7 @@ function applyVocabSafetyNet(text) {
 // fabrication slipping through unnoticed is worse than an obviously
 // garbled one, so this NEVER touches the transcript on its own. It always
 // shows the inspector exactly what it would change and waits for Apply.
-const TRANSCRIPT_CLEANUP_PROMPT = `You are proofreading a voice-dictated transcript from an Australian termite/pest inspection technician (KORVUS app). The transcript came from on-device speech recognition and may contain mishearings - a garbled word or phrase standing in for the real one, based on how it sounds.
+const TRANSCRIPT_CLEANUP_PROMPT = `You are proofreading a voice-dictated transcript from an Australian termite/pest inspection technician (SAYON app). The transcript came from on-device speech recognition and may contain mishearings - a garbled word or phrase standing in for the real one, based on how it sounds.
 
 Your job: produce a corrected version of the transcript, fixing ONLY mishearings you can confidently resolve from context - the same judgement an experienced inspector would use proofreading a colleague's dictation. Known categories to watch for: brand/product names (Kordon, Termidor, Altriset, Phantom, Bifenthrin, Biflex, Maxxthor, Talstar, Exterra, Sentricon, Trelona, Termimesh, HomeGuard Blue), species names (e.g. Coptotermes acinaciformis), and pest-inspection technical terms (e.g. "bearer", "weep holes", "shrubbery", "installation", "subfloor").
 
@@ -2251,7 +2251,7 @@ function stopAudioCapture() {
 // sync automatically as that vocabulary grows.
 function buildTranscriptionVocabHint() {
   return 'Australian termite and pest inspection terms: ' +
-    [...KORVUS_BRAND_VOCAB, ...KORVUS_GENUS_VOCAB].join(', ') +
+    [...SAYON_BRAND_VOCAB, ...SAYON_GENUS_VOCAB].join(', ') +
     ', bearer, subfloor, weep holes, shrubbery, conducive conditions, slab edge, Kordon.';
 }
 
@@ -2512,16 +2512,14 @@ let hfExtracting     = false;    // true while Claude API call is in flight
 
 const HF_WAKE_WORDS  = [
   // Correct
-  'hey korvus','hi korvus','okay korvus','ok korvus','korvus',
-  // Common misrecognitions of "Korva"
-  'hey korvus','hi korvus','hey cobra','hi cobra',
-  'hey corner','hi corner','hey karma','hi karma',
-  'hey carver','hi carver','hey corva','hi corva',
-  'hey corba','hi corba','hey cova','hi cova',
-  'hey kurva','hi kurva','hey curva','hi curva',
-  'okay cover','ok cover','okay cobra','ok cobra',
+  'hey sayon','hi sayon','okay sayon','ok sayon','sayon',
+  // Common misrecognitions of "Sayon"
+  'hey say on','hi say on','okay say on','ok say on',
+  'hey sayin','hi sayin','hey saying','hi saying',
+  'hey zion','hi zion','hey sion','hi sion',
+  'hey saigon','hi saigon','hey siam','hi siam',
 ];
-const HF_STOP_WORDS  = ['stop korvus','pause korvus','stop listening','done korvus'];
+const HF_STOP_WORDS  = ['stop sayon','pause sayon','stop listening','done sayon'];
 const HF_SILENCE_MS  = 2200;
 
 const HF_SECTION_KEYWORDS = {
@@ -2684,7 +2682,7 @@ function hfStartListening() {
         // Interim — show live preview. On native (Capacitor) platforms the
         // recognizer only ever emits ONE final, right when we call
         // rec.stop() — unlike the browser's Web Speech API, which fires a
-        // fresh "final" every time you pause. Without that, "Hey Korvus"
+        // fresh "final" every time you pause. Without that, "Hey Sayon"
         // (and everything said after it) would sit forever as an interim
         // preview and never actually commit or trigger extraction. This
         // watchdog recreates that pause-based segmentation ourselves: if
@@ -2723,7 +2721,7 @@ function hfStartListening() {
     }
   };
 
-  hfSetStatus('listening', 'Listening for "Hey Korvus"…');
+  hfSetStatus('listening', 'Listening for "Hey Sayon"…');
   try { rec.start(); } catch(e) {
     setTimeout(() => hfStartListening(), 500);
   }
@@ -2751,7 +2749,7 @@ async function hfAutoExtract() {
 
   hfExtracting   = true;
   hfSessionText  = '';
-  hfAwake        = false; // reset — require "Hey Korvus" again after each extract
+  hfAwake        = false; // reset — require "Hey Sayon" again after each extract
   clearTimeout(hfSilenceTimer);
   document.getElementById('waveform').classList.remove('show');
   hfSetStatus('processing', 'Extracting with AI…');
@@ -2778,7 +2776,7 @@ async function hfAutoExtract() {
         const nextSection = sectionOrder[idx + 1];
         showSection(nextSection);
         advanced = true;
-        hfSetStatus('listening', 'Listening for "Hey Korvus"…');
+        hfSetStatus('listening', 'Listening for "Hey Sayon"…');
         // Double beep = section complete, advanced
         hfPlayTone(660, 80, 0.25);
         setTimeout(() => hfPlayTone(880, 120, 0.3), 110);
@@ -2789,11 +2787,11 @@ async function hfAutoExtract() {
     if (!advanced) {
       // Single confirmation beep = fields filled, same section
       hfPlayTone(660, 100, 0.25);
-      hfSetStatus('listening', 'Listening for "Hey Korvus"…');
+      hfSetStatus('listening', 'Listening for "Hey Sayon"…');
     }
 
   } catch(e) {
-    hfSetStatus('listening', 'Listening for "Hey Korvus"…');
+    hfSetStatus('listening', 'Listening for "Hey Sayon"…');
   } finally {
     hfExtracting = false;
   }
@@ -2843,7 +2841,7 @@ function hfUpdateUI() {
   if (voiceBtn) voiceBtn.style.opacity = handsFreeMode ? '0.4' : '1';
   // Show HF active state on the FAB
   if (fab) {
-    fab.title = handsFreeMode ? 'Hands-free ON — say "Hey Korvus"' : 'Tap to speak';
+    fab.title = handsFreeMode ? 'Hands-free ON — say "Hey Sayon"' : 'Tap to speak';
     fab.style.boxShadow = handsFreeMode
       ? '0 0 0 3px rgba(var(--accent-rgb),0.4), 0 8px 24px rgba(var(--accent-rgb),0.3)'
       : '';
@@ -6623,7 +6621,7 @@ async function deleteMyAccount() {
   if (!authSession || !authUser) { showToast('Sign in to delete your account', 'error'); return; }
   if (!navigator.onLine) { showToast('You need signal to delete your account', 'error'); return; }
   const typed = prompt(
-    'This permanently deletes your KORVUS account, every saved report and photo, ' +
+    'This permanently deletes your SAYON account, every saved report and photo, ' +
     (authBusiness && authBusiness.owner_id === authUser.id ? 'your business details, ' : '') +
     'and everything on this phone. It cannot be undone.\n\nExport your data first if you want a copy.\n\nType DELETE to confirm.');
   if (typed === null) return;
@@ -6926,7 +6924,7 @@ function openSettingsFromProfile() {
 }
 function signOutFromProfile() {
   closeProfileMenu();
-  if (confirm('Sign out of KORVUS?')) signOut();
+  if (confirm('Sign out of SAYON?')) signOut();
 }
 
 // ── AUTH UI HELPERS ──────────────────────────────────────────────────────
@@ -7516,7 +7514,7 @@ async function exportAllData() {
     }
 
     const backup = {
-      app: 'KORVUS',
+      app: 'SAYON',
       exportedAt: new Date().toISOString(),
       version: 1,
       data,
@@ -7530,7 +7528,7 @@ async function exportAllData() {
     const date = todayIsoDate();
     const a = document.createElement('a');
     a.href = url;
-    a.download = `korvus_backup_${date}.json`;
+    a.download = `sayon_backup_${date}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -7557,8 +7555,8 @@ function importAllData(file) {
       return;
     }
 
-    if (!backup || typeof backup !== 'object' || !backup.data || backup.app !== 'KORVUS') {
-      showToast('That doesn\'t look like a KORVUS backup file', 'error');
+    if (!backup || typeof backup !== 'object' || !backup.data || !['SAYON','KORVUS'].includes(backup.app)) {
+      showToast('That doesn\'t look like a SAYON backup file', 'error');
       return;
     }
 
@@ -8640,7 +8638,7 @@ async function sendPdfsDirect({ files, to, subject, body }) {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(data.message || 'Could not send from KORVUS');
+      throw new Error(data.message || 'Could not send from SAYON');
     }
     showToast(`Sent to ${to}${copyTo && copyTo !== to ? `. A copy went to ${copyTo}` : ''}`, 'success');
     return true;
@@ -8648,7 +8646,7 @@ async function sendPdfsDirect({ files, to, subject, body }) {
     // The phone's mail app from here on, this session. It needs a fresh
     // tap to open, so the inspector taps again.
     directEmail = false;
-    const why = e instanceof TypeError ? 'Could not reach KORVUS to send it' : e.message;
+    const why = e instanceof TypeError ? 'Could not reach SAYON to send it' : e.message;
     showToast(`${why}. Tap again to send it from your mail app`, 'error');
     return false;
   } finally {
@@ -8672,7 +8670,7 @@ function openSendReview() {
     showToast('The report changed after the PDF was made. Tap Generate PDF, then Send', 'error');
     return;
   }
-  const files = [{ blob, fname: window.__lastPdfName || 'KORVUS_Report.pdf' }];
+  const files = [{ blob, fname: window.__lastPdfName || 'SAYON_Report.pdf' }];
   const quote = currentJobQuote();
   let quoteFile = null;
   if (quoteHasItems(quote)) {
@@ -8821,8 +8819,8 @@ function drawPdfCompanyMark(doc, company) {
       return;
     } catch (e) {}
   }
-  // No logo: the business's initials (or K for KORVUS) in a teal tile.
-  const initials = (company.name || 'KORVUS').split(/\s+/).filter(w => /^[A-Za-z0-9]/.test(w))
+  // No logo: the business's initials (or S for SAYON) in a teal tile.
+  const initials = (company.name || 'SAYON').split(/\s+/).filter(w => /^[A-Za-z0-9]/.test(w))
     .slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'K';
   doc.setFillColor(...C.accent); doc.roundedRect(14, 14, 20, 20, 3, 3, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(initials.length > 1 ? 11 : 13); doc.setTextColor(...C.white);
@@ -9258,7 +9256,7 @@ async function _buildAndDownloadPDF() {
     }
   } else {
     doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(240,234,224);
-    doc.text('KORVUS', 40, 22);
+    doc.text('SAYON', 40, 22);
     doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(160,150,138);
     doc.text('Intelligent Inspection Platform', 40, 29);
   }
@@ -9368,7 +9366,7 @@ async function _buildAndDownloadPDF() {
   doc.setFillColor(...C.rowAlt); doc.rect(0, 284, W, 13, 'F');
   doc.setFillColor(...C.accent); doc.rect(0, 284, W, 0.6, 'F');
   doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-  const footerPreparedBy = company.name ? `Prepared by ${company.name}` : 'Generated via KORVUS';
+  const footerPreparedBy = company.name ? `Prepared by ${company.name}` : 'Generated via SAYON';
   doc.text(footerPreparedBy, M, 291);
   doc.text('This report does not conclusively determine that the property is free of termites.', W/2, 291, { align:'center' });
   doc.setFont('helvetica','bold'); doc.setTextColor(...C.accent);
@@ -10058,7 +10056,7 @@ async function _buildAndDownloadPDF() {
   doc.setFillColor(...C.rowAlt); doc.roundedRect(M, y, CW, 16, 2, 2, 'F');
   doc.setFillColor(...C.accent); doc.rect(M, y, 3, 16, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
-  doc.text(`Generated by KORVUS  ·  ${today}`, M+7, y+5);
+  doc.text(`Generated by SAYON  ·  ${today}`, M+7, y+5);
   doc.setFont('helvetica','normal'); doc.setTextColor(...C.inkMuted);
   doc.text(`Report ID: ${reportId}  ·  ${standard} Compliant`, M+7, y+9);
   doc.text(`Content fingerprint: ${formatFingerprint(fingerprint)}  ·  changes to the report change this code`, M+7, y+13);
@@ -10080,7 +10078,7 @@ async function _buildAndDownloadPDF() {
     doc.text(`Page ${p-1} of ${totalPages-1}`, W-M, 290, { align:'right' });
   }
 
-  const fname = `KORVUS_${address.replace(/\s+/g,'_').substring(0,25)}_${today.replace(/\s+/g,'_')}.pdf`;
+  const fname = `SAYON_${address.replace(/\s+/g,'_').substring(0,25)}_${today.replace(/\s+/g,'_')}.pdf`;
   let pdfBlob = null;
 
   try {
@@ -10101,7 +10099,7 @@ async function _buildAndDownloadPDF() {
   if (shareBtn) shareBtn.style.display = 'flex';
 
   await deliverPdfBlob(pdfBlob, fname, {
-    title: 'KORVUS Inspection Report',
+    title: 'SAYONion Report',
     text: `Timber Pest Inspection Report — ${getFullAddress() || 'Property'}`,
     readyToast: 'Report ready — choose where to save or send it',
   });
