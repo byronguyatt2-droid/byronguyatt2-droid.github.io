@@ -6777,6 +6777,7 @@ function enterApp() {
   document.getElementById('authScreen').style.display   = 'none';
   document.getElementById('onboardScreen').style.display = 'none';
   handleBillingReturn(); // notice + clean up a return from Stripe Checkout/Portal, if that's why we're here
+  checkDirectEmail();
 
   // FIX: a DIFFERENT account just became active than whichever one was last
   // active in this browser tab (sign out, then sign back in as someone else,
@@ -8549,12 +8550,15 @@ function installReportLockGuard() {
 
 // ── PDF GENERATION ────────────────────────────────────────────────────────
 // ── SEND TO CLIENT ──────────────────────────────────────────────────────
-// Opens the phone's share sheet with the PDFs attached and a short message
-// ready to go, so the inspector picks Mail (or Messages) and taps send. The
-// client's email address is copied first, to paste into To. Browsers that
-// can't share files (desktop) download the PDFs and open a new email to the
-// client instead. The share sheet only opens straight from a tap, so the
-// PDFs must already be built when this is called.
+// Once the Worker has email set up (/send-email, through Resend), the PDFs
+// go straight to the client from the business, with a copy to the
+// business's own email. Until then, or with no client email, or if that
+// fails, it opens the phone's share sheet with the PDFs attached and a
+// short message ready to go, so the inspector picks Mail (or Messages) and
+// taps send. The client's email address is copied first, to paste into To.
+// Browsers that can't share files (desktop) download the PDFs and open a
+// new email to the client instead. The share sheet only opens straight
+// from a tap, so the PDFs must already be built when this is called.
 function clientMessage({ client, address, docs, signOff }) {
   const company = getCompanyDetails();
   const firstName = (client || '').trim().split(/\s+/)[0];
@@ -8570,8 +8574,32 @@ function clientMessage({ client, address, docs, signOff }) {
   ].join('\n');
 }
 
-// Returns true once the files were handed to the share sheet or an email.
+// Whether the Worker can send email: null until checked, then true or
+// false. Checked when the app opens, so the first tap already knows.
+let directEmail = null;
+let directEmailSending = false;
+
+async function checkDirectEmail() {
+  directEmail = null;
+  if (!authUser) return;
+  const forUser = authUser.id;
+  try {
+    const res = await fetch(`${KORVA_WORKER_URL}/send-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+      body: JSON.stringify({ check: true }),
+    });
+    const data = res.ok ? await res.json() : {};
+    if (authUser && authUser.id === forUser) directEmail = !!data.configured;
+  } catch (e) {
+    directEmail = false;
+  }
+}
+
+// Returns true once the files were sent, or handed to the share sheet or
+// an email.
 async function sendPdfsToClient({ files, to, subject, body }) {
+  if (directEmail && to) return sendPdfsDirect({ files, to, subject, body });
   const fileObjs = files.map(f => new File([f.blob], f.fname, { type: 'application/pdf' }));
   if (navigator.share && navigator.canShare && navigator.canShare({ files: fileObjs })) {
     if (to && navigator.clipboard) {
@@ -8592,6 +8620,40 @@ async function sendPdfsToClient({ files, to, subject, body }) {
   window.location.href = `mailto:${encodeURIComponent(to || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   showToast(`PDF${files.length > 1 ? 's' : ''} downloaded — attach ${files.length > 1 ? 'them' : 'it'} to the email that just opened`, 'info');
   return true;
+}
+
+async function sendPdfsDirect({ files, to, subject, body }) {
+  if (directEmailSending) return false;
+  directEmailSending = true;
+  const company = getCompanyDetails();
+  const copyTo = (company.email || '').trim();
+  showToast(`Sending to ${to}…`, 'info');
+  try {
+    const attachments = await Promise.all(files.map(async f => ({
+      filename: f.fname,
+      content: (await blobToDataUrl(f.blob)).split(',')[1],
+    })));
+    const res = await fetch(`${KORVA_WORKER_URL}/send-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getAuthToken() },
+      body: JSON.stringify({ to, subject, text: body, attachments, fromName: company.name || '', replyTo: copyTo, copyTo }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || 'Could not send from KORVUS');
+    }
+    showToast(`Sent to ${to}${copyTo && copyTo !== to ? `. A copy went to ${copyTo}` : ''}`, 'success');
+    return true;
+  } catch (e) {
+    // The phone's mail app from here on, this session. It needs a fresh
+    // tap to open, so the inspector taps again.
+    directEmail = false;
+    const why = e instanceof TypeError ? 'Could not reach KORVUS to send it' : e.message;
+    showToast(`${why}. Tap again to send it from your mail app`, 'error');
+    return false;
+  } finally {
+    directEmailSending = false;
+  }
 }
 
 // ── CHECK BEFORE SENDING ────────────────────────────────────────────────
@@ -8661,7 +8723,8 @@ function openSendReview() {
     docs: withQuote ? 'timber pest inspection report and treatment quote' : 'timber pest inspection report',
     signOff: document.getElementById('jobInspector').value.trim(),
   });
-  document.getElementById('sendReviewBtn').textContent = gaps.length ? 'Send anyway' : 'Open email to send';
+  document.getElementById('sendReviewBtn').textContent = gaps.length ? 'Send anyway'
+    : directEmail && email ? `Send to ${email}` : 'Open email to send';
   document.getElementById('sendReviewOverlay').classList.add('open');
 }
 
