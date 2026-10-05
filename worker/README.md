@@ -1,4 +1,4 @@
-# Korvus Worker (`korva`)
+# Sayon Worker (`korva`)
 
 `worker.js` is the full source of the Cloudflare Worker at
 `https://korva.byronguyatt2.workers.dev`. It is the live v6 Worker (AI proxy,
@@ -24,7 +24,7 @@ quietly keeps the on-device transcript.
 
 ## Sending email (Resend)
 
-Until both secrets below are set, KORVUS keeps sending through the phone's mail
+Until both secrets below are set, SAYON keeps sending through the phone's mail
 app. Emails need to come from your own domain, or they land in spam.
 
 1. Sign up at resend.com (free up to 3,000 emails a month).

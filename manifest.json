@@ -1,7 +1,7 @@
 {
-  "name": "KORVUS Inspect",
-  "short_name": "KORVUS",
-  "description": "KORVUS intelligent field inspection platform — voice-to-report for pest and timber pest technicians.",
+  "name": "SAYON",
+  "short_name": "SAYON",
+  "description": "SAYON intelligent field inspection platform — voice-to-report for pest and timber pest technicians.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
