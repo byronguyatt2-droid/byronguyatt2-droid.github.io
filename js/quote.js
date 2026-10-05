@@ -485,7 +485,6 @@ function renderQuoteItems() {
             oninput="updateQuoteItem('${it.id}','price',this.value)" onchange="rememberQuotePrice('${it.key}', parseFloat(this.value))"></label>
           <div class="quote-item-total" id="qiTotal_${it.id}">${formatAUD(lineTotal(it))}</div>
         </div>
-        ${CHEM_CALC_KEYS.includes(it.key) && canUseChemCalc() ? `<button class="quote-link-btn quote-item-calc" onclick="openChemCalc('${it.id}')">Work out from the label</button>` : ''}
         ${it.source ? `<div class="quote-item-source">From report · ${escapeHtml(it.source)}</div>` : ''}
       </div>`).join('');
     wrap.querySelectorAll('.quote-item-desc').forEach(fitQuoteText);
@@ -610,15 +609,8 @@ function quoteAnswerSummary(q) {
   const a = quoteAnswerState(q);
   if (!a) return q.sentAt ? { short: 'Quote sent', text: 'Waiting on the client\'s answer to the quote', tone: 'wait' } : null;
   if (a.stale) return { short: 'Quote changed', text: 'The quote changed after the client answered. Get their answer on the new version', tone: 'warn' };
-  if (a.status === 'accepted' && q.invoice) {
-    const inv = q.invoice, st = invoiceStatus(inv);
-    if (st === 'paid') return { short: 'Paid', text: `Invoice ${inv.number} paid on ${formatAnswerDate(inv.paid.date)}`, tone: 'good' };
-    if (st === 'overdue') return { short: 'Invoice overdue', text: `Invoice ${inv.number} was due ${formatAnswerDate(inv.due)}. Follow up the payment`, tone: 'warn' };
-    return { short: inv.sentAt ? 'Invoice sent' : 'Invoiced', text: `Invoice ${inv.number} ${inv.sentAt ? 'sent' : 'made'}. Due ${formatAnswerDate(inv.due)}`, tone: 'wait' };
-  }
   if (a.status === 'accepted' && q.treatment) return { short: 'Treatment done', text: `Treatment done on ${formatAnswerDate(q.treatment.date)}. Send the client the certificate`, tone: 'good' };
-  if (a.status === 'accepted' && q.booking) return { short: 'Treatment booked', text: `Quote accepted. Treatment booked for ${formatBooking(q.booking)}`, tone: 'good' };
-  if (a.status === 'accepted') return { short: 'Quote accepted', text: `Quote accepted by ${a.by} on ${formatAnswerDate(a.date)}. Book the treatment next`, tone: 'good' };
+  if (a.status === 'accepted') return { short: 'Quote accepted', text: `Quote accepted by ${a.by} on ${formatAnswerDate(a.date)}. Record the treatment once it's done`, tone: 'good' };
   return { short: 'Quote declined', text: `Quote declined on ${formatAnswerDate(a.date)}${a.note ? ` · ${a.note}` : ''}`, tone: 'bad' };
 }
 
@@ -644,7 +636,7 @@ function renderQuoteAnswer() {
       ${a.note ? `<div class="quote-answer-note">${esc(a.note)}</div>` : ''}
       ${a.signature ? `<img class="quote-answer-sig" src="${a.signature}" alt="Client signature">` : ''}
       ${a.stale ? '<div class="quote-answer-warn">The quote has changed since then. Send the new version and record the client\'s answer again.</div>' : ''}
-      ${a.status === 'accepted' && !a.stale ? renderQuoteBookingBlock(q) + renderTreatmentBlock(q) + renderInvoiceBlock(q) : ''}
+      ${a.status === 'accepted' && !a.stale ? renderTreatmentBlock(q) : ''}
       <button class="quote-link-btn" onclick="clearQuoteAnswer()">${a.stale ? 'Record a new answer' : 'Change answer'}</button>`;
   }
   el.innerHTML = `<div class="quote-card-title">Client's answer</div>${body}`;
@@ -661,7 +653,7 @@ function openQuoteAnswer(mode) {
   document.getElementById('qaBy').value = quoteState.client || '';
   document.getElementById('qaDate').value = todayIsoDate();
   document.getElementById('qaNote').value = '';
-  document.getElementById('qaNote').placeholder = accepted ? 'e.g. Treatment booked for 12 Oct' : 'e.g. Going with another company';
+  document.getElementById('qaNote').placeholder = accepted ? 'e.g. Wants the treatment done before 12 Oct' : 'e.g. Going with another company';
   document.getElementById('qaMethodWrap').style.display = accepted ? '' : 'none';
   document.getElementById('qaMethod').value = 'signed';
   document.getElementById('qaAcceptText').textContent =
@@ -725,8 +717,6 @@ function clearQuoteAnswer() {
   if (!q || !q.answer) return;
   if (!confirm(q.treatment
     ? 'Clear the client\'s answer to this quote? The treatment record and certificate stay.'
-    : q.booking
-    ? 'Clear the client\'s answer to this quote? The treatment booking stays until you cancel it.'
     : 'Clear the client\'s recorded answer to this quote?')) return;
   delete q.answer;
   clearTimeout(quoteSaveTimer);
@@ -735,154 +725,6 @@ function clearQuoteAnswer() {
   renderQuoteAnswer();
   if (typeof renderIssueState === 'function') renderIssueState();
   if (typeof renderSavedList === 'function') renderSavedList();
-}
-
-// ── BOOKING THE TREATMENT ───────────────────────────────────────────────────
-// Once the client accepts, the treatment gets a date. q.booking = { date,
-// time, assignedTo, assignedName, notes, at, jobId? }. It's kept with the
-// quote (so it syncs with the report) and shows on the Schedule. When an
-// owner books it for someone else on the team, it's also added to the
-// team's jobs (jobId), so it appears on that technician's Schedule.
-function formatBooking(b) {
-  if (!b || !b.date) return '';
-  const d = new Date(b.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-  return b.time ? `${d}, ${formatClockTime(b.time)}` : d;
-}
-function formatClockTime(t) {
-  const [h, m] = String(t).split(':').map(Number);
-  if (!isFinite(h)) return t;
-  return `${h % 12 === 0 ? 12 : h % 12}:${String(m || 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-}
-
-function renderQuoteBookingBlock(q) {
-  const b = q.booking;
-  if (q.treatment) return '';
-  if (!b) return '<button class="quote-btn primary quote-book-btn" onclick="openQuoteBooking()">Book the treatment</button>';
-  const who = b.assignedName ? ` · ${escapeHtml(b.assignedName)}` : '';
-  return `<div class="quote-booking">
-      <div><strong>Treatment booked</strong> for ${escapeHtml(formatBooking(b))}${who}</div>
-      ${b.notes && b.notes !== (q.answer && q.answer.note) ? `<div class="quote-answer-note">${escapeHtml(b.notes)}</div>` : ''}
-      <div class="quote-booking-actions">
-        <button class="quote-link-btn" onclick="openQuoteBooking()">Change</button>
-        <button class="quote-link-btn" onclick="cancelQuoteBooking()">Cancel booking</button>
-      </div>
-    </div>`;
-}
-
-// The team members an owner can book the treatment for. Empty for a
-// technician on someone else's team, or a business of one.
-function bookingTeamOptions() {
-  const isOwner = !!(authBusiness && authUser && authBusiness.owner_id === authUser.id);
-  const team = (typeof teamMembersCache !== 'undefined' && teamMembersCache) || [];
-  return isOwner && team.length > 1 ? team : [];
-}
-
-function openQuoteBooking() {
-  const q = quoteState;
-  if (!q) return;
-  const b = q.booking || {};
-  document.getElementById('qbDate').value = b.date || '';
-  document.getElementById('qbTime').value = b.time || '';
-  document.getElementById('qbNotes').value = b.notes != null ? b.notes : ((q.answer && q.answer.note) || '');
-  const team = bookingTeamOptions();
-  const sel = document.getElementById('qbAssignee');
-  document.getElementById('qbAssigneeWrap').style.display = team.length ? '' : 'none';
-  sel.innerHTML = team.map(m =>
-    `<option value="${m.user_id}">${escapeHtml(m.name || m.email)}${m.user_id === authUser.id ? ' (you)' : ''}</option>`).join('');
-  if (team.length) sel.value = b.assignedTo || authUser.id;
-  document.getElementById('qbSummary').textContent =
-    `${q.client || 'Client'} · ${q.address || 'No address'} · ${formatAUD(quoteTotals(q).total)}`;
-  document.getElementById('quoteBookOverlay').classList.add('open');
-}
-function closeQuoteBooking() {
-  document.getElementById('quoteBookOverlay').classList.remove('open');
-}
-
-function bookingJobNotes(q, notes) {
-  const lines = q.items.map(it => (it.desc || '').trim()).filter(Boolean);
-  return [`Treatment · quote ${q.number || ''}`.trim(), q.client, lines.join('; '), notes].filter(Boolean).join(' · ');
-}
-
-async function saveQuoteBooking() {
-  const q = quoteState;
-  if (!q) return;
-  const date = document.getElementById('qbDate').value;
-  if (!date) { showToast('Choose a date for the treatment', 'error'); return; }
-  const team = bookingTeamOptions();
-  const assignedTo = team.length ? document.getElementById('qbAssignee').value : (authUser ? authUser.id : '');
-  const member = team.find(m => m.user_id === assignedTo);
-  const booking = {
-    date,
-    time: document.getElementById('qbTime').value,
-    assignedTo,
-    assignedName: member && assignedTo !== authUser.id ? (member.name || member.email) : '',
-    notes: document.getElementById('qbNotes').value.trim(),
-    at: Date.now(),
-  };
-  const btn = document.getElementById('qbSaveBtn');
-  btn.disabled = true;
-  try {
-    const prevJob = q.booking && q.booking.jobId;
-    // Someone else on the team does the treatment: it goes on their Schedule.
-    if (booking.assignedName) {
-      if (prevJob) await deleteTeamJobQuietly(prevJob);
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/jobs`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Prefer': 'return=representation' },
-        body: JSON.stringify({
-          business_id: authBusiness.id, assigned_to: assignedTo, created_by: authUser.id,
-          address: q.address || '', notes: bookingJobNotes(q, booking.notes),
-          job_date: booking.date, job_time: booking.time || null,
-        }),
-      });
-      if (!res.ok) { showToast('Could not add it to the team schedule. Check your connection and try again', 'error'); return; }
-      const rows = await res.json().catch(() => []);
-      if (rows && rows[0] && rows[0].id) booking.jobId = rows[0].id;
-    } else if (prevJob) {
-      await deleteTeamJobQuietly(prevJob);
-    }
-    q.booking = booking;
-    clearTimeout(quoteSaveTimer);
-    persistQuote();
-    storeQuoteOnReport(q, true);
-    closeQuoteBooking();
-    renderQuoteAnswer();
-    if (typeof renderIssueState === 'function') renderIssueState();
-    if (typeof renderSavedList === 'function') renderSavedList();
-    showToast(`Treatment booked for ${formatBooking(booking)}`, 'success');
-  } catch (e) {
-    showToast('Network error — please try again', 'error');
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function deleteTeamJobQuietly(id) {
-  try { await fetch(`${SUPABASE_URL}/rest/v1/jobs?id=eq.${id}`, { method: 'DELETE', headers: getAuthHeaders() }); } catch (e) {}
-}
-
-async function cancelQuoteBooking() {
-  const q = quoteState;
-  if (!q || !q.booking) return;
-  if (!confirm('Cancel the treatment booking?')) return;
-  if (q.booking.jobId) await deleteTeamJobQuietly(q.booking.jobId);
-  delete q.booking;
-  clearTimeout(quoteSaveTimer);
-  persistQuote();
-  storeQuoteOnReport(q, true);
-  renderQuoteAnswer();
-  if (typeof renderIssueState === 'function') renderIssueState();
-  if (typeof renderSavedList === 'function') renderSavedList();
-}
-
-// Treatments booked from quotes on this account, for the Schedule. Ones
-// booked for someone else are left out: they reach the Schedule through
-// the team's jobs instead.
-function bookedTreatments() {
-  const reports = getSavedReports();
-  return Object.values(getSavedQuotes())
-    .filter(q => q && q.booking && q.booking.date && !q.booking.assignedName)
-    .map(q => ({ q, report: reports.find(r => r.id === q.reportKey) }));
 }
 
 // ── PDF EXPORT ──────────────────────────────────────────────────────────────
@@ -917,197 +759,6 @@ function rememberQuotePrices(q) {
   if (q.paymentTerms !== undefined) rememberPaymentTerms(q.paymentTerms.trim());
 }
 
-// ── CHEMICAL CALCULATOR ─────────────────────────────────────────────────────
-// Prices a soil treatment line from the product label rather than a price
-// list. The application rate is entered the way the label states it, since
-// soil labels tie the volume to the treated zone, not just its length:
-//   Premise 200 SC: 1.5 L of mix per linear metre per 100 mm depth, at least
-//     5 L per linear metre;
-//   Termidor Residual: 100 L of mix per cubic metre of soil, in a zone
-//     150 mm wide.
-// So mix per metre = rate × depth (or rate × width × depth), never less than
-// the label minimum, and never less than the label rate (the label is the
-// legal document; using less is an offence under state pesticide law).
-// Concentrate = mix × the label's mL per 100 L; cost = concentrate × pack
-// price ÷ pack size; labour and markup on top. SAYON holds no label figures
-// itself: the owner copies them from each label, once, and they're kept with
-// the business's settings (quotePriceMemory().__chemicals, synced like the
-// rest). Owners only: it shows what the business pays.
-const CHEM_CALC_KEYS = ['barrier_lm', 'barrier_job'];
-let chemCalcItemId = null;
-
-function canUseChemCalc() {
-  return typeof isBusinessOwner !== 'function' || !authBusiness || isBusinessOwner();
-}
-
-function chemCalcSettings() {
-  const mem = quotePriceMemory();
-  return {
-    products: Array.isArray(mem.__chemicals) ? mem.__chemicals : [],
-    hourlyRate: mem.__labourRate,
-    markup: mem.__markup,
-  };
-}
-
-function openChemCalc(itemId) {
-  const it = quoteState && quoteState.items.find(i => i.id === itemId);
-  if (!it) return;
-  chemCalcItemId = itemId;
-  const set = chemCalcSettings();
-  const lm = it.unit === 'lm' ? parseFloat(it.qty) : NaN;
-  const v = (id, val) => { document.getElementById(id).value = val == null || (typeof val === 'number' && !isFinite(val)) ? '' : val; };
-  v('ccMetres', lm);
-  v('ccDepth', '');
-  v('ccHours', '');
-  v('ccRate', set.hourlyRate);
-  v('ccMarkup', set.markup);
-  renderChemCalcProducts(set.products.length ? set.products[0].id : 'new');
-  document.getElementById('chemCalcOverlay').classList.add('open');
-}
-
-function closeChemCalc() {
-  document.getElementById('chemCalcOverlay').classList.remove('open');
-}
-
-function renderChemCalcProducts(selectedId) {
-  const { products } = chemCalcSettings();
-  const sel = document.getElementById('ccProduct');
-  sel.innerHTML = products.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || 'Unnamed product')}</option>`).join('') +
-    '<option value="new">Add a product…</option>';
-  sel.value = products.some(p => p.id === selectedId) ? selectedId : 'new';
-  onChemCalcProductPick();
-}
-
-function onChemCalcProductPick() {
-  const id = document.getElementById('ccProduct').value;
-  const p = chemCalcSettings().products.find(x => x.id === id) || {};
-  const v = (fid, val) => { document.getElementById(fid).value = val == null ? '' : val; };
-  v('ccName', p.name); v('ccApvma', p.apvma); v('ccMixRate', p.mlPer100L);
-  document.getElementById('ccRateForm').value = p.rateForm === 'perM3' ? 'perM3' : 'per100';
-  v('ccAppRate', p.rate); v('ccWidth', p.zoneWidthMm); v('ccMinPerMetre', p.minPerMetre);
-  v('ccPackSize', p.packLitres); v('ccPackPrice', p.packPrice);
-  document.getElementById('ccRemove').hidden = !p.id;
-  updateChemCalc();
-}
-
-function chemCalcNum(id) {
-  const n = parseFloat(document.getElementById(id).value);
-  return isFinite(n) && n >= 0 ? n : NaN;
-}
-
-const chemRound2 = n => Math.round(n * 100) / 100;
-
-// The sums, from what's on the sheet. Returns null until there's enough.
-function chemCalcResult() {
-  const perM3 = document.getElementById('ccRateForm').value === 'perM3';
-  const metres = chemCalcNum('ccMetres'), depth = chemCalcNum('ccDepth');
-  const rate = chemCalcNum('ccAppRate'), width = perM3 ? chemCalcNum('ccWidth') : 1;
-  const mixRate = chemCalcNum('ccMixRate');
-  const packLitres = chemCalcNum('ccPackSize'), packPrice = chemCalcNum('ccPackPrice');
-  if (![metres, depth, rate, width, mixRate, packLitres, packPrice].every(isFinite) ||
-      !metres || !depth || !rate || !width || !mixRate || !packLitres) return null;
-  const labelPerMetre = perM3 ? rate * (width / 1000) * (depth / 1000) : rate * depth / 100;
-  const minPerMetre = chemCalcNum('ccMinPerMetre');
-  const raisedToMin = isFinite(minPerMetre) && minPerMetre > labelPerMetre;
-  const mixPerMetre = raisedToMin ? minPerMetre : labelPerMetre;
-  const mixLitres = metres * mixPerMetre;
-  const concentrateLitres = mixLitres * mixRate / 100 / 1000; // mL per 100 L of mix
-  const chemical = concentrateLitres * packPrice / packLitres;
-  const hours = chemCalcNum('ccHours'), hourly = chemCalcNum('ccRate');
-  const labour = (isFinite(hours) ? hours : 0) * (isFinite(hourly) ? hourly : 0);
-  const markup = chemCalcNum('ccMarkup');
-  const cost = (chemical + labour) * (1 + (isFinite(markup) ? markup : 0) / 100);
-  const perMetre = chemRound2(cost / metres);
-  return {
-    metres, labelPerMetre, mixPerMetre, raisedToMin, mixLitres, concentrateLitres, chemical, labour,
-    perMetre, jobTotal: chemRound2(cost), lineTotal: chemRound2(perMetre * metres),
-  };
-}
-
-function updateChemCalc() {
-  document.getElementById('ccWidthField').style.display = document.getElementById('ccRateForm').value === 'perM3' ? '' : 'none';
-  const r = chemCalcResult();
-  const out = document.getElementById('ccResult');
-  const btn = document.getElementById('ccApply');
-  btn.disabled = !r;
-  if (!r) {
-    out.innerHTML = '<div class="cc-empty">Fill in the metres, the depth and the label figures to see the cost.</div>';
-    btn.textContent = 'Use this price';
-    return;
-  }
-  const litres = n => n >= 10 ? Math.round(n).toLocaleString('en-AU') + ' L' : chemRound2(n) + ' L';
-  const conc = r.concentrateLitres < 1 ? Math.round(r.concentrateLitres * 1000) + ' mL' : litres(r.concentrateLitres);
-  const it = quoteState && quoteState.items.find(i => i.id === chemCalcItemId);
-  const perJob = it && it.key === 'barrier_job';
-  out.innerHTML = `
-    <div><span>Mix per metre</span><strong>${litres(r.mixPerMetre)}</strong></div>
-    ${r.raisedToMin ? `<div class="cc-note">The label rate works out to ${litres(r.labelPerMetre)} per metre, so the label minimum is used instead.</div>` : ''}
-    <div><span>Mix needed</span><strong>${litres(r.mixLitres)}</strong></div>
-    <div><span>Concentrate</span><strong>${conc}</strong></div>
-    <div><span>Chemical cost</span><strong>${formatAUD(r.chemical)}</strong></div>
-    <div><span>Labour</span><strong>${formatAUD(r.labour)}</strong></div>
-    <div class="cc-total"><span>Price ex GST</span><strong>${formatAUD(perJob ? r.jobTotal : r.lineTotal)}</strong></div>
-    <div><span>Per metre</span><strong>${formatAUD(r.perMetre)}</strong></div>`;
-  btn.textContent = perJob ? `Use ${formatAUD(r.jobTotal)} for the job` : `Use ${formatAUD(r.perMetre)} per metre`;
-}
-
-// Keeps the product as typed (a new one is added), plus labour rate and
-// markup, so the next quote starts with them.
-function saveChemCalcSettings() {
-  const mem = quotePriceMemory();
-  const products = Array.isArray(mem.__chemicals) ? mem.__chemicals.slice() : [];
-  const name = document.getElementById('ccName').value.trim();
-  const sel = document.getElementById('ccProduct');
-  const rateForm = document.getElementById('ccRateForm').value === 'perM3' ? 'perM3' : 'per100';
-  const fields = {
-    name, apvma: document.getElementById('ccApvma').value.trim(), mlPer100L: chemCalcNum('ccMixRate'),
-    rateForm, rate: chemCalcNum('ccAppRate'), zoneWidthMm: rateForm === 'perM3' ? chemCalcNum('ccWidth') : null,
-    minPerMetre: chemCalcNum('ccMinPerMetre'), packLitres: chemCalcNum('ccPackSize'), packPrice: chemCalcNum('ccPackPrice'),
-  };
-  Object.keys(fields).forEach(k => { if (typeof fields[k] === 'number' && !isFinite(fields[k])) fields[k] = null; });
-  let id = sel.value;
-  if (name) {
-    const i = products.findIndex(p => p.id === id);
-    if (i >= 0) products[i] = Object.assign({}, products[i], fields);
-    else { id = 'chem_' + Date.now().toString(36); products.push(Object.assign({ id }, fields)); }
-  }
-  mem.__chemicals = products;
-  const hourly = chemCalcNum('ccRate'), markup = chemCalcNum('ccMarkup');
-  mem.__labourRate = isFinite(hourly) ? hourly : null;
-  mem.__markup = isFinite(markup) ? markup : null;
-  storeQuotePriceMemory(mem);
-  return id;
-}
-
-function removeChemCalcProduct() {
-  const id = document.getElementById('ccProduct').value;
-  const mem = quotePriceMemory();
-  mem.__chemicals = (mem.__chemicals || []).filter(p => p.id !== id);
-  storeQuotePriceMemory(mem);
-  renderChemCalcProducts(mem.__chemicals.length ? mem.__chemicals[0].id : 'new');
-}
-
-function applyChemCalc() {
-  const r = chemCalcResult();
-  const it = quoteState && quoteState.items.find(i => i.id === chemCalcItemId);
-  if (!r || !it) return;
-  saveChemCalcSettings();
-  const name = document.getElementById('ccName').value.trim();
-  if (it.key === 'barrier_job') {
-    it.qty = 1;
-    it.price = r.jobTotal;
-  } else {
-    it.qty = r.metres;
-    it.unit = 'lm';
-    it.price = r.perMetre;
-  }
-  if (name && !it.detail.trim()) it.detail = name;
-  rememberQuotePrice(it.key, parseFloat(it.price));
-  closeChemCalc();
-  renderQuoteItems();
-  scheduleQuoteSave();
-}
-
 // ── SENT AND LOCKED ─────────────────────────────────────────────────────────
 // A quote records when it went to the client and a hash of what it said, so
 // the job can only be completed once the client has the current quote (see
@@ -1116,6 +767,8 @@ function applyChemCalc() {
 function quoteHasItems(q) { return !!(q && q.items && q.items.length); }
 function quoteContentHash(q) {
   const content = Object.assign({}, q);
+  // 'booking' and 'invoice' are left over from features that were removed;
+  // older quotes may still carry them, and they never counted as content.
   ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey', 'answer', 'booking', 'treatment', 'invoice'].forEach(k => delete content[k]);
   return sha256Hex(stableJson(content));
 }

@@ -545,135 +545,13 @@ async function loadTeam() {
     );
     const invites = invitesRes.ok ? await invitesRes.json() : [];
 
-    teamMembersCache = members;
     const isOwner = !!(authBusiness && authUser && authBusiness.owner_id === authUser.id);
     renderTeam(members, invites, isOwner);
     const total = members.length + invites.length;
     const summary = document.getElementById('teamPanelSummary');
     if (summary) summary.textContent = total > 0 ? String(total) : '';
-
-    const assignForm = document.getElementById('assignJobForm');
-    if (assignForm) assignForm.style.display = isOwner ? 'flex' : 'none';
-    if (isOwner) populateJobAssigneeSelect(members);
-    loadTeamJobs();
   } catch(e) {
     if (list) list.innerHTML = '<div class="team-loading">Unable to load team</div>';
-  }
-}
-
-function populateJobAssigneeSelect(members) {
-  const select = document.getElementById('jobAssignee');
-  if (!select) return;
-  select.innerHTML = members.map(m =>
-    `<option value="${m.user_id}">${escapeHtml(m.name || m.email)}${m.user_id === authUser?.id ? ' (you)' : ''}</option>`
-  ).join('');
-}
-
-// ── Team job scheduling ─────────────────────────────────────────────────
-// A lightweight appointment (address/date/time/notes) an owner assigns to a
-// technician, stored in the `jobs` table. Separate from `reports`, which is
-// the full inspection paperwork the tech fills in once they actually do the
-// job. Visible to the whole team; only the owner can create or remove one.
-async function loadTeamJobs() {
-  if (!authBusiness) return;
-  const list = document.getElementById('jobsList');
-  if (!list) return;
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/jobs?business_id=eq.${authBusiness.id}&order=job_date.asc,job_time.asc`,
-      { headers: getAuthHeaders() }
-    );
-    const jobs = res.ok ? await res.json() : [];
-    renderJobsList(jobs);
-  } catch(e) {
-    if (list) list.innerHTML = '<div class="team-loading">Unable to load schedule</div>';
-  }
-}
-
-function renderJobsList(jobs) {
-  const list = document.getElementById('jobsList');
-  if (!list) return;
-  if (jobs.length === 0) {
-    list.innerHTML = '<div class="team-loading">No jobs scheduled yet.</div>';
-    return;
-  }
-  const isOwner = !!(authBusiness && authUser && authBusiness.owner_id === authUser.id);
-  const nameFor = (userId) => {
-    const m = teamMembersCache.find(x => x.user_id === userId);
-    return m ? (m.name || m.email) : 'Unassigned';
-  };
-  const fmtDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '';
-  const fmtTime = (t) => {
-    if (!t) return '';
-    const [h, m] = t.split(':').map(Number);
-    const period = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    return `${h12}:${String(m).padStart(2, '0')} ${period}`;
-  };
-  list.innerHTML = jobs.map(j => `
-    <div class="team-job-item">
-      <div class="team-job-info">
-        <div class="team-job-addr">${escapeHtml(j.address || 'No address')}</div>
-        <div class="team-job-meta">${fmtDate(j.job_date)}${j.job_time ? ' · ' + fmtTime(j.job_time) : ''} · ${escapeHtml(nameFor(j.assigned_to))}</div>
-        ${j.notes ? `<div class="team-job-notes">${escapeHtml(j.notes)}</div>` : ''}
-      </div>
-      ${isOwner ? `<button class="team-job-delete" onclick="deleteJob('${j.id}')" aria-label="Remove job" title="Remove job">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
-      </button>` : ''}
-    </div>
-  `).join('');
-}
-
-async function assignJob() {
-  if (!authBusiness || !authUser) return;
-  const assignedTo = document.getElementById('jobAssignee').value;
-  const address    = document.getElementById('jobAddressInput').value.trim();
-  const date       = document.getElementById('jobDateInput').value;
-  const time       = document.getElementById('jobTimeInput').value;
-  const notes      = document.getElementById('jobNotesInput').value.trim();
-  if (!address) { showToast('Enter a property address', 'error'); return; }
-  if (!assignedTo) { showToast('Choose who to assign this job to', 'error'); return; }
-
-  const btn = document.getElementById('assignJobBtn');
-  btn.disabled = true;
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/jobs`, {
-      method: 'POST',
-      headers: { ...getAuthHeaders(), 'Prefer': 'return=representation' },
-      body: JSON.stringify({
-        business_id: authBusiness.id,
-        assigned_to: assignedTo,
-        created_by:  authUser.id,
-        address, notes,
-        job_date: date || null,
-        job_time: time || null,
-      }),
-    });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); showToast(err.message || 'Could not assign job', 'error'); return; }
-
-    document.getElementById('jobAddressInput').value = '';
-    document.getElementById('jobDateInput').value = '';
-    document.getElementById('jobTimeInput').value = '';
-    document.getElementById('jobNotesInput').value = '';
-    showToast('Job assigned', 'success');
-    loadTeamJobs();
-  } catch(e) {
-    showToast('Network error — please try again', 'error');
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function deleteJob(id) {
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/jobs?id=eq.${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) { showToast('Could not remove job', 'error'); return; }
-    loadTeamJobs();
-  } catch(e) {
-    showToast('Network error — please try again', 'error');
   }
 }
 
@@ -5163,7 +5041,7 @@ function openAgreementSheet() {
     if (a.signature) img.src = a.signature;
   } else {
     document.getElementById('agreementSignerName').value = document.getElementById('jobClient').value.trim();
-    // Job Details may already have the booking's date and fee.
+    // Job Details may already have the inspection date and fee.
     document.getElementById('agreementDate').value = reportData.jobInspectionDate || todayIsoDate();
     const jobFee = (reportData.jobFee || '').trim();
     document.getElementById('agreementFee').value = jobFee ? `${/^\$/.test(jobFee) ? '' : '$'}${jobFee} inc GST` : '';
@@ -5958,7 +5836,6 @@ function saveCompanyDetails() {
   details.phone   = document.getElementById('companyPhone').value.trim();
   details.abn     = document.getElementById('companyABN').value.trim();
   details.email   = document.getElementById('companyEmail').value.trim();
-  details.paymentDetails = document.getElementById('companyPayment').value.trim();
   // Kept empty while it matches the default, so the business picks up
   // improvements to the default wording until they've customised it.
   const agreementText = document.getElementById('companyAgreementText').value;
@@ -5988,7 +5865,6 @@ function loadCompanyDetails() {
     document.getElementById('companyPhone').value   = '';
     document.getElementById('companyABN').value     = '';
     document.getElementById('companyEmail').value   = '';
-    document.getElementById('companyPayment').value = '';
     document.getElementById('companyAgreementText').value = DEFAULT_AGREEMENT_TEXT;
     if (!stored) { renderCompanyLogoPreview(null); return; }
     const d = JSON.parse(stored);
@@ -5997,7 +5873,6 @@ function loadCompanyDetails() {
     if (d.phone)   document.getElementById('companyPhone').value   = d.phone;
     if (d.abn)     document.getElementById('companyABN').value     = d.abn;
     if (d.email)   document.getElementById('companyEmail').value   = d.email;
-    if (d.paymentDetails) document.getElementById('companyPayment').value = d.paymentDetails;
     if (d.agreementText) document.getElementById('companyAgreementText').value = d.agreementText;
     renderCompanyLogoPreview(d.logo || null);
   } catch(e) {}
@@ -6103,7 +5978,6 @@ let authSession  = null;   // current Supabase session
 let authUser     = null;   // current user object
 let authBusiness = null;   // current business object
 let pendingRecoverySession = null; // { access_token, refresh_token } from a password-reset email link, until submitted
-let teamMembersCache = []; // last-loaded team roster, reused by the job-assignment dropdown
 
 function getAuthToken() {
   return authSession?.access_token || SUPABASE_KEY;
@@ -7378,8 +7252,6 @@ function saveCurrentReport(quiet) {
   if (quote) entry.quote = quote;
 
   const existingIndex = reports.findIndex(r => r.id === id);
-  // Reminders sent or dismissed from the dashboard (see js/followup.js).
-  if (existingIndex >= 0 && reports[existingIndex].followUps) entry.followUps = reports[existingIndex].followUps;
   if (existingIndex >= 0) {
     reports[existingIndex] = entry;
   } else {
@@ -7784,159 +7656,20 @@ function openDashboard() {
 
 function closeDashboard() {
   document.getElementById('dashboardOverlay').classList.remove('open');
-  stopScheduleAutoRefresh();
 }
 
-let dashboardActiveTab = 'overview';
-
 function switchDashboardTab(tab) {
-  dashboardActiveTab = tab;
   const overviewBtn = document.getElementById('dashTabOverview');
-  const scheduleBtn = document.getElementById('dashTabSchedule');
   const teamBtn     = document.getElementById('dashTabTeam');
   if (overviewBtn) overviewBtn.classList.toggle('active', tab === 'overview');
-  if (scheduleBtn) scheduleBtn.classList.toggle('active', tab === 'schedule');
   if (teamBtn) teamBtn.classList.toggle('active', tab === 'team');
   const subtitleEl = document.getElementById('dashboardSubtitle');
   if (subtitleEl) {
     subtitleEl.textContent = tab === 'team' ? 'All reports synced from your business — owner view'
-      : tab === 'schedule' ? 'This device\'s upcoming jobs, plus anything assigned to you'
       : 'Reports saved on this device — preview';
   }
-  if (tab === 'schedule') { renderSchedule(); startScheduleAutoRefresh(); }
-  else if (tab === 'team') { renderTeamDashboard(); stopScheduleAutoRefresh(); }
-  else { renderDashboard(); stopScheduleAutoRefresh(); }
-}
-
-// ── SCHEDULE (agenda view) ─────────────────────────────────────────────────
-// Merges two sources into one agenda, grouped into Today / Tomorrow / This
-// Week / Later / Past: reports the technician has saved locally with an
-// Inspection Date, and jobs a business owner has assigned to them via the
-// Team panel (stored in Supabase, so they can arrive from someone else's
-// device). The assigned-jobs half is fetched async and can't block the
-// instant local render, so renderSchedule() paints local data immediately
-// and re-renders once the cloud fetch resolves — and again periodically
-// while this tab stays open, so a schedule change a boss makes elsewhere
-// shows up here without the technician having to do anything.
-let scheduleAutoRefreshTimer = null;
-const SCHEDULE_AUTO_REFRESH_MS = 25000;
-
-function startScheduleAutoRefresh() {
-  stopScheduleAutoRefresh();
-  scheduleAutoRefreshTimer = setInterval(refreshAssignedJobsForSchedule, SCHEDULE_AUTO_REFRESH_MS);
-}
-
-function stopScheduleAutoRefresh() {
-  if (scheduleAutoRefreshTimer) { clearInterval(scheduleAutoRefreshTimer); scheduleAutoRefreshTimer = null; }
-}
-
-function renderSchedule() {
-  renderScheduleAgenda([]);
-  refreshAssignedJobsForSchedule();
-}
-
-async function refreshAssignedJobsForSchedule() {
-  if (!authSession || !authUser) return;
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/jobs?assigned_to=eq.${authUser.id}&order=job_date.asc,job_time.asc`,
-      { headers: getAuthHeaders() }
-    );
-    if (!res.ok) return;
-    const jobs = await res.json();
-    renderScheduleAgenda(jobs);
-  } catch(e) { /* silent — the schedule still shows local reports either way */ }
-}
-
-function renderScheduleAgenda(assignedJobs) {
-  const body = document.getElementById('dashboardBody');
-  if (!body) return;
-  // Guard against a slow async response landing after the technician has
-  // already switched away from the Schedule tab.
-  const scheduleBtn = document.getElementById('dashTabSchedule');
-  if (!scheduleBtn || !scheduleBtn.classList.contains('active')) return;
-
-  const reports = getSavedReports();
-  const localItems = reports
-    .filter(r => r.reportData && r.reportData.jobInspectionDate)
-    .map(r => ({
-      date: r.reportData.jobInspectionDate,
-      time: r.reportData.jobInspectionTime || '',
-      address: r.address || 'No address',
-      client: r.client || '',
-      assigned: false,
-    }));
-  const assignedItems = (assignedJobs || [])
-    .filter(j => j.job_date)
-    .map(j => ({
-      date: j.job_date,
-      time: j.job_time || '',
-      address: j.address || 'No address',
-      client: j.notes || '',
-      badge: /^Treatment\b/.test(j.notes || '') ? 'Treatment' : 'Assigned',
-    }));
-  const treatmentItems = bookedTreatments().map(({ q, report }) => ({
-    date: q.booking.date,
-    time: q.booking.time || '',
-    address: q.address || 'No address',
-    client: [q.client, q.booking.notes].filter(Boolean).join(' · '),
-    badge: q.treatment ? 'Treated' : 'Treatment',
-    reportId: report ? report.id : '',
-  }));
-
-  const all = [...localItems, ...assignedItems, ...treatmentItems];
-  if (all.length === 0) {
-    body.innerHTML = '<div class="dashboard-empty">No scheduled jobs yet.<br>Set an Inspection Date on a job to see it here.</div>';
-    return;
-  }
-
-  const todayStr = todayIsoDate();
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = isoDate(tomorrow);
-  const weekAhead = new Date();
-  weekAhead.setDate(weekAhead.getDate() + 7);
-  const weekAheadStr = isoDate(weekAhead);
-
-  const sorted = [...all].sort((a, b) =>
-    (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
-
-  const groups = { 'Today': [], 'Tomorrow': [], 'This Week': [], 'Later': [], 'Past': [] };
-  sorted.forEach(item => {
-    const d = item.date;
-    if (d < todayStr) groups['Past'].push(item);
-    else if (d === todayStr) groups['Today'].push(item);
-    else if (d === tomorrowStr) groups['Tomorrow'].push(item);
-    else if (d <= weekAheadStr) groups['This Week'].push(item);
-    else groups['Later'].push(item);
-  });
-
-  const fmtTime = (t) => {
-    if (!t) return '—';
-    const [h, m] = t.split(':').map(Number);
-    const period = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    return `${h12}:${String(m).padStart(2, '0')} ${period}`;
-  };
-  const fmtDateShort = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
-
-  let html = '';
-  ['Today', 'Tomorrow', 'This Week', 'Later', 'Past'].forEach(groupName => {
-    const items = groups[groupName];
-    if (items.length === 0) return;
-    html += `<div class="schedule-group-label">${groupName}</div>`;
-    html += items.map(item => `
-      <div class="schedule-item${item.reportId ? ' tappable' : ''}"${item.reportId ? ` onclick="closeDashboard(); loadReport('${item.reportId}')"` : ''}>
-        <div class="schedule-item-time">${fmtTime(item.time)}</div>
-        <div class="schedule-item-body">
-          <div class="schedule-item-addr">${escapeHtml(item.address)}${item.badge ? `<span class="schedule-item-badge${item.badge === 'Treatment' || item.badge === 'Treated' ? ' treatment' : ''}">${item.badge}</span>` : ''}</div>
-          <div class="schedule-item-meta">${fmtDateShort(item.date)}${item.client ? ' · ' + escapeHtml(item.client) : ''}</div>
-        </div>
-      </div>
-    `).join('');
-  });
-
-  body.innerHTML = html;
+  if (tab === 'team') renderTeamDashboard();
+  else renderDashboard();
 }
 
 function parseFeeToNumber(feeStr) {
@@ -7971,7 +7704,7 @@ function renderDashboard() {
   const fmtDate = (ts) => new Date(ts).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
   const fmtMoney = (n) => n > 0 ? `$${n.toLocaleString('en-AU', { maximumFractionDigits: 0 })}` : '—';
 
-  body.innerHTML = renderFollowUpsSection() + `
+  body.innerHTML = `
     <div class="dashboard-stat-grid">
       <div class="dashboard-stat-card">
         <div class="dashboard-stat-value">${totalJobs}</div>
@@ -8117,7 +7850,6 @@ async function renderTeamDashboard() {
 }
 
 function renderSavedList() {
-  updateFollowUpBadge();
   const list = document.getElementById('savedList');
   const allReports = getSavedReports();
   const summary = document.getElementById('savedPanelSummary');

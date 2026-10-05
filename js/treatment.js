@@ -54,6 +54,12 @@ function treatmentCertNumber(q) {
   return 'TC-' + String(q.number || '').replace(/^Q-?/i, '');
 }
 
+function formatClockTime(t) {
+  const [h, m] = String(t).split(':').map(Number);
+  if (!isFinite(h)) return t;
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m || 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
 function formatLongDate(iso) {
   if (!iso) return '';
   const d = new Date(iso + 'T00:00:00');
@@ -82,13 +88,14 @@ function addMonthsIso(iso, months) {
   return isoDate(d);
 }
 
-// A first record, filled in from the quote, booking and report.
+// A first record, filled in from the quote and report. The date starts as
+// today; the technician is whoever is signed in, else the report's inspector.
 function draftTreatment(q) {
   const rd = treatmentSourceReport();
   const company = getCompanyDetails();
   const me = typeof lastInspectorDetails === 'function' ? lastInspectorDetails() : { name: '', licence: '' };
-  const b = q.booking || {};
-  const date = b.date && b.date <= todayIsoDate() ? b.date : todayIsoDate();
+  const signedIn = (typeof authUser !== 'undefined' && authUser && authUser.user_metadata && authUser.user_metadata.name) || '';
+  const date = todayIsoDate();
   const methods = {};
   Object.entries(TREATMENT_METHODS).forEach(([key, m]) => {
     const line = q.items.find(it => m.quoteKeys.includes(it.key));
@@ -104,11 +111,11 @@ function draftTreatment(q) {
   if (methods.barrier !== undefined) places.push('Perimeter of the building');
   return {
     date,
-    technician: b.assignedName || q.inspector || me.name || '',
-    licence: b.assignedName ? '' : (rd.inspectorLicence || me.licence || company.licence || ''),
+    technician: signedIn || q.inspector || me.name || '',
+    licence: rd.inspectorLicence || me.licence || company.licence || '',
     supervisor: '',
     supervisorLicence: '',
-    start: (b.date === date && b.time) || '',
+    start: '',
     finish: '',
     pest: treatmentPestFromReport(rd, methods),
     weather: '',
@@ -146,13 +153,13 @@ function treatmentPestFromReport(rd, methods) {
 function renderTreatmentBlock(q) {
   const t = q.treatment;
   if (!t) {
-    return `<button class="quote-btn${q.booking ? ' primary' : ''} quote-book-btn" onclick="openTreatmentRecord()">Record the treatment</button>`;
+    return `<button class="quote-btn primary quote-step-btn" onclick="openTreatmentRecord()">Record the treatment</button>`;
   }
-  return `<div class="quote-booking">
+  return `<div class="quote-step">
       <div><strong>Treatment done</strong> on ${escapeHtml(formatAnswerDate(t.date))}${t.technician ? ` by ${escapeHtml(t.technician)}` : ''}</div>
       ${t.nextInspection ? `<div class="quote-answer-note">Next inspection due ${escapeHtml(formatAnswerDate(t.nextInspection))}</div>` : ''}
       ${treatmentSourceReport().propertyState === 'QLD' ? '<div class="quote-answer-note">In Queensland, email alone isn\'t enough: also hand the client a printed copy, or leave one in their letterbox.</div>' : ''}
-      <div class="quote-booking-actions">
+      <div class="quote-step-actions">
         <button class="quote-btn primary" onclick="emailTreatmentCertificate()">Email certificate</button>
         <button class="quote-link-btn" onclick="downloadTreatmentCertificate()">Certificate PDF</button>
         <button class="quote-link-btn" onclick="openTreatmentRecord()">Edit</button>

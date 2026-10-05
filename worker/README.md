@@ -11,7 +11,7 @@ calls:
 | `POST /stripe/create-checkout-session` | Upgrade buttons | Returns a Stripe Checkout link for `starter`, `pro` or `business` |
 | `POST /stripe/create-portal-session` | Manage button | Returns a Stripe Billing Portal link (change plan, card, cancel) |
 | `POST /stripe/webhook` | Stripe | Updates the `subscriptions` row when someone pays, changes plan or cancels |
-| `POST /send-email` | Send, Email to client, Email certificate, Email invoice | Emails the PDFs to the client from the business through Resend, with a copy to the business; answers 501 until Resend is set up, and the app then uses the phone's mail app |
+| `POST /send-email` | Send, Email to client, Email certificate | Emails the PDFs to the client from the business through Resend, with a copy to the business; answers 501 until Resend is set up, and the app then uses the phone's mail app |
 | `POST /transcribe` | Experimental AI audio transcription | Runs the recording through Whisper on Workers AI and returns `{ transcript }`; counts as one AI call |
 
 Only the business owner can start checkout or open the portal. The AI proxy's
