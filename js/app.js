@@ -1179,6 +1179,8 @@ Transcripts come from on-device voice dictation, not a human typist, and dictati
 - "construction error" → usually "construction era"
 - a stray duplicated word or fragment immediately before the real word (e.g. "enact inactive", "separate separately") → drop the fragment, use the real word that follows
 - "eastern bearer" (a structural timber member) → commonly mangled to "Easter Barra" / "Easter bearer" / similar — a bearer is a structural timber term, not a reference to the Easter holiday
+- "Joyce and bears" / "joys and bearers" (subfloor or framing context) → "joists and bearers"
+- a brand name sitting where an ordinary word belongs → the ordinary word, e.g. "active Termimesh found in the tree" means active termites, and "Exterra perimeter of the house" means the exterior perimeter. Only treat a brand name as real when it names an installed system, a product used, or a durable notice
 - a phonetically plausible but contextually nonsensical phrase (e.g. "cold on", "quote on", "code on", "called on") immediately before "physical termite barrier" → almost always "Kordon", a termite barrier brand name
 - PROPER NOUNS AND BRAND NAMES generally: dictation engines have no training data for niche industry brand names (Kordon, Termimesh, HomeGuard Blue, etc.) and will substitute the nearest common English words instead. When a product/brand-shaped slot in the sentence (e.g. "there's a ___ installed", "existing system is ___") is filled with ordinary words that don't fit grammatically or semantically, treat it as a mangled brand name and match it to the closest entry in the known products/systems list above rather than transcribing the literal (nonsensical) words.
 Apply this reasoning generally: prioritise the pest-inspection-domain-sensible reading of a word over a literal transcription whenever the literal reading is nonsensical or clearly out of place in context.
@@ -1722,82 +1724,25 @@ function correctKnownMishearings(text) {
   return text;
 }
 
-// Generic safety net for brand/product names and species genera Sayon
-// knows about, on top of the specific evidence-based corrections above.
-// UNLIKE those, this has no real-world evidence of how each term actually
-// gets misheard - most of these haven't been tested yet. It's a defensive
-// net, not a documented fix: word-level similarity against the known list,
-// deliberately conservative (short words are skipped entirely, and the
-// allowed edit distance is small) so it only ever nudges a word that's
-// ALREADY close to a known term - it can't invent a brand name from
-// nothing, and multi-word species names (e.g. "Coptotermes acinaciformis")
-// are intentionally left to the AI's contextual reasoning in SYSTEM_PROMPT
-// instead, since fuzzy-matching a whole Latin phrase word-by-word is much
-// less reliable than matching a single distinctive brand/genus word.
-const SAYON_BRAND_VOCAB = [
-  'Kordon', 'Termidor', 'Altriset', 'Phantom', 'Bifenthrin',
+// Brand/product names and species genera, sent to the transcription
+// backend as a vocabulary hint (see buildTranscriptionVocabHint below).
+// There used to be a client-side fuzzy matcher over this list too. It was
+// removed after a real test (5 Oct 2026) showed it rewriting ordinary words
+// into brand names: "termites" became "Termimesh" and "external" became
+// "Exterra". Brand names in the wrong slot are left to SYSTEM_PROMPT's
+// contextual reasoning, which can see the whole sentence.
+const TRANSCRIPTION_VOCAB = [
+  'Kordon', 'Termidor', 'Altriset', 'Phantom', 'Premise', 'Bifenthrin',
   'Biflex', 'Maxxthor', 'Talstar', 'Exterra', 'Sentricon', 'Trelona',
   'Termimesh', 'HomeGuard',
-  // "Premise" deliberately excluded - one character away from the
-  // ordinary, legitimate word "premises" ("nothing of concern on the
-  // premises"), which a real test case caught being falsely corrected to
-  // "Premise". Left to SYSTEM_PROMPT's contextual AI reasoning instead,
-  // where full-sentence context can tell the two apart safely.
-];
-const SAYON_GENUS_VOCAB = [
   'Coptotermes', 'Schedorhinotermes', 'Nasutitermes', 'Microcerotermes',
   'Heterotermes', 'Cryptotermes',
 ];
 
-function levenshteinDistance(a, b) {
-  const m = a.length, n = b.length;
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1]
-        ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
-  }
-  return dp[m][n];
-}
-
-// Returns the closest vocab term if `word` is close-but-not-identical to
-// it (within maxDistanceRatio of the term's length), else null. Exact
-// matches return null too - nothing to correct.
-function fuzzyMatchVocab(word, vocab, maxDistanceRatio, minWordLength) {
-  const w = word.toLowerCase();
-  if (w.length < minWordLength) return null;
-  let best = null, bestDist = Infinity;
-  for (const term of vocab) {
-    const t = term.toLowerCase();
-    if (w === t) return null;
-    const dist = levenshteinDistance(w, t);
-    const maxAllowed = Math.floor(t.length * maxDistanceRatio);
-    if (dist > 0 && dist <= maxAllowed && dist < bestDist) {
-      best = term; bestDist = dist;
-    }
-  }
-  return best;
-}
-
-function applyVocabSafetyNet(text) {
-  if (!text) return text;
-  return text.replace(/[A-Za-z][A-Za-z'-]*/g, (word) => {
-    const brandMatch = fuzzyMatchVocab(word, SAYON_BRAND_VOCAB, 0.3, 5);
-    if (brandMatch) return brandMatch;
-    const genusMatch = fuzzyMatchVocab(word, SAYON_GENUS_VOCAB, 0.3, 6);
-    if (genusMatch) return genusMatch;
-    return word;
-  });
-}
-
 // ── AI TRANSCRIPT CLEANUP (suggest-and-confirm, never automatic) ──────────
-// Unlike correctKnownMishearings()/applyVocabSafetyNet() above, which only
-// ever nudge a word that's ALREADY close to something known, this asks the
-// AI to reason about genuinely garbled stretches of the transcript - the
+// Unlike correctKnownMishearings() above, which only fixes specific phrases
+// already seen to go wrong in testing, this asks the AI to reason about
+// genuinely garbled stretches of the transcript - the
 // "Shut up Scott Stratford Number Double" kind of result that doesn't
 // resemble anything on a word-list. That's real signal loss, not a simple
 // mishearing, and an AI asked to "fix" it can't recover what was actually
@@ -1808,7 +1753,7 @@ function applyVocabSafetyNet(text) {
 // shows the inspector exactly what it would change and waits for Apply.
 const TRANSCRIPT_CLEANUP_PROMPT = `You are proofreading a voice-dictated transcript from an Australian termite/pest inspection technician (SAYON app). The transcript came from on-device speech recognition and may contain mishearings - a garbled word or phrase standing in for the real one, based on how it sounds.
 
-Your job: produce a corrected version of the transcript, fixing ONLY mishearings you can confidently resolve from context - the same judgement an experienced inspector would use proofreading a colleague's dictation. Known categories to watch for: brand/product names (Kordon, Termidor, Altriset, Phantom, Bifenthrin, Biflex, Maxxthor, Talstar, Exterra, Sentricon, Trelona, Termimesh, HomeGuard Blue), species names (e.g. Coptotermes acinaciformis), and pest-inspection technical terms (e.g. "bearer", "weep holes", "shrubbery", "installation", "subfloor").
+Your job: produce a corrected version of the transcript, fixing ONLY mishearings you can confidently resolve from context - the same judgement an experienced inspector would use proofreading a colleague's dictation. Known categories to watch for: brand/product names (Kordon, Termidor, Altriset, Phantom, Bifenthrin, Biflex, Maxxthor, Talstar, Exterra, Sentricon, Trelona, Termimesh, HomeGuard Blue), species names (e.g. Coptotermes acinaciformis), and pest-inspection technical terms (e.g. "bearer", "joists", "weep holes", "shrubbery", "installation", "subfloor", "exterior"). A brand name can also be wrong: if one sits where an ordinary word belongs (e.g. "active Termimesh found in the tree"), restore the ordinary word ("termites").
 
 CRITICAL: if a stretch of the transcript is too garbled to confidently reconstruct - not a mispronounced word, but content that doesn't resemble anything sensible in a pest-inspection context at all - do NOT invent or guess what it might have meant. Leave that exact stretch exactly as transcribed, and set hasUncertainSections to true. It is always better to leave garbage as garbage than to fabricate plausible-sounding content for a professional report. Only rewrite what you're genuinely confident about.
 
@@ -2017,13 +1962,13 @@ function stopAudioCapture() {
 
 // Vocabulary hint sent to the transcription backend (Whisper's
 // initial_prompt biases recognition toward words it's given, without
-// forcing them). Reads from the same brand/genus lists the client-side
-// safety net above uses, rather than duplicating them, so the two stay in
-// sync automatically as that vocabulary grows.
+// forcing them). The everyday inspection words are listed alongside the
+// brand names so the hint doesn't pull "termites" or "exterior" towards a
+// similar-sounding brand.
 function buildTranscriptionVocabHint() {
-  return 'Australian termite and pest inspection terms: ' +
-    [...SAYON_BRAND_VOCAB, ...SAYON_GENUS_VOCAB].join(', ') +
-    ', bearer, subfloor, weep holes, shrubbery, conducive conditions, slab edge, Kordon.';
+  return 'Australian termite and pest inspection terms: termites, ' +
+    TRANSCRIPTION_VOCAB.join(', ') +
+    ', joists, bearers, subfloor, roof void, weep holes, exterior, shrubbery, conducive conditions, slab edge.';
 }
 
 // Uploads the captured audio to the Worker's transcription endpoint and, on
@@ -2146,7 +2091,6 @@ function startRecording() {
         if (confEl) confEl.textContent = 'DEBUG conf: ' + confDebugLog.join(', ');
 
         finalChunk = correctKnownMishearings(finalChunk);
-        finalChunk = applyVocabSafetyNet(finalChunk);
         final += finalChunk + ' ';
       }
       else interim += e.results[i][0].transcript;
