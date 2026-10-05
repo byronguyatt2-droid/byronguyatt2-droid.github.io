@@ -448,20 +448,15 @@ function renderQuoteEditor() {
   renderQuoteAnswer();
 }
 
-// What's missing from Company details, which every quote's header shows.
+// What's missing from the business details, which every quote's header shows.
 function renderQuoteCompanyGaps() {
   const gaps = companyDetailGaps();
   const el = document.getElementById('quoteCompanyGaps');
   el.style.display = gaps.length ? '' : 'none';
   el.innerHTML = gaps.length
     ? `<div>Your quote won't show your ${escapeHtml(joinWithAnd(gaps))}. Clients and insurers look for these.</div>` +
-      '<button class="quote-link-btn" onclick="openCompanyDetailsFromQuote()">Add them</button>'
+      (canEditBusiness() ? '<button class="quote-link-btn" onclick="openBusinessForm(renderQuoteCompanyGaps)">Add them</button>' : '')
     : '';
-}
-function openCompanyDetailsFromQuote() {
-  closeQuote();
-  if (quoteReturnTo !== 'app') openApp('inspect');
-  openMenuPage('companyPanelWrap');
 }
 
 function renderQuoteItems() {

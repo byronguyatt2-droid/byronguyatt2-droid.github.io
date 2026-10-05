@@ -36,8 +36,8 @@ app. Emails need to come from your own domain, or they land in spam.
    - `RESEND_API_KEY`: the key from step 3
    - `MAIL_FROM`: the address to send from, e.g. `reports@yourdomain.com.au`
 
-Clients see the business's name (Company details) as the sender, and replies
-go to the business email in Company details, which also gets a copy of every
+Clients see the business's name (Your business) as the sender, and replies
+go to the business email in Your business, which also gets a copy of every
 email sent.
 
 ## One-time Stripe setup
