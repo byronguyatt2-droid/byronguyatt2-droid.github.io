@@ -4,7 +4,21 @@
  * The API keys are stored as Cloudflare secrets and never exposed to the
  * browser or public repo. See worker/README.md for setup and deploy steps.
  *
- * CHANGES FROM PREVIOUS VERSION (v7 -> v8):
+ * CHANGES FROM PREVIOUS VERSION (v8 -> v9):
+ * Adds POST /send-email, so the app can email a report, quote, certificate
+ * or invoice PDF to the client itself instead of going through the
+ * phone's mail app. Sends through Resend (resend.com) with plain fetch.
+ * Needs two new secrets; until both are set the route answers 501 and the
+ * app keeps using the phone's mail app:
+ *   RESEND_API_KEY - from Resend › API Keys
+ *   MAIL_FROM      - the address it sends from, on a domain verified in
+ *                    Resend, e.g. reports@yourdomain.com.au
+ * The client sees the business's name as the sender and replies go to the
+ * business's own email. Only signed-in users on an active plan or trial
+ * can send, only PDFs can be attached, and sending doesn't use AI calls.
+ * Every other path behaves exactly as v8 did.
+ *
+ * CHANGES FROM v7 -> v8:
  * Adds the Stripe billing routes that index.html already calls (see the
  * BILLING / STRIPE section there), plus the webhook Stripe needs to keep
  * the `subscriptions` table in sync:
@@ -67,6 +81,7 @@
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 const STRIPE_API = 'https://api.stripe.com/v1';
+const RESEND_API = 'https://api.resend.com/emails';
 
 // Same Supabase project the app itself talks to. The anon key is public
 // (it's already embedded in the client app) - it identifies the project,
@@ -144,6 +159,14 @@ const PLAN_PRICE_ENV = {
 // possible replay (Stripe's own libraries use the same 5 minutes).
 const WEBHOOK_TOLERANCE_SECONDS = 300;
 
+// Limits on /send-email. A report with photos can run to several MB, so
+// the attachment ceiling is generous (Resend accepts up to 40MB per email).
+const MAX_EMAIL_ATTACHMENTS = 4;
+const MAX_EMAIL_BASE64_CHARS = 25 * 1024 * 1024;
+const MAX_EMAIL_TEXT_CHARS = 5000;
+const MAX_EMAIL_SUBJECT_CHARS = 200;
+const EMAIL_PATTERN = /^[^\s@<>,;"()]+@[^\s@<>,;"()]+\.[^\s@<>,;"()]+$/;
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -186,6 +209,12 @@ export default {
 
     if (isStripeRoute) {
       return handleStripeRoute(url.pathname, request, verifiedUser, env, origin);
+    }
+
+    // Sending email isn't an AI call, so it skips the AI usage gate below
+    // and checks only that the plan is current.
+    if (url.pathname === '/send-email') {
+      return handleSendEmail(request, verifiedUser, env, origin);
     }
 
     // Plan/subscription gate. Runs after identity is confirmed, before we
@@ -684,6 +713,86 @@ function encodeStripeParams(params, prefix, out = new URLSearchParams()) {
     else out.append(name, String(value));
   }
   return out;
+}
+
+// ── EMAIL ────────────────────────────────────────────────────────────────
+// Sends the client their PDFs from the business, through Resend. The From
+// address is always MAIL_FROM (a domain verified in Resend, so it isn't
+// marked as spam); the business's name is shown as the sender and replies
+// go to the business's own email. { check: true } only reports whether
+// sending is set up, so the app knows which way to send before anyone taps.
+async function handleSendEmail(request, user, env, origin) {
+  const reply = (status, payload) => jsonResponse(status, payload, origin);
+
+  let body;
+  try { body = await request.json(); } catch { return reply(400, { message: 'Invalid JSON' }); }
+
+  const configured = !!(env.RESEND_API_KEY && env.MAIL_FROM);
+  if (body && body.check) return reply(200, { configured });
+  if (!configured) return reply(501, { message: 'Email sending is not set up yet' });
+
+  try {
+    const found = await loadBusinessSubscription(user.id, env);
+    if (!found.ok) return reply(found.status, { message: found.message });
+    const sub = found.sub;
+    const trialOver = sub.status === 'trialing' && new Date(sub.trial_ends_at).getTime() < Date.now();
+    if (sub.status === 'canceled' || trialOver) {
+      return reply(402, { message: 'Your plan has ended. Subscribe to send from KORVUS' });
+    }
+
+    const to = cleanEmail(body.to);
+    if (!to) return reply(400, { message: "The client's email address doesn't look right" });
+    const subject = typeof body.subject === 'string' ? body.subject.replace(/[\r\n]+/g, ' ').trim().slice(0, MAX_EMAIL_SUBJECT_CHARS) : '';
+    if (!subject) return reply(400, { message: 'The email needs a subject' });
+    const text = typeof body.text === 'string' ? body.text.slice(0, MAX_EMAIL_TEXT_CHARS) : '';
+
+    // PDFs only: every attachment must be named .pdf and its content must
+    // start with the PDF signature ("%PDF" is "JVBER" in base64).
+    const files = Array.isArray(body.attachments) ? body.attachments : [];
+    if (!files.length || files.length > MAX_EMAIL_ATTACHMENTS) return reply(400, { message: 'Attach between 1 and 4 PDFs' });
+    let totalChars = 0;
+    const attachments = [];
+    for (const f of files) {
+      const filename = f && typeof f.filename === 'string' ? f.filename.replace(/[\\/\r\n"]+/g, '_').slice(0, 120) : '';
+      const content = f && typeof f.content === 'string' ? f.content : '';
+      if (!/\.pdf$/i.test(filename) || !content.startsWith('JVBER')) return reply(400, { message: 'Only PDFs can be attached' });
+      totalChars += content.length;
+      attachments.push({ filename, content });
+    }
+    if (totalChars > MAX_EMAIL_BASE64_CHARS) return reply(413, { message: 'The PDFs are too large to email' });
+
+    const fromName = (typeof body.fromName === 'string' ? body.fromName : '').replace(/[<>"\r\n]+/g, '').trim().slice(0, 80) || 'KORVUS';
+    const replyTo = cleanEmail(body.replyTo);
+    const copyTo = cleanEmail(body.copyTo);
+
+    const res = await fetch(RESEND_API, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: `"${fromName}" <${env.MAIL_FROM}>`,
+        to: [to],
+        ...(copyTo && copyTo !== to ? { bcc: [copyTo] } : {}),
+        ...(replyTo ? { reply_to: replyTo } : {}),
+        subject,
+        text,
+        attachments,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error(`send-email: Resend refused (HTTP ${res.status}): ${data && data.message ? data.message : 'unknown error'}`);
+      return reply(502, { message: 'The email service didn\'t accept it. Try again, or send it from your mail app' });
+    }
+    return reply(200, { id: data.id || null });
+  } catch (err) {
+    console.error('send-email failed: ' + (err && err.message ? err.message : String(err)));
+    return reply(502, { message: 'Could not send the email' });
+  }
+}
+
+function cleanEmail(value) {
+  const v = typeof value === 'string' ? value.trim() : '';
+  return v.length <= 254 && EMAIL_PATTERN.test(v) ? v : '';
 }
 
 // ── TRANSCRIBE ───────────────────────────────────────────────────────────
