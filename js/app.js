@@ -1411,6 +1411,7 @@ function openApp(appName) {
   const app = document.getElementById('app');
   menu.style.display = 'none';
   app.style.display = 'flex';
+  track('screen_viewed', { screen: 'report' });
 
   if (!appInitialised) {
     appInitialised = true;
@@ -2130,6 +2131,7 @@ function dismissServerTranscript() {
 function startRecording() {
   const SR = getSpeechRecognitionCtor();
   if (!SR) { showToast('Speech recognition not supported — tap the transcript box to type instead', 'error'); return; }
+  track('dictation_started', { hands_free: false });
 
   lowConfidenceFlagged = false;
   const warnEl0 = document.getElementById('lowConfidenceWarning');
@@ -2623,6 +2625,7 @@ function toggleHandsFreeMode() {
   hfUpdateUI();
   if (handsFreeMode) {
     hfAwake = false; hfSessionText = ''; hfExtracting = false;
+    track('dictation_started', { hands_free: true });
     const popover = document.getElementById('voicePopover');
     const fab = document.getElementById('micFab');
     if (!popover.classList.contains('open')) {
@@ -2816,7 +2819,27 @@ function buildSpeciesIntelHTML(data) {
 // ended, usage limit). Either way the note waits rather than being lost.
 const EXTRACTION_TIMEOUT_MS = 120000;
 
+// Times each note and records how it went (never the note itself). A
+// refusal the inspector can fix (sign-in, plan, usage) or no signal isn't
+// a bug, so only the rest go to Sentry, as the kind of failure only: the
+// Worker's answer could quote the note.
 async function requestExtraction(text) {
+  const started = Date.now();
+  const seconds = () => Math.round((Date.now() - started) / 100) / 10;
+  try {
+    const parsed = await callExtraction(text);
+    track('note_filled', { seconds: seconds(), words: text.split(/\s+/).filter(Boolean).length });
+    return parsed;
+  } catch (err) {
+    const reason = err.noSignal ? 'no_signal' : err.tooLong ? 'too_long' : err.badAnswer ? 'bad_answer'
+      : err.status ? 'http_' + err.status : 'other';
+    track('note_failed', { reason, seconds: seconds() });
+    if (!err.noSignal && ![401, 402, 429].includes(err.status)) reportError(new Error('Extraction failed: ' + reason), 'extraction');
+    throw err;
+  }
+}
+
+async function callExtraction(text) {
   const noSignal = (msg) => Object.assign(new Error(msg), { noSignal: true });
   if (!navigator.onLine) throw noSignal('no signal');
 
@@ -4604,6 +4627,7 @@ function showSection(name) {
   // Scroll active tab into view
   const activeTab = document.getElementById('tab-' + name);
   if (activeTab) activeTab.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  track('screen_viewed', { screen: 'report_' + name });
 }
 
 // ── PROGRESS ──────────────────────────────────────────────────────────────
@@ -4902,6 +4926,7 @@ function renderAgreementBanner() {
 
 function openAgreementSheet() {
   const a = reportData.agreement;
+  track('screen_viewed', { screen: 'agreement' });
   document.getElementById('agreementEdit').style.display = a ? 'none' : '';
   document.getElementById('agreementView').style.display = a ? '' : 'none';
   if (a) {
@@ -5010,6 +5035,7 @@ function signAgreement(method) {
   renderAgreementBanner();
   closeAgreementSheet();
   showToast('Agreement signed', 'success');
+  track('agreement_signed', { method });
 }
 
 function removeAgreement() {
@@ -5525,6 +5551,7 @@ function showMenuPage(panelId) {
   // The plan can change in Stripe or with a different sign-in, so Billing
   // always shows it fresh.
   if (panelId === 'billingPanel') loadBillingStatus();
+  if (panel) track('screen_viewed', { screen: 'menu_' + panelId });
 }
 
 function openDashboardFromMenu() {
@@ -5951,6 +5978,7 @@ function billingReturnUrl(marker) {
 
 async function openCheckout(plan) {
   if (!authUser) { showToast('Sign in first', 'error'); return; }
+  track('checkout_opened', { plan });
   try {
     const res = await workerFetch('/stripe/create-checkout-session', {
       method: 'POST',
@@ -6176,6 +6204,8 @@ async function signUp() {
       authUser    = data.user;
       saveSession(data);
       localStorage.setItem('korva_last_user_id', data.user.id);
+      telemetryIdentify(data.user.id);
+      track('signed_up');
 
       await loadBusiness();
       startAuthAutoRefresh();
@@ -6217,6 +6247,8 @@ async function signIn() {
     authSession = data;
     authUser    = data.user;
     saveSession(data);
+    telemetryIdentify(data.user.id);
+    track('signed_in');
 
     // Saved reports are now scoped per-account (reportsStorageKey()), so a
     // different user signing in on this device simply reads their OWN key -
@@ -6307,6 +6339,7 @@ async function signOut() {
 // phone, then shows the sign-in screen.
 async function endSessionOnDevice() {
   const reportsKey = reportsStorageKey(), quotesKey = quotesStorageKey();
+  telemetrySignedOut();
   stopAuthAutoRefresh();
   clearSession();
   localStorage.removeItem('korva_last_user_id');
@@ -6522,6 +6555,7 @@ async function _loadBusinessImpl() {
 
 // ── ENTER APP ─────────────────────────────────────────────────────────────
 function enterApp() {
+  if (authUser) telemetryIdentify(authUser.id);
   document.getElementById('authScreen').style.display   = 'none';
   document.getElementById('onboardScreen').style.display = 'none';
   handleBillingReturn(); // notice + clean up a return from Stripe Checkout/Portal, if that's why we're here
@@ -6674,6 +6708,7 @@ function showAuth(panel) {
   // Fix: ensure displayed card uses flex column
   const active = document.getElementById(panel);
   if (active) active.style.flexDirection = 'column';
+  track('screen_viewed', { screen: 'auth_' + panel });
 }
 
 // ── SESSION RESTORE ON LOAD ──────────────────────────────────────────────
@@ -7016,6 +7051,7 @@ function loadDraft() {
     return true;
   } catch (e) {
     console.error('Failed to load draft', e);
+    reportError(e, 'load_draft');
     return false;
   }
 }
@@ -7031,6 +7067,7 @@ function getSavedReports() {
     return raw ? JSON.parse(raw) : [];
   } catch (e) {
     console.error('Failed to read saved reports', e);
+    reportError(e, 'read_saved_reports');
     return [];
   }
 }
@@ -7041,6 +7078,7 @@ function setSavedReports(reports) {
     return true;
   } catch (e) {
     console.error('Failed to save reports', e);
+    reportError(e, 'save_reports');
     showToast('Could not save — storage full or unavailable', 'error');
     return false;
   }
@@ -7260,7 +7298,8 @@ async function exportAllData() {
     const data = {};
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith('korva_')) {
+      // The telemetry id and its unsent events belong to this phone.
+      if (key && key.startsWith('korva_') && key !== TELEMETRY_ID_KEY && key !== TELEMETRY_QUEUE_KEY) {
         data[key] = localStorage.getItem(key);
       }
     }
@@ -7300,6 +7339,7 @@ async function exportAllData() {
     showToast(`Exported ${reportCount} saved report${reportCount === 1 ? '' : 's'} and preferences`, 'success');
   } catch (e) {
     console.error('Export failed', e);
+    reportError(e, 'export');
     showToast('Export failed — see console for details', 'error');
   }
 }
@@ -7370,9 +7410,11 @@ function importAllData(file) {
       renderSavedList();
       restoreA11ySettings();
       restoreAudioCaptureSetting();
+      restoreTelemetrySetting();
       showToast(`Imported ${finalReports.length} report${finalReports.length === 1 ? '' : 's'}`, 'success');
     } catch (err) {
       console.error('Import failed', err);
+      reportError(err, 'import');
       showToast('Import failed — see console for details', 'error');
     }
   };
@@ -7477,6 +7519,7 @@ function lastInspectorDetails() {
 }
 
 function newReport() {
+  track('report_started');
   resetReportState();
   document.getElementById('jobAddress').value = '';
   document.getElementById('jobSuburb').value = '';
@@ -7719,6 +7762,10 @@ function showToast(msg, type = 'default', action) {
   };
 
   t.innerHTML = `${icons[type] || icons.default}<span>${escapeHtml(String(msg))}</span>`;
+  // Where inspectors get stuck. Toasts are the app's own wording; details
+  // in brackets (an error's own text) and any email or long number are
+  // blanked before it's sent.
+  if (type === 'error') track('error_shown', { message: scrubTelemetryText(String(msg).replace(/\([^)]*\)/g, '(…)')) });
   t.className = 'toast show toast-' + type + (action ? ' toast-has-action' : '');
   if (action) {
     const btn = document.createElement('button');
@@ -8004,6 +8051,7 @@ function markReportComplete() {
   saveCurrentReport(true);
   renderIssueState();
   showToast(version > 1 ? `Version ${version} complete. Report and quote locked` : 'Job complete. Report and quote locked', 'success');
+  track('report_completed', { version });
 }
 
 function openAmendForm() {
@@ -8020,6 +8068,7 @@ function startAmendment() {
   const reason = document.getElementById('issueAmendReason').value.trim();
   if (!reason) { showToast('Say why the report is being changed', 'error'); return; }
   reportData.amending = { reason, startedAt: Date.now() };
+  track('report_unlocked');
   saveCurrentReport(true);
   renderIssueState();
   showToast(`Unlocked. Changes become version ${reportVersion()}`, 'info');
@@ -8251,6 +8300,7 @@ async function sendPdfsDirect({ files, to, subject, body }) {
     // The phone's mail app from here on, this session. It needs a fresh
     // tap to open, so the inspector taps again.
     directEmail = false;
+    if (!(e instanceof TypeError)) reportError(e, 'send_email');
     const why = e instanceof TypeError ? 'Could not reach SAYON to send it' : e.message;
     showToast(`${why}. Tap again to send it from your mail app`, 'error');
     return false;
@@ -8276,6 +8326,7 @@ function openSendReview() {
   }
   const sidebar = document.getElementById('sidebarPanel');
   if (sidebar && sidebar.classList.contains('open')) toggleDrawer();
+  track('screen_viewed', { screen: 'check_before_send' });
   const quote = currentJobQuote();
   const address = getFullAddress();
   const client = document.getElementById('jobClient').value.trim();
@@ -8393,6 +8444,7 @@ async function confirmSendReview() {
     try { files = await sendReviewFiles(r); }
     catch (e) {
       console.error('PDF build failed:', e);
+      reportError(e, 'send_pdf');
       showToast((e && e.message) || 'Could not make the PDF', 'error');
       return;
     }
@@ -8405,6 +8457,7 @@ async function confirmSendReview() {
     });
     if (!sent || sendReview !== r) return;
     closeSendReview();
+    track('report_sent', { documents: files.length, with_quote: !!r.quote });
     if (r.quote) markQuoteSent(r.quote);
     recordReportSent(r.report.fingerprint, r.report.version);
   } finally {
@@ -8425,8 +8478,9 @@ function generateReport() {
   setTimeout(() => {
     ensureJsPDFLoaded().then(() => {
       return _buildAndDownloadPDF();
-    }).catch((e) => {
+    }).then(() => track('report_pdf_made')).catch((e) => {
       console.error('PDF generation failed:', e);
+      reportError(e, 'report_pdf');
       showToast((e && e.message) || 'Could not generate the PDF — check your connection and try again', 'error');
     }).finally(() => {
       btn.innerHTML = originalText;

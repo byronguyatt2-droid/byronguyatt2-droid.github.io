@@ -967,6 +967,13 @@
           </div>
           <div class="settings-row">
             <div class="settings-row-text">
+              <div class="settings-row-title">Send crash reports and usage</div>
+              <div class="settings-row-desc">Tells SAYON when something breaks and which screens get used, so we can fix it. Never sends client details, notes, report text or photos.</div>
+            </div>
+            <button type="button" class="toggle-switch" id="toggleTelemetry" onclick="toggleTelemetrySetting()" aria-label="Send crash reports and usage"></button>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-text">
               <div class="settings-row-title">Delete My Account</div>
               <div class="settings-row-desc">Permanently deletes your account, every report and photo stored online, and everything on this phone.</div>
             </div>
@@ -1770,6 +1777,9 @@
 </div><!-- /body -->
 </div><!-- /app -->
 
+<!-- Error tracking and usage steps, first so they see the app start (TELEMETRY in js/telemetry.js) -->
+<script src="js/vendor/sentry-11.4.0.min.js"></script>
+<script src="js/telemetry.js"></script>
 <script src="js/app.js"></script>
 <!-- Quote builder: uses js/app.js globals (reportData, getSavedReports, jsPDF…) -->
 <script src="js/quote.js"></script>
