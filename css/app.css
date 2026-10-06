@@ -2,6 +2,12 @@
 
 :root {
   --bg:        #D6E4EF;
+  /* Rugged blocks: the heavy frame round each section and field, and the
+     dashed colour of a field still waiting for an answer. Safety amber is
+     only used on dark (11.5:1 on black but 1.8:1 on white), so daylight
+     uses a near-black frame and dark amber (5.9:1). */
+  --frame:     #0D1117;
+  --need:      #8A5A00;
   --surface:   #FFFFFF;
   /* Room the floating mic button needs at the foot of a scroll area:
      its 58px button, 20px from the bottom, plus a gap. */
@@ -62,6 +68,8 @@ body.dark-screen {
   --risk:      #FF5A4F;
   --green:     #2FD27A;
   --accent2:   #2DD4BF;
+  --frame:     #FFB000;
+  --need:      #FFB000;
 }
 body.dark-screen.high-contrast { --border: #5B6B7C; --border2: #7A8C9E; --text2: #D4DEE7; --text3: #B4C2CF; }
 body.dark-screen .choice-panel { box-shadow: inset 0 0 0 1px var(--border2); }
@@ -74,8 +82,11 @@ body.dark-screen .section-tabs { background: var(--surface2); border-bottom-colo
 body.dark-screen .report-header { border-bottom-color: var(--border); }
 body.dark-screen .report-title h2 { color: var(--text); }
 body.dark-screen .report-body { background: var(--bg); }
-body.dark-screen .report-section { border-color: var(--border2); box-shadow: none; border-top-color: var(--accent); }
-body.dark-screen .field-val.filled { background: rgba(45,212,191,0.12); color: var(--text); }
+body.dark-screen .section-header { background: #000000; border-bottom: 2px solid var(--frame); }
+body.dark-screen .drawer-subhead { background: #000000; box-shadow: inset 0 -2px 0 var(--frame); }
+body.dark-screen .field-val, body.dark-screen .job-input { border-color: #5B6B7C; background: #000000; }
+body.dark-screen .field-val:not(.filled):not(.choice-source) { border-color: var(--need); }
+body.dark-screen .field-val.filled { border-color: #E8EEF4; background: #000000; }
 body.dark-screen .section-photo-widget { border-color: var(--border2); }
 body.dark-screen .obs-zone-btn:not(.active) { background: var(--surface2); border-color: var(--border2); color: var(--text2); }
 body.dark-screen .obs-zone-panel-header { background: var(--surface2); border-bottom-color: var(--border); }
@@ -102,8 +113,6 @@ body.high-contrast {
   --text2: #1E2B38;
   --text3: #3D5166;
 }
-body.high-contrast .field-val { border-width: 2px; }
-body.high-contrast .report-section,
 body.high-contrast .sidebar,
 body.high-contrast .voice-popover,
 body.high-contrast .toast { border-width: 2px; }
@@ -117,10 +126,10 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
 }
 /* Larger touch targets: the defaults are already 44px (thumb sized);
    this setting goes a step further for gloves. */
-body.large-touch .field-val { min-height: 52px; padding: 13px 14px; font-size: 14px; }
+body.large-touch .field-val { min-height: 56px; padding: 13px 14px; font-size: 16px; }
 body.large-touch .notes-toggle { width: 52px; }
 body.large-touch .section-tab { min-height: 52px; padding: 14px 18px; font-size: 14px; }
-body.large-touch .job-input { min-height: 52px; padding: 14px 13px; font-size: 15px; }
+body.large-touch .job-input { min-height: 56px; padding: 14px 13px; font-size: 16px; }
 body.large-touch .job-action-btn,
 body.large-touch .extract-btn,
 body.large-touch .generate-btn,
@@ -953,8 +962,8 @@ header {
 /* Job details */
 .job-panel {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: 3px solid var(--frame);
+  border-radius: 6px;
   overflow: hidden;
 }
 
@@ -1039,14 +1048,14 @@ header {
 .job-input {
   width: 100%;
   background: var(--surface2);
-  border: 1px solid var(--border2);
-  border-radius: 8px;
+  border: 2px solid var(--frame);
+  border-radius: 4px;
   padding: 11px 12px;
   color: var(--text);
   font-family: 'Inter', sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   transition: border-color 0.15s, box-shadow 0.15s;
-  min-height: 44px;
+  min-height: 52px;
 }
 
 .job-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15); background: var(--surface); }
@@ -1078,15 +1087,16 @@ header {
 .job-input::placeholder { color: var(--text3); }
 
 .job-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.job-row-3 { grid-template-columns: 1.4fr 0.8fr 1fr; }
+.job-row-suburb { grid-template-columns: 1.6fr 1fr; }
 
 .drawer-subhead {
-  margin: 6px 0 12px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text3);
+  margin: 16px 0 12px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: #0D1117;
+  font-size: 12px;
+  font-weight: 800;
+  color: #FFFFFF;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -2035,13 +2045,11 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
 /* Report sections */
 .report-section {
   background: var(--surface);
-  border: 1px solid #B8CDE0;
-  border-radius: 16px;
+  border: 3px solid var(--frame);
+  border-radius: 6px;
   overflow: hidden;
   margin-bottom: 14px;
   animation: sectionIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-  box-shadow: 0 8px 32px rgba(0,60,100,0.12), 0 2px 8px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
-  border-top: 3px solid var(--accent);
 }
 
 @keyframes sectionIn {
@@ -2051,8 +2059,7 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
 
 .section-header {
   padding: 14px 16px;
-  background: rgba(255,255,255,0.02);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: #0D1117;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2064,11 +2071,11 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
   font-weight: 700;
   flex: 1;
   letter-spacing: -0.2px;
-  color: var(--text);
+  color: #FFFFFF;
 }
 
 .section-header h3 .sec-num {
-  color: var(--accent);
+  color: #FFFFFF;
   font-weight: 800;
   margin-right: 5px;
   opacity: 0.7;
@@ -2085,6 +2092,11 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
 .sec-badge.done    { background: rgba(45,160,80,0.1); color: #2A8F4A; border: 1px solid rgba(45,160,80,0.25); }
 .sec-badge.partial { background: rgba(255,182,72,0.1); color: var(--yellow-text); border: 1px solid rgba(255,182,72,0.2); }
 .sec-badge.empty   { background: transparent; color: var(--text3); border: 1px solid rgba(255,255,255,0.06); }
+/* On the black title band */
+.section-header .sec-badge { background: transparent; border-color: currentColor; }
+.section-header .sec-badge.done    { color: #5BE39A; }
+.section-header .sec-badge.partial { color: #FFC53D; }
+.section-header .sec-badge.empty   { color: #B4C2CF; }
 
 /* Next section button — appears at the bottom of a completed section */
 .next-section-btn {
@@ -2130,10 +2142,10 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
 
 .field-label {
   font-size: 10.5px;
-  font-weight: 700;
-  color: var(--text2);
+  font-weight: 800;
+  color: var(--text);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2288,14 +2300,14 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
 .scan-plate-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .field-val {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   padding: 11px 12px;
   background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 2px solid var(--frame);
+  border-radius: 4px;
   color: var(--text3);
-  min-height: 44px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   transition: all 0.2s;
@@ -2303,13 +2315,12 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
   line-height: 1.4;
 }
 
+.field-val:not(.filled):not(.choice-source) { border-style: dashed; border-color: var(--need); }
 .field-val.filled {
-  border-color: rgba(13,148,136,0.7);
-  background: #E4F6F3;
-  color: #0A3D35;
-  font-weight: 600;
-  box-shadow: 0 0 0 3px rgba(13,148,136,0.1), inset 0 1px 3px rgba(13,148,136,0.08);
+  border-color: var(--frame);
+  background: var(--surface);
   color: var(--text);
+  font-weight: 600;
   font-style: normal;
 }
 
@@ -2903,6 +2914,14 @@ button.choice-card:focus-visible,
 body.large-touch .choice-card { min-height: 72px; }
 body.text-size-large .choice-card-code,
 body.text-size-xl .choice-card-code { font-size: 14px; }
+
+/* Short job-detail dropdowns (inspection type, state, payment) as card
+   grids. The native <select> stays in the page, hidden, and keeps the
+   value; see SELECT CARDS in app.js. */
+.select-cards-source { display: none !important; }
+.select-cards .choice-card { min-height: 65px; }
+.select-cards .choice-card-code { font-size: 14px; }
+body.large-touch .select-cards .choice-card { min-height: 72px; }
 
 /* Findings gating question: termite activity, which every finding must
    answer. Taller cards, and an amber frame until it's answered. */
