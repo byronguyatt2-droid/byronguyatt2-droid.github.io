@@ -636,24 +636,24 @@
             <div class="job-field-label">Street Address</div>
             <input class="job-input" id="jobAddress" placeholder="e.g. 12 Smith Street" oninput="updateJob()">
           </div>
-          <div class="job-row job-row-3">
+          <div class="job-row job-row-suburb">
             <div class="job-field">
               <div class="job-field-label">Suburb</div>
               <input class="job-input" id="jobSuburb" placeholder="Suburb" oninput="updateJob()">
             </div>
             <div class="job-field">
-              <div class="job-field-label">State</div>
-              <select class="job-input job-select" id="jobState" onchange="updateJob()">
-                <option value="">--</option>
-                <option>NSW</option><option>VIC</option><option>QLD</option>
-                <option>WA</option><option>SA</option><option>TAS</option>
-                <option>ACT</option><option>NT</option>
-              </select>
-            </div>
-            <div class="job-field">
               <div class="job-field-label">Postcode</div>
               <input class="job-input" id="jobPostcode" placeholder="0000" inputmode="numeric" maxlength="4" oninput="updateJob()">
             </div>
+          </div>
+          <div class="job-field">
+            <div class="job-field-label">State</div>
+            <select class="job-input job-select" id="jobState" onchange="updateJob()">
+              <option value="">--</option>
+              <option>NSW</option><option>VIC</option><option>QLD</option>
+              <option>WA</option><option>SA</option><option>TAS</option>
+              <option>ACT</option><option>NT</option>
+            </select>
           </div>
           <!-- Client -->
           <div class="job-row">
