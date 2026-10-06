@@ -4746,6 +4746,7 @@ function openAgreementSheet() {
     if (a.signature) img.src = a.signature;
   } else {
     document.getElementById('agreementSignerName').value = document.getElementById('jobClient').value.trim();
+    document.getElementById('agreementInspectionType').value = reportData.jobInspectionType || '';
     // Job Details may already have the inspection date and fee.
     document.getElementById('agreementDate').value = reportData.jobInspectionDate || todayIsoDate();
     const jobFee = (reportData.jobFee || '').trim();
@@ -4769,10 +4770,25 @@ function refreshAgreementPreview() {
   updateAgreementSignButton();
 }
 
+// The agreement sheet's inspection type is the job's inspection type: it is
+// the same field, shown here because the client signs before anything else
+// is known, and clause 1 names the type and the standard it sets.
+function onAgreementTypeChange() {
+  const type = document.getElementById('agreementInspectionType').value;
+  const jobSel = document.getElementById('jobInspectionType');
+  if (jobSel && jobSel.value !== type) { jobSel.value = type; onInspectionTypeChange(); }
+  refreshAgreementPreview();
+}
+
+function agreementTypeChosen() {
+  return !!document.getElementById('agreementInspectionType').value;
+}
+
 function updateAgreementSignButton() {
   const btn = document.getElementById('agreementSignBtn');
   if (!btn) return;
-  btn.disabled = !(document.getElementById('agreementSignerName').value.trim()
+  btn.disabled = !(agreementTypeChosen()
+    && document.getElementById('agreementSignerName').value.trim()
     && document.getElementById('agreementAgree').checked
     && agreementSignaturePad && !agreementSignaturePad.empty);
 }
@@ -4786,6 +4802,7 @@ function toggleAgreementOther() {
 // records an agreement signed on paper or by email, with a short note.
 function signAgreement(method) {
   const signerName = document.getElementById('agreementSignerName').value.trim();
+  if (!agreementTypeChosen()) { showToast('Choose the inspection type first: it sets the standard the agreement names', 'error'); return; }
   if (!signerName) { showToast('Enter the name of the person signing', 'error'); return; }
   const values = agreementFormValues();
   const agreement = { method, signerName, signedAt: Date.now(),
