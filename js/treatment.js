@@ -475,8 +475,8 @@ function buildTreatmentCertificatePDF(q) {
   const section = title => {
     ensure(22);
     y += 1;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
-    doc.text(title, M, y);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...C.ink);
+    pdfTracked(doc, title, M, y, { cs: 0.6 });
     doc.setFillColor(...C.rule); doc.rect(M, y + 2, CW, 0.3, 'F');
     y += 6.5;
   };
@@ -508,7 +508,7 @@ function buildTreatmentCertificatePDF(q) {
     y += h + 1;
   };
 
-  y = drawPdfDocCover(doc, company, { compact: true, kicker: 'TERMITE MANAGEMENT', title: 'TREATMENT CERTIFICATE', date: formatLongDate(t.date), left: [
+  y = drawPdfDocCover(doc, company, { compact: true, kicker: 'Termite management', title: 'Treatment Certificate', date: formatLongDate(t.date), left: [
     ['CLIENT', q.client || 'Not specified'],
     ['PROPERTY ADDRESS', q.address || 'Not specified'],
     ['CONTACT', [q.clientPhone, q.clientEmail].map(v => (v || '').trim()).filter(Boolean).join('  ·  ')],
@@ -561,10 +561,10 @@ function buildTreatmentCertificatePDF(q) {
     const base = cols.reduce((a, c) => a + c.w, 0);
     cols.forEach(c => { c.w = c.w * CW / base; });
     const head = () => {
-      doc.setFillColor(...C.headerBg); doc.rect(M, y, CW, 8, 'F');
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(235, 228, 218);
+      drawPdfTableHeadRule(doc, M, y, CW);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(6.3); doc.setTextColor(...C.inkLight);
       let x = M + 3;
-      cols.forEach(c => { doc.text(c.h, x, y + 5.3); x += c.w; });
+      cols.forEach(c => { pdfTracked(doc, c.h, x, y + 5.3, { cs: 0.3 }); x += c.w; });
       y += 8;
     };
     ensure(20); y -= 2.5; head();
@@ -664,23 +664,24 @@ function buildTreatmentCertificatePDF(q) {
 
   // ── SIGN-OFF ── (kept together): who, licence and date on the left,
   // the signature on the right.
-  ensure(t.supervisor ? 26 : 21);
-  y += 1.5;
+  ensure(t.supervisor ? 34 : 30);
+  y += 3;
   doc.setFillColor(...C.accent); doc.rect(M, y, CW, 0.5, 'F');
-  y += 7.5;
-  const half = (CW - 10) / 2;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-  doc.text([t.technician, t.licence ? `Licence ${t.licence}` : ''].filter(Boolean).join('  ·  ') || 'Technician', M, y - 4);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
-  doc.text(formatLongDate(t.date), M, y + 0.5);
+  y += 19;
+  const colW = (CW - 16) / 3;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.ink);
+  doc.text(doc.splitTextToSize(t.technician || '', colW - 2)[0] || '', M + 1, y - 2);
+  drawPdfSignature(doc, { x: M, y, w: colW, caption: t.licence ? `Technician · Licence ${t.licence}` : 'Technician' });
+  drawPdfSignature(doc, { x: M + colW + 8, y, w: colW, caption: 'Signature', image: t.signature });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.ink);
+  doc.text(formatLongDate(t.date), M + (colW + 8) * 2 + 1, y - 2);
+  drawPdfSignature(doc, { x: M + (colW + 8) * 2, y, w: colW, caption: 'Date' });
+  y += 9;
   if (t.supervisor) {
-    doc.text(`Supervised by ${t.supervisor}${t.supervisorLicence ? `, licence ${t.supervisorLicence}` : ''}`, M, y + 5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
+    doc.text(`Supervised by ${t.supervisor}${t.supervisorLicence ? `, licence ${t.supervisorLicence}` : ''}`, M, y);
+    y += 5;
   }
-  doc.setFontSize(9); doc.setTextColor(...C.ink);
-  doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
-  doc.text('Signature:', M + half + 10, y); doc.line(M + half + 28, y + 1, M + CW, y + 1);
-  if (t.signature) { try { doc.addImage(t.signature, 'PNG', M + half + 31, y - 8.5, 28, 9.6); } catch (e) {} }
-  y += t.supervisor ? 10 : 5;
   para('The treatment above was carried out by this technician in line with the product label directions and AS 3660.2. It does not repair existing damage, and no treatment can guarantee termites will never return. Regular inspections are the best protection.',
     { size: 7, lh: 3.2, color: C.inkMuted });
 
