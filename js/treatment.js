@@ -2,7 +2,8 @@
 // After the treatment, the technician records what was done on the accepted
 // quote: q.treatment = { date, start, finish, technician, licence,
 // supervisor, supervisorLicence, pest, weather, equipment, methods:
-// { key: qty }, products: [{ name, active, batch, rate, amount, life, where }],
+// { key: qty }, products: [{ name, active, batch, labelPhoto (JPEG data URL
+// of the drum label), rate, amount, life, where }],
 // areas, notTreated, sketch (JPEG data URL of the site plan), notice:
 // 'new'|'updated'|'none', noticeWhere, cautions, nextInspection, warranty,
 // notes, signature, at }. It's kept with the quote, so it syncs with the
@@ -140,7 +141,7 @@ const TREATMENT_DEFAULT_CAUTIONS = 'Keep people and pets away from treated areas
 // they were treated too.
 function treatmentPestFromReport(rd, methods) {
   const species = [...new Set((rd.findings || []).filter(f => f && f.termiteActivity === 'ACTIVE' && f.species)
-    .map(f => f.species.trim()))];
+    .map(f => f.species.trim()).filter(s => !/not identified|further investigation/i.test(s)))];
   const pests = [];
   if (Object.keys(methods).some(k => k !== 'borer') || !('borer' in methods)) {
     pests.push('Subterranean termites' + (species.length ? ` (${species.join(', ')})` : ''));
@@ -294,15 +295,20 @@ function renderTreatmentProducts(products) {
           <input class="job-input" data-f="amount" value="${esc(p.amount || '')}" placeholder="e.g. 640 L of mix">
         </div>
       </div>
-      <div class="job-row">
-        <div class="job-field">
-          <div class="job-field-label">Batch No.</div>
-          <input class="job-input" data-f="batch" value="${esc(p.batch || '')}" placeholder="On the container">
+      <div class="job-field">
+        <div class="job-field-label">Batch No.</div>
+        <div class="treat-batch">
+          <input class="job-input" data-f="batch" value="${esc(p.batch || '')}" placeholder="Printed on the drum or container">
+          <label class="quote-link-btn treat-label-btn">${p.labelPhoto ? 'Retake label photo' : 'Photo of the label'}
+            <input type="file" accept="image/*" capture="environment" hidden onchange="loadTreatmentLabelPhoto(this, ${i})">
+          </label>
         </div>
-        <div class="job-field">
-          <div class="job-field-label">Life (per label)</div>
-          <input class="job-input" data-f="life" value="${esc(p.life || '')}" placeholder="e.g. Up to 8 years">
-        </div>
+        <input type="hidden" data-f="labelPhoto" value="${esc(p.labelPhoto || '')}">
+        ${p.labelPhoto ? `<img class="treat-label-thumb" src="${esc(p.labelPhoto)}" alt="Drum label photo">` : ''}
+      </div>
+      <div class="job-field">
+        <div class="job-field-label">Life (per label)</div>
+        <input class="job-input" data-f="life" value="${esc(p.life || '')}" placeholder="e.g. Up to 8 years">
       </div>
       <div class="job-field">
         <div class="job-field-label">Where it was applied</div>
@@ -318,6 +324,30 @@ function readTreatmentProducts() {
     row.querySelectorAll('[data-f]').forEach(inp => { p[inp.dataset.f] = inp.value.trim(); });
     return p;
   });
+}
+
+// A photo of the drum label keeps the batch number on record without typing
+// it out. It's compressed by the shared photo helper and kept with the product.
+async function loadTreatmentLabelPhoto(input, i) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  try {
+    const { blob } = await compressPhotoFile(file);
+    const url = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result); fr.onerror = rej;
+      fr.readAsDataURL(blob);
+    });
+    const products = readTreatmentProducts();
+    if (!products[i]) return;
+    products[i].labelPhoto = url;
+    renderTreatmentProducts(products);
+    const batch = document.querySelector(`#trProducts .treat-product[data-i="${i}"] [data-f="batch"]`);
+    if (batch && !batch.value) { batch.placeholder = 'Type the batch number from the photo'; batch.focus(); }
+  } catch (e) {
+    showToast('Could not open that photo', 'error');
+  }
 }
 
 function addTreatmentProduct() {
@@ -420,7 +450,7 @@ function emailTreatmentCertificate() {
     to: (q.clientEmail || '').trim(),
     subject: `Termite treatment certificate — ${q.address || 'your property'}`,
     body: clientMessage({ client: q.client, address: q.address, docs: 'termite treatment certificate', signOff: q.treatment.technician }),
-  });
+  }).then(sent => { if (sent) markCertificateSent(q); });
 }
 
 function buildTreatmentCertificatePDF(q) {
@@ -444,27 +474,38 @@ function buildTreatmentCertificatePDF(q) {
   // fit one page.
   const section = title => {
     ensure(22);
-    y += 2;
+    y += 1;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
     doc.text(title, M, y);
     doc.setFillColor(...C.rule); doc.rect(M, y + 2, CW, 0.3, 'F');
-    y += 7.5;
+    y += 6.5;
   };
   const para = (text, opts = {}) => {
     doc.setFont('helvetica', opts.bold ? 'bold' : 'normal'); doc.setFontSize(opts.size || 9);
     doc.setTextColor(...(opts.color || C.ink));
     const lines = doc.splitTextToSize(text, opts.w || CW);
-    ensure(lines.length * 4.4);
+    const lh = opts.lh || 4.4;
+    ensure(lines.length * lh);
     doc.text(lines, opts.x || M, y);
-    y += lines.length * 4.4 + (opts.after == null ? 2 : opts.after);
+    y += lines.length * lh + (opts.after == null ? 2 : opts.after);
   };
-  const labelled = (label, value) => {
-    if (!value) return;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
-    ensure(10);
-    doc.text(label.toUpperCase(), M, y);
-    y += 4;
-    para(value, { after: 1.5 });
+  // A row of small labelled cells side by side, e.g. pest, equipment, weather.
+  const cellRow = pairs => {
+    const cells = pairs.filter(([, v]) => v);
+    if (!cells.length) return;
+    const w = (CW - (cells.length - 1) * 6) / cells.length;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+    const lines = cells.map(([, v]) => doc.splitTextToSize(v, w));
+    const h = 4 + Math.max(...lines.map(l => l.length)) * 4;
+    ensure(h);
+    cells.forEach(([label], k) => {
+      const x = M + k * (w + 6);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
+      doc.text(label.toUpperCase(), x, y);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+      doc.text(lines[k], x, y + 4);
+    });
+    y += h + 1;
   };
 
   y = drawPdfDocCover(doc, company, { compact: true, kicker: 'TERMITE MANAGEMENT', title: 'TREATMENT CERTIFICATE', date: formatLongDate(t.date), left: [
@@ -483,22 +524,10 @@ function buildTreatmentCertificatePDF(q) {
   // ── WHAT WAS DONE ──
   section('TREATMENT CARRIED OUT');
   // Pest, equipment and weather in a row of small labelled cells.
-  const facts = [['Pest treated', t.pest], ['Equipment', t.equipment], ['Weather', t.weather]].filter(([, v]) => v);
-  if (facts.length) {
-    const fw = (CW - (facts.length - 1) * 6) / facts.length;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-    const fl = facts.map(([, v]) => doc.splitTextToSize(v, fw));
-    const fh = 4 + Math.max(...fl.map(l => l.length)) * 4;
-    ensure(fh);
-    facts.forEach(([label], i) => {
-      const x = M + i * (fw + 6);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
-      doc.text(label.toUpperCase(), x, y);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
-      doc.text(fl[i], x, y + 4);
-    });
-    y += fh + 1;
-  }
+  // A species qualifier ("not identified, further investigation required")
+  // belongs on the inspection report, not on a certificate for work done.
+  const pest = (t.pest || '').replace(/\s*\([^)]*(not identified|further investigation)[^)]*\)/gi, '').trim();
+  cellRow([['Pest treated', pest], ['Equipment', t.equipment], ['Weather', t.weather]]);
   Object.entries(t.methods || {}).forEach(([key, qty]) => {
     const m = TREATMENT_METHODS[key];
     if (!m) return;
@@ -512,37 +541,25 @@ function buildTreatmentCertificatePDF(q) {
   });
 
   // Where, in the same row style.
-  const areaCols = [['Areas treated', t.areas], ['Areas not treated', t.notTreated]].filter(([, v]) => v);
-  if (areaCols.length) {
-    const colW = (CW - (areaCols.length - 1) * 6) / areaCols.length;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-    const areaLines = areaCols.map(([, v]) => doc.splitTextToSize(v, colW));
-    const h = 4 + Math.max(...areaLines.map(l => l.length)) * 4;
-    y += 1.5;
-    ensure(h);
-    areaCols.forEach(([label], i) => {
-      const x = M + i * (colW + 6);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
-      doc.text(label.toUpperCase(), x, y);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
-      doc.text(areaLines[i], x, y + 4);
-    });
-    y += h + 1;
-  }
+  if (t.areas || t.notTreated) { y += 1.5; cellRow([['Areas treated', t.areas], ['Areas not treated', t.notTreated]]); }
 
   // ── PRODUCTS ──
   const products = (t.products || []).filter(p => p.name || p.active);
   if (products.length) {
     section('PRODUCTS APPLIED');
     // The product cell carries the active constituent on its second line.
-    const cols = [
-      { h: 'PRODUCT', w: 34, f: p => p.name || p.active },
+    // Only the columns something was entered in, so there's no row of dashes.
+    const optional = [
       { h: 'RATE', w: 30, f: p => p.rate },
       { h: 'AMOUNT', w: 24, f: p => p.amount },
-      { h: 'BATCH NO.', w: 22, f: p => p.batch },
+      { h: 'BATCH NO.', w: 24, f: p => p.batch },
       { h: 'LIFE (LABEL)', w: 24, f: p => p.life },
-      { h: 'WHERE', w: CW - 134, f: p => p.where },
-    ];
+      { h: 'WHERE', w: 46, f: p => p.where },
+    ].filter(c => products.some(p => String(c.f(p) || '').trim()));
+    const cols = [{ h: 'PRODUCT', w: 40, f: p => p.name || p.active }, ...optional];
+    // Spread the spare width over the columns in proportion.
+    const base = cols.reduce((a, c) => a + c.w, 0);
+    cols.forEach(c => { c.w = c.w * CW / base; });
     const head = () => {
       doc.setFillColor(...C.headerBg); doc.rect(M, y, CW, 8, 'F');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(235, 228, 218);
@@ -553,7 +570,7 @@ function buildTreatmentCertificatePDF(q) {
     ensure(20); y -= 2.5; head();
     products.forEach((p, i) => {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-      const cells = cols.map(c => doc.splitTextToSize(c.f(p) || '—', c.w - 3));
+      const cells = cols.map(c => doc.splitTextToSize(c.f(p) || '', c.w - 3));
       doc.setFontSize(7.5);
       const active = p.name && p.active ? doc.splitTextToSize(p.active, cols[0].w - 3) : [];
       const rowH = Math.max(cells[0].length * 4 + active.length * 3.4, ...cells.slice(1).map(l => l.length * 4)) + 4;
@@ -572,7 +589,7 @@ function buildTreatmentCertificatePDF(q) {
       });
       y += rowH;
     });
-    y += 3;
+    y += 2;
   }
 
   // ── DURABLE NOTICE AND SITE PLAN ── The wording on the notice itself
@@ -582,7 +599,11 @@ function buildTreatmentCertificatePDF(q) {
   const boxW = t.sketch ? CW - planW - 5 : CW, ncols = t.sketch ? 2 : 3;
   const cellW = (boxW - 8 - (ncols - 1) * 5) / ncols;
   const methodNames = Object.keys(t.methods || {}).map(k => TREATMENT_METHODS[k] && TREATMENT_METHODS[k].label).filter(Boolean);
-  const productLife = products.map(p => `${p.name || p.active}${p.name && p.active ? ` (${p.active})` : ''}: ${p.life || 'see label'}`);
+  // Chemical life only when a chemical was applied, not on a baiting-only
+  // job, and only for the chemicals (not the baits).
+  const BAITS = /exterra|sentricon|trelona|chlorfluazuron|noviflumuron|novaluron|bistrifluron|hexaflumuron/i;
+  const chemicalApplied = Object.keys(t.methods || {}).some(k => k !== 'bait');
+  const productLife = !chemicalApplied ? [] : products.filter(p => !BAITS.test(`${p.name || ''} ${p.active || ''}`)).map(p => `${p.name || p.active}${p.name && p.active ? ` (${p.active})` : ''}: ${p.life || 'see label'}`);
   const installer = [company.name, [t.technician, t.licence ? `licence ${t.licence}` : ''].filter(Boolean).join(', ')].filter(Boolean).join('. ');
   const noticeCells = t.notice === 'none' ? [['Notice', 'No durable notice was placed at this treatment.']] : [
     ['System', methodNames.join('; ')],
@@ -596,7 +617,7 @@ function buildTreatmentCertificatePDF(q) {
   const noticeLines = noticeCells.map(([, v]) => doc.splitTextToSize(v, cellW));
   const rowHs = [];
   for (let i = 0; i < noticeLines.length; i += ncols) {
-    rowHs.push(4 + Math.max(...noticeLines.slice(i, i + ncols).map(l => l.length)) * 3.6 + 2.5);
+    rowHs.push(4 + Math.max(...noticeLines.slice(i, i + ncols).map(l => l.length)) * 3.6 + 1.5);
   }
   const boxH = Math.max(4 + rowHs.reduce((a, h) => a + h, 0), planH);
   ensure(boxH + 2);
@@ -617,38 +638,36 @@ function buildTreatmentCertificatePDF(q) {
     try { doc.addImage(t.sketch, 'JPEG', px, top, planW, planH); } catch (e) {}
     doc.setDrawColor(...C.rule); doc.setLineWidth(0.3); doc.rect(px, top, planW, planH);
   }
-  y = top + boxH + 3.5;
+  y = top + boxH + 2.5;
 
   // ── NEXT STEPS ──
   const steps = [];
   if (t.cautions) steps.push(`Safety and re-entry: ${t.cautions}`);
   if (t.nextInspection) steps.push(`Book your next timber pest inspection by ${formatLongDate(t.nextInspection)}. AS 3660.2 recommends one at least every 12 months.`);
-  if ((t.methods || {}).barrier !== undefined) steps.push('Do not disturb the treated soil: no digging, new garden beds, paving or structures against the building without asking us first, as these can break the treated zone.');
-  steps.push('Keep the slab edge and weep holes clear, keep garden beds and stored items away from the walls, and fix water leaks promptly.');
-  steps.push('Contact us straight away if you see termites, mud leads or new damage.');
+  // Three short points, so the signature stays on page 1.
+  steps.push(((t.methods || {}).barrier !== undefined ? 'Do not dig or build against the treated soil without asking us. ' : '') +
+    'Keep weep holes clear and leaks fixed, and call us if you see termites or mud leads.');
   // The list stays together, so it never starts at the foot of a page.
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
   const stepLines = steps.map(st => doc.splitTextToSize(st, CW - 7));
-  ensure(12 + stepLines.reduce((a, l) => a + l.length * 4.2 + 0.8, 0));
+  ensure(12 + stepLines.reduce((a, l) => a + l.length * 3.9 + 0.8, 0));
   section('KEEPING THE PROPERTY PROTECTED');
   stepLines.forEach((lines, i) => {
-    ensure(lines.length * 4.2 + 2);
+    ensure(lines.length * 3.9 + 2);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
     doc.text(`${i + 1}.`, M, y);
     doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.ink);
     doc.text(lines, M + 6, y);
-    y += lines.length * 4.2 + 0.8;
+    y += lines.length * 3.9 + 0.8;
   });
-  if (t.warranty || t.notes) y += 1.5;
-  if (t.warranty) labelled('Warranty and service terms', t.warranty);
-  if (t.notes) labelled('Technician notes', t.notes);
+  if (t.warranty || t.notes) { y += 1.5; cellRow([['Warranty and service terms', t.warranty], ['Technician notes', t.notes]]); }
 
   // ── SIGN-OFF ── (kept together): who, licence and date on the left,
   // the signature on the right.
-  ensure(t.supervisor ? 31 : 26);
+  ensure(t.supervisor ? 26 : 21);
   y += 1.5;
   doc.setFillColor(...C.accent); doc.rect(M, y, CW, 0.5, 'F');
-  y += 8.5;
+  y += 7.5;
   const half = (CW - 10) / 2;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...C.ink);
   doc.text([t.technician, t.licence ? `Licence ${t.licence}` : ''].filter(Boolean).join('  ·  ') || 'Technician', M, y - 4);
@@ -663,7 +682,7 @@ function buildTreatmentCertificatePDF(q) {
   if (t.signature) { try { doc.addImage(t.signature, 'PNG', M + half + 31, y - 8.5, 28, 9.6); } catch (e) {} }
   y += t.supervisor ? 10 : 5;
   para('The treatment above was carried out by this technician in line with the product label directions and AS 3660.2. It does not repair existing damage, and no treatment can guarantee termites will never return. Regular inspections are the best protection.',
-    { size: 7, color: C.inkMuted });
+    { size: 7, lh: 3.2, color: C.inkMuted });
 
   drawPdfDocFooters(doc, `Certificate ${number}${company.name ? `  ·  ${company.name}` : ''}`);
   const safe = (q.address || 'Property').replace(/[^\w]+/g, '_').substring(0, 25);

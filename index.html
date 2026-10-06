@@ -307,6 +307,7 @@
               <button class="quote-link-btn" onclick="rebuildQuoteFromReport()">Rebuild from report</button>
             </div>
           </div>
+          <div id="quoteSystemChoice" class="quote-system-choice" style="display:none"></div>
           <div id="quoteItems"></div>
           <button class="quote-add-btn" onclick="addQuoteItem()">+ Add line</button>
           <div class="quote-hint">Prices are ex GST. Each line starts at the rate you last quoted for it, so per-metre and per-station rates carry over to your next quote.</div>
@@ -554,6 +555,7 @@
         </svg>
         <span class="progress-ring-text" id="progressRingText">0%</span>
       </div>
+      <span class="progress-ring-label" id="progressRingLabel" style="display:none">Complete</span>
       <div class="profile-menu-wrap" id="profileMenuWrap">
         <button class="header-icon-btn profile-btn" id="profileBtn" onclick="toggleProfileMenu()" aria-label="Account" title="Account">
           <span id="profileInitials">?</span>
@@ -976,7 +978,7 @@
         <button class="share-btn" id="quoteFromReportBtn" onclick="openQuoteFromReport()" title="Build a treatment quote from this report">
           <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>Quote
         </button>
-        <button class="share-btn" id="shareBtn" onclick="openSendReview()" style="display:none" title="Email the report (and quote) to the client">
+        <button class="share-btn" id="shareBtn" onclick="openSendReview()" disabled title="Check the report, then email it (and the quote) to the client">
           <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>Send
         </button>
       </div>
@@ -1656,7 +1658,7 @@
         </div>
         <div class="job-field">
           <div class="job-field-label">Fee</div>
-          <input class="job-input" id="agreementFee" placeholder="e.g. $330 inc GST" oninput="refreshAgreementPreview()">
+          <input class="job-input" id="agreementFee" placeholder="e.g. $330 inc GST" oninput="onAgreementFeeInput()">
         </div>
       </div>
       <div class="job-field">
@@ -1718,6 +1720,34 @@
       <textarea class="job-input send-review-body" id="sendReviewBody" rows="9" aria-label="Message"></textarea>
       <button class="extract-btn" id="sendReviewBtn" onclick="confirmSendReview()">Open email to send</button>
       <button class="link-btn send-review-cancel" onclick="closeSendReview()">Not yet</button>
+    </div>
+  </div>
+</div>
+
+<!-- DID THAT SEND? (when the app can't tell from the share sheet or email) -->
+<div class="page-sheet-overlay did-it-send-overlay" id="didItSendOverlay">
+  <div class="did-it-send" role="alertdialog" aria-modal="true" aria-labelledby="didItSendTitle" aria-describedby="didItSendText">
+    <div class="did-it-send-title" id="didItSendTitle">Did that send?</div>
+    <p class="did-it-send-text" id="didItSendText"></p>
+    <div class="did-it-send-btns">
+      <button class="extract-btn" onclick="answerDidItSend(true)">Yes, it's sent</button>
+      <button class="link-btn" onclick="answerDidItSend(false)">Not yet</button>
+    </div>
+  </div>
+</div>
+
+<!-- AFTER EXTRACT: what was filled and what's still blank -->
+<div class="page-sheet-overlay" id="extractSummaryOverlay" onclick="if(event.target===this)closeExtractSummary()">
+  <div class="page-sheet extract-summary-sheet" role="dialog" aria-modal="true" aria-labelledby="extractSummaryTitle">
+    <div class="page-sheet-header">
+      <span class="page-sheet-title" id="extractSummaryTitle">From your note</span>
+      <button class="voice-popover-close" onclick="closeExtractSummary()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+    </div>
+    <div class="page-sheet-body">
+      <div class="extract-summary-filled" id="extractSummaryFilled"></div>
+      <div class="extract-summary-label" id="extractSummaryBlankLabel">Left blank</div>
+      <div class="extract-summary-list" id="extractSummaryBlanks"></div>
+      <button class="extract-btn" onclick="closeExtractSummary()">Done</button>
     </div>
   </div>
 </div>

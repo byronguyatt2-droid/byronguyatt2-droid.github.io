@@ -406,9 +406,9 @@ function setAreaStatus(zoneId, status) {
   syncObstructionData();
 }
 
-function markRemainingAreasInspected() {
+function markRemainingAreasInspected(status = 'INSPECTED') {
   if (!reportData.areaStatus) reportData.areaStatus = {};
-  Object.keys(OBS_ZONES).forEach(z => { if (!reportData.areaStatus[z]) reportData.areaStatus[z] = 'INSPECTED'; });
+  Object.keys(OBS_ZONES).forEach(z => { if (!reportData.areaStatus[z]) reportData.areaStatus[z] = status; });
   syncObstructionData();
 }
 
@@ -1164,6 +1164,21 @@ const SECTIONS = {
   recommendations: { fields:['riskLevel','treatmentRecommended','treatmentType','inspectionFrequency'], total:4 },
   photos:          { fields:['photos'], total:1 },
   signoff:         { fields:['inspectorLicence','inspectorSignature','agreement'], total:3 }
+};
+// The fields a finished report needs. Progress (the ring, the section badges
+// and the saved list's Ready status) counts only these, so a complete job can
+// reach 100%: height, facade, high-risk areas, follow-on details (leak
+// location, treatment type, restriction detail) and photos are optional.
+// 'standard' is set from the inspection type, so it isn't counted either.
+const REQUIRED_FIELDS = {
+  property:        ['structureType','occupancyStatus','weatherConditions','wallConstruction','roofType','floorType','constructionEra'],
+  obstructions:    ['areaStatus'],
+  restrictions:    ['hinderedAreas'],
+  findings:        ['findings','borerActivity','decayFound'],
+  conducive:       ['waterLeaks','moistureReadings','timberSoil','slabEdge','weepHoles'],
+  recommendations: ['riskLevel','treatmentRecommended','inspectionFrequency'],
+  photos:          [],
+  signoff:         ['inspectorLicence','inspectorSignature','agreement'],
 };
 
 const SYSTEM_PROMPT = `You extract report fields for SAYON, an app that Australian timber pest inspectors dictate into. The user message is ONE dictated note from a timber pest inspection (AS 4349.3 / AS 3660.2). An inspector usually records several notes on one job, one per area, and the app merges them: so extract ONLY what THIS note states, and leave every other field null. A field left null stays as it was; a wrong value replaces a right one. Return ONLY a valid JSON object, no markdown and no commentary.
@@ -2875,6 +2890,8 @@ async function processTranscript() {
   if (!currentTranscript.trim()) return;
   setAI('thinking', 'Extracting data...');
   document.getElementById('extractBtn').disabled = true;
+  const before = extractSnapshot();
+  let extracted = false;
 
   try {
     // Notes fill the report in the order they were dictated. If earlier
@@ -2887,12 +2904,15 @@ async function processTranscript() {
         document.getElementById('extractBtn').disabled = false;
         return;
       }
-      await processPendingNotes(true);
+      extractSummaryOwned = true;
+      try { await processPendingNotes(true); } finally { extractSummaryOwned = false; }
+      extracted = !getPendingNotes().length;
     } else {
       await populateFields(await requestExtraction(currentTranscript));
+      extracted = true;
       pendingNotesProblem = null;
       setAI('ready', 'Data extracted');
-      showToast('Fields populated', 'success');
+      // The after-Extract sheet says what was filled, so no toast here.
     }
   } catch (err) {
     // A note too long to answer in one go would fail the same way every
@@ -2936,6 +2956,7 @@ async function processTranscript() {
   if (warnElDone) warnElDone.classList.remove('show');
   dismissCleanupSuggestion();
   dismissServerTranscript();
+  if (extracted) showExtractSummary(before);
 }
 
 // ── WAITING NOTES ───────────────────────────────────────────────────────
@@ -3013,6 +3034,7 @@ async function processPendingNotes(manual) {
     return;
   }
   const target = reportData;
+  const before = extractSnapshot();
   pendingNotesRunning = true;
   renderPendingNotes();
   setAI('thinking', 'Filling in saved notes...');
@@ -3061,8 +3083,113 @@ async function processPendingNotes(manual) {
     saveCurrentReport(true);
   }
   if (filled) showToast(`${filled} saved note${filled !== 1 ? 's' : ''} filled in — check the report`, 'success');
+  // Fill in now shows what the notes filled; processTranscript() shows its
+  // own sheet when it ran the queue.
+  if (filled && manual && !extractSummaryOwned && reportData === target) showExtractSummary(before);
   else if (stillNoSignal && manual) showToast('Still no signal — the notes will fill in when you\'re back online', 'info');
   if (stuck && (manual || !filled)) showToast(`${stuck} note${stuck !== 1 ? 's' : ''} couldn't be read — see the reason under the note`, 'error');
+}
+
+// ── EXTRACT SUMMARY ─────────────────────────────────────────────────────
+// After Extract, one sheet says how many fields the note filled and which
+// of the fields that matter most are still blank, each a tap to that
+// field. "Not used from your note" isn't listed: the extraction answer is
+// field values, not which sentences they came from, so it can't be told
+// reliably which sentences were left out.
+let extractSummaryOwned = false; // processTranscript() is running the queue
+
+const JOB_SUMMARY_FIELDS = ['jobAddress', 'jobSuburb', 'jobState', 'jobPostcode', 'jobClient', 'jobInspectionType'];
+
+function extractSnapshot() {
+  const data = {};
+  Object.keys(reportData).forEach(k => { if (k !== 'findings' && k !== 'pendingNotes') data[k] = JSON.stringify(reportData[k]); });
+  const findings = {};
+  (reportData.findings || []).forEach(f => { if (f && f.id) findings[f.id] = { ...f }; });
+  const job = {};
+  JOB_SUMMARY_FIELDS.forEach(id => { const el = document.getElementById(id); job[id] = el ? el.value : ''; });
+  return { data, findings, job };
+}
+
+const isBlankValue = v => v === undefined || v === null || v === '' || (typeof v === 'string' && !v.trim());
+
+function countExtractFilled(before) {
+  let n = 0;
+  Object.keys(reportData).forEach(k => {
+    if (k === 'findings' || k === 'pendingNotes' || isBlankValue(reportData[k])) return;
+    if (JSON.stringify(reportData[k]) !== before.data[k]) n++;
+  });
+  (reportData.findings || []).forEach(f => {
+    if (!f) return;
+    const old = before.findings[f.id] || {};
+    ['termiteActivity', 'species', 'damageDescription', 'activityLocation', 'nestLocated', 'structuralConcern']
+      .forEach(k => { if (!isBlankValue(f[k]) && f[k] !== old[k]) n++; });
+  });
+  JOB_SUMMARY_FIELDS.forEach(id => { const el = document.getElementById(id); if (el && el.value.trim() && el.value !== before.job[id]) n++; });
+  return n;
+}
+
+// The fields an inspector most often has to come back for, when blank.
+function extractBlanks() {
+  const blanks = [];
+  const blank = k => isBlankValue(reportData[k]);
+  if (blank('structureType')) blanks.push({ label: 'structure type', target: 'f-structureType' });
+  if (blank('height')) blanks.push({ label: 'height', target: 'f-height' });
+  if (blank('existingSystem')) blanks.push({ label: 'termite management system', target: 'f-existingSystem' });
+  if (!restrictionsAnswer()) blanks.push({ label: 'restrictions', target: 'resYesNo' });
+  const missing = findingsMissingReferral();
+  if (missing.length) {
+    const f = reportData.findings[missing[0] - 1];
+    blanks.push({ label: `builder referral (finding${missing.length > 1 ? 's' : ''} ${missing.join(', ')})`, target: 'finding-card-' + f.id, referral: true });
+  }
+  if (blank('slabEdge')) blanks.push({ label: 'slab edge', target: 'f-slabEdge' });
+  if (blank('riskLevel')) blanks.push({ label: 'risk level', target: 'f-riskLevel' });
+  return blanks;
+}
+
+let extractSummaryBlanks = [];
+
+function showExtractSummary(before) {
+  const overlay = document.getElementById('extractSummaryOverlay');
+  if (!overlay) return;
+  const n = countExtractFilled(before);
+  extractSummaryBlanks = extractBlanks();
+  document.getElementById('extractSummaryFilled').textContent = n
+    ? `Filled ${n} field${n !== 1 ? 's' : ''} from your note.`
+    : 'Nothing new was filled from your note.';
+  document.getElementById('extractSummaryBlankLabel').style.display = extractSummaryBlanks.length ? '' : 'none';
+  document.getElementById('extractSummaryBlanks').innerHTML = extractSummaryBlanks.length
+    ? extractSummaryBlanks.map((b, i) => `<button class="extract-blank-btn" onclick="goToExtractBlank(${i})">${escapeHtml(b.label)}<span aria-hidden="true">›</span></button>`).join('')
+    : '<div class="extract-summary-done">None of the key fields are blank.</div>';
+  overlay.classList.add('open');
+}
+
+function closeExtractSummary() {
+  const overlay = document.getElementById('extractSummaryOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+function goToExtractBlank(i) {
+  const b = extractSummaryBlanks[i];
+  closeExtractSummary();
+  if (!b) return;
+  const popover = document.getElementById('voicePopover');
+  if (popover && popover.classList.contains('open')) toggleVoicePopover();
+  let el = document.getElementById(b.target);
+  if (!el) return;
+  const section = el.closest('.report-section');
+  if (section && section.id.startsWith('section-')) showSection(section.id.slice(8));
+  if (b.referral) {
+    // The "Refer to a Builder or Engineer?" field inside the finding card.
+    const label = [...el.querySelectorAll('.field-label')].find(l => /builder or engineer/i.test(l.textContent));
+    if (label && label.nextElementSibling) el = label.nextElementSibling;
+  }
+  setTimeout(() => {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!el.hasAttribute('tabindex') && !/^(BUTTON|INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) el.setAttribute('tabindex', '-1');
+    el.focus({ preventScroll: true });
+    el.classList.add('extract-blank-flash');
+    setTimeout(() => el.classList.remove('extract-blank-flash'), 1800);
+  }, 60);
 }
 
 // ── COMPLIANCE PLATE SCAN ───────────────────────────────────────────────
@@ -4461,18 +4588,20 @@ function updateProgress() {
   // definition (isFieldFilled) so this can't drift out of sync again.
   let filled = 0, total = 0;
   Object.entries(SECTIONS).forEach(([sec, cfg]) => {
-    const f = cfg.fields.filter(k => isFieldFilled(k)).length;
-    filled += f; total += cfg.total;
+    const req = REQUIRED_FIELDS[sec] || [];
+    const reqFilled = req.filter(k => isFieldFilled(k)).length;
+    const any = cfg.fields.some(k => isFieldFilled(k));
+    filled += reqFilled; total += req.length;
 
     const dot = document.getElementById('dot-' + sec);
     const sts = document.getElementById('sts-' + sec);
     const nextBtn = document.getElementById('next-btn-' + sec);
 
-    if (f === 0) {
+    if (!any) {
       if (dot) dot.className = 'tab-dot';
       if (sts) { sts.className = 'sec-badge empty'; sts.textContent = 'Not started'; }
       if (nextBtn) nextBtn.classList.remove('visible');
-    } else if (f < cfg.total) {
+    } else if (reqFilled < req.length) {
       if (dot) dot.className = 'tab-dot partial';
       if (sts) { sts.className = 'sec-badge partial'; sts.textContent = 'In progress'; }
       if (nextBtn) nextBtn.classList.remove('visible');
@@ -4483,9 +4612,12 @@ function updateProgress() {
     }
   });
 
-  const pct = Math.round((filled / total) * 100);
+  // A completed (locked) job reads Complete whatever the count says.
+  const locked = isReportLocked();
+  const pct = locked ? 100 : Math.round((filled / total) * 100);
   document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('generateBtn').disabled = filled === 0;
+  document.getElementById('generateBtn').disabled = filled === 0 && !locked;
+  document.getElementById('shareBtn').disabled = filled === 0 && !locked;
 
   const ringFill = document.getElementById('progressRingFill');
   const ringText = document.getElementById('progressRingText');
@@ -4494,7 +4626,15 @@ function updateProgress() {
     const offset = circumference - (pct / 100) * circumference;
     ringFill.style.strokeDashoffset = offset;
     ringFill.classList.toggle('complete', pct === 100);
-    ringText.textContent = pct + '%';
+    ringText.textContent = locked ? '✓' : pct + '%';
+    const wrap = ringFill.closest('.progress-ring-wrap');
+    if (wrap) {
+      wrap.classList.toggle('locked', locked);
+      wrap.title = locked ? 'Job complete' : `Report ${pct}% complete (required fields)`;
+      wrap.setAttribute('aria-label', wrap.title);
+    }
+    const label = document.getElementById('progressRingLabel');
+    if (label) label.style.display = locked ? '' : 'none';
   }
 }
 
@@ -4697,7 +4837,7 @@ function todayIsoDate() { return isoDate(new Date()); }
 function agreementFormValues() {
   const standard = reportData.standard || 'AS 3660.2-2017';
   const inspectionDate = document.getElementById('agreementDate').value || todayIsoDate();
-  const fee = document.getElementById('agreementFee').value.trim();
+  const fee = agreementFeeText(document.getElementById('agreementFee').value);
   const notes = document.getElementById('agreementNotes').value.trim();
   return {
     standard, inspectionDate, fee, notes,
@@ -4749,8 +4889,7 @@ function openAgreementSheet() {
     document.getElementById('agreementInspectionType').value = reportData.jobInspectionType || '';
     // Job Details may already have the inspection date and fee.
     document.getElementById('agreementDate').value = reportData.jobInspectionDate || todayIsoDate();
-    const jobFee = (reportData.jobFee || '').trim();
-    document.getElementById('agreementFee').value = jobFee ? `${/^\$/.test(jobFee) ? '' : '$'}${jobFee} inc GST` : '';
+    document.getElementById('agreementFee').value = jobFeeOf(reportData);
     document.getElementById('agreementNotes').value = '';
     document.getElementById('agreementAgree').checked = false;
     document.getElementById('agreementOtherNote').value = '';
@@ -4759,6 +4898,24 @@ function openAgreementSheet() {
     refreshAgreementPreview();
   }
   document.getElementById('agreementOverlay').classList.add('open');
+}
+
+// The fee as the agreement prints it: "$440 inc GST" from "440".
+function agreementFeeText(raw) {
+  const fee = String(raw || '').trim();
+  if (!fee) return '';
+  return `${/^\$|^[^0-9]/.test(fee) ? '' : '$'}${fee}${/gst/i.test(fee) ? '' : ' inc GST'}`;
+}
+
+// The agreement's fee box is the Job details fee: typing in either updates
+// the one stored value.
+function onAgreementFeeInput() {
+  const v = document.getElementById('agreementFee').value;
+  reportData.jobFee = v;
+  const jobEl = document.getElementById('jobFee');
+  if (jobEl) jobEl.value = v;
+  saveDraft();
+  refreshAgreementPreview();
 }
 
 function closeAgreementSheet() {
@@ -5507,6 +5664,8 @@ function onInspectionTypeChange() {
 }
 
 function loadJobInfo() {
+  // Older reports kept the fee only on the signed agreement.
+  if (!reportData.jobFee && reportData.agreement && reportData.agreement.fee) reportData.jobFee = reportData.agreement.fee;
   JOB_INFO_FIELDS.forEach(id => {
     const el = document.getElementById(id);
     if (el && reportData[id] !== undefined) el.value = reportData[id];
@@ -6861,11 +7020,31 @@ function setSavedReports(reports) {
 
 function calculateCompletion() {
   let filled = 0, total = 0;
-  Object.values(SECTIONS).forEach(cfg => {
-    filled += cfg.fields.filter(k => isFieldFilled(k)).length;
-    total += cfg.total;
+  Object.values(REQUIRED_FIELDS).forEach(req => {
+    filled += req.filter(k => isFieldFilled(k)).length;
+    total += req.length;
   });
   return Math.round((filled / total) * 100);
+}
+
+// One word for where a saved job is up to: Draft, Ready (every required
+// field filled), Sent, Complete vN or Amending vN.
+function savedReportStatus(r) {
+  const d = r.reportData || {};
+  if (d.issue) return d.amending
+    ? { label: `Amending v${d.issue.version}`, tone: 'amending' }
+    : { label: `Complete v${d.issue.version}`, tone: 'complete' };
+  if (d.sent) return { label: 'Sent', tone: 'sent' };
+  if ((r.completion || 0) >= 100) return { label: 'Ready', tone: 'ready' };
+  return { label: 'Draft', tone: 'draft' };
+}
+
+// The job's fee. Job details and the agreement share one field
+// (reportData.jobFee); reports saved before that may hold it only on the
+// signed agreement.
+function jobFeeOf(data) {
+  if (!data) return '';
+  return String(data.jobFee || (data.agreement && data.agreement.fee) || '').trim();
 }
 
 // FIX: a plain "is this key present" check silently overcounted the
@@ -7277,12 +7456,6 @@ function resetReportState() {
   setAI('ready', 'AI ready');
   fieldNotes = {};
   pendingSpeciesMatch = null;
-  window.__lastPdfBlob = null;
-  window.__lastPdfName = null;
-  window.__lastPdfFingerprint = null;
-  window.__lastPdfVersion = null;
-  const shareBtn = document.getElementById('shareBtn');
-  if (shareBtn) shareBtn.style.display = 'none';
   clearJobInfo();
   const confirm = document.getElementById('speciesConfirm');
   const intel = document.getElementById('speciesIntel');
@@ -7355,10 +7528,8 @@ function renderDashboard() {
 
   const totalJobs = reports.length;
   const jobsThisWeek = thisWeek.length;
-  const avgCompletion = Math.round(
-    reports.reduce((sum, r) => sum + (r.completion || 0), 0) / totalJobs
-  );
-  const totalRevenue = reports.reduce((sum, r) => sum + parseFeeToNumber(r.reportData && r.reportData.jobFee), 0);
+  const completedJobs = reports.filter(r => r.reportData && r.reportData.issue && !r.reportData.amending).length;
+  const totalRevenue = reports.reduce((sum, r) => sum + parseFeeToNumber(jobFeeOf(r.reportData)), 0);
 
   const sorted = [...reports].sort((a, b) => b.savedAt - a.savedAt).slice(0, 8);
 
@@ -7376,8 +7547,8 @@ function renderDashboard() {
         <div class="dashboard-stat-label">This Week</div>
       </div>
       <div class="dashboard-stat-card">
-        <div class="dashboard-stat-value">${avgCompletion}%</div>
-        <div class="dashboard-stat-label">Avg. Completion</div>
+        <div class="dashboard-stat-value">${completedJobs}</div>
+        <div class="dashboard-stat-label">Completed</div>
       </div>
       <div class="dashboard-stat-card">
         <div class="dashboard-stat-value">${fmtMoney(totalRevenue)}</div>
@@ -7392,7 +7563,7 @@ function renderDashboard() {
             <div class="dashboard-recent-addr">${escapeHtml(r.address || 'No address')}</div>
             <div class="dashboard-recent-meta">${fmtDate(r.savedAt)}${r.client ? ' · ' + escapeHtml(r.client) : ''}</div>
           </div>
-          <div class="dashboard-recent-completion">${r.completion || 0}%</div>
+          <div class="dashboard-recent-completion">${savedReportStatus(r).label}</div>
         </div>
       `).join('')}
     </div>
@@ -7438,9 +7609,8 @@ function renderSavedList() {
     const risk = r.reportData.riskLevel || 'none';
     const addr = r.address || 'Untitled property';
     const pending = (r.reportData.pendingNotes || []).length;
-    const issue = r.reportData.issue;
-    const issueTag = issue
-      ? `<span class="saved-item-issued">${r.reportData.amending ? 'Amending' : 'Complete'} v${issue.version}</span>` : '';
+    const status = savedReportStatus(r);
+    const statusTag = `<span class="saved-item-status ${status.tone}">${status.label}</span>`;
     const answer = quoteAnswerSummary(getSavedQuotes()[r.id] || r.quote);
     const answerTag = answer ? `<span class="saved-item-quote ${answer.tone}">${answer.short}</span>` : '';
     return `
@@ -7450,8 +7620,7 @@ function renderSavedList() {
           <div class="saved-item-meta">
             <span>${dateStr}</span>
             <span class="saved-item-risk ${risk}">${risk === 'none' ? 'N/A' : risk}</span>
-            <span class="saved-item-pct">${r.completion}%</span>
-            ${issueTag}
+            ${statusTag}
             ${answerTag}
             ${pending ? `<span class="saved-item-pending">${pending} note${pending !== 1 ? 's' : ''} to fill in</span>` : ''}
           </div>
@@ -7490,8 +7659,38 @@ function showToast(msg, type = 'default') {
   t.innerHTML = `${icons[type] || icons.default}<span>${escapeHtml(String(msg))}</span>`;
   t.className = 'toast show toast-' + type;
 
+  t._shownAt = Date.now();
   t._timeout = setTimeout(() => t.classList.remove('show'), 2800);
 }
+
+function dismissToast() {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  clearTimeout(t._timeout);
+  t.classList.remove('show');
+}
+
+// A toast belongs to the screen it was shown on: when the screen changes
+// (the menu, a menu page, the quote screen, the dashboard or a sheet opens
+// or closes), an older toast goes, so it never sits over the next screen's
+// buttons. A toast shown by the same tap that changed the screen stays.
+function installToastScreenWatch() {
+  // The toast sits inside the report app's markup, so it was hidden with
+  // the app (on the quote screen, for one). It belongs to the page.
+  const toast = document.getElementById('toast');
+  if (toast && toast.parentElement !== document.body) document.body.appendChild(toast);
+  const ids = ['app', 'mainMenu', 'quoteScreen', 'sidebarPanel', 'dashboardOverlay'];
+  const targets = ids.map(id => document.getElementById(id))
+    .concat([...document.querySelectorAll('.page-sheet-overlay, .menu-page, .saved-panel')])
+    .filter(Boolean);
+  const obs = new MutationObserver(() => {
+    const t = document.getElementById('toast');
+    if (t && t.classList.contains('show') && Date.now() - (t._shownAt || 0) > 400) dismissToast();
+  });
+  targets.forEach(el => obs.observe(el, { attributes: true, attributeFilter: ['class', 'style'] }));
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installToastScreenWatch);
+else installToastScreenWatch();
 
 // ── COMPLETED JOBS ────────────────────────────────────────────────────────
 // Nothing locks until the whole job is done: the report is signed and sent,
@@ -7660,18 +7859,25 @@ function reportSummary() {
 }
 
 // Gaps in the report itself, shown before sending and before completing.
-function reportPrepItems() {
-  const items = [];
-  if (!document.getElementById('jobAddress').value.trim()) items.push('The job has no property address');
-  const unmarked = Object.keys(OBS_ZONES).filter(z => !areaStatusOf(z)).length;
-  if (unmarked) items.push(`${unmarked} area${unmarked === 1 ? ' has' : 's have'} no inspection status`);
-  if (!restrictionsAnswer()) items.push('Section 3: "restricted access?" isn\'t answered');
-  findingsMissingReferral().forEach(n => items.push(`Finding ${n}: "refer to a builder or engineer?" isn't answered`));
+function reportPrepItems() { return reportPrepGaps().map(g => g.text); }
+
+// The same list, each with the buttons that fix it from the check sheet
+// (fix: HTML, or '' when it has to be fixed in the report).
+function reportPrepGaps() {
+  const gaps = [];
+  const push = (text, fix) => gaps.push({ text, fix: fix || '' });
+  if (!document.getElementById('jobAddress').value.trim()) push('The job has no property address');
+  const unmarked = Object.keys(OBS_ZONES).filter(z => !areaStatusOf(z));
+  if (unmarked.length) push(`${unmarked.length} area${unmarked.length === 1 ? ' has' : 's have'} no inspection status (${unmarked.map(z => OBS_ZONES[z].label).join(', ')})`,
+    `<button class="link-btn" onclick="fixSendGap('inspected')">Mark the rest as inspected</button>` +
+    `<button class="link-btn" onclick="fixSendGap('na')">Not applicable</button>`);
+  if (!restrictionsAnswer()) push('Section 3: "restricted access?" isn\'t answered');
+  findingsMissingReferral().forEach(n => push(`Finding ${n}: "refer to a builder or engineer?" isn't answered`));
   const pending = (reportData.pendingNotes || []).length;
-  if (pending) items.push(`${pending} voice note${pending === 1 ? ' is' : 's are'} still waiting to be filled in`);
-  if (!reportData.inspectorSignature) items.push('The inspector hasn\'t signed');
-  if (!reportData.agreement) items.push('No pre-inspection agreement is recorded');
-  return items;
+  if (pending) push(`${pending} voice note${pending === 1 ? ' is' : 's are'} still waiting to be filled in`);
+  if (!reportData.inspectorSignature) push('The inspector hasn\'t signed');
+  if (!reportData.agreement) push('No pre-inspection agreement is recorded');
+  return gaps;
 }
 
 // Anything that should be sorted out before the job is completed and locked.
@@ -7680,7 +7886,7 @@ function reportAttentionItems() {
   const amending = reportData.amending;
   if (!reportData.sent) items.push('The report hasn\'t been sent to the client');
   else if (amending && reportData.sent.at < amending.startedAt) items.push('The amended report hasn\'t been sent to the client');
-  else if (reportData.sent.fingerprint !== reportFingerprint()) items.push('The report changed after it was sent. Generate the PDF and send it again');
+  else if (reportData.sent.fingerprint !== reportFingerprint()) items.push('The report changed after it was sent. Send it again');
   const quote = currentJobQuote();
   if (quoteHasItems(quote)) {
     if (!quote.sentAt) items.push('The quote hasn\'t been sent to the client');
@@ -7701,7 +7907,7 @@ function inspectorDisplayName() {
   return (document.getElementById('jobInspector').value || '').trim() || (authUser && authUser.email) || 'Inspector';
 }
 
-// Called after the share sheet or email opens with the report attached.
+// Called once the report was sent (see sendPdfsToClient).
 function recordReportSent(fingerprint, version) {
   reportData.sent = { at: Date.now(), fingerprint, version };
   if (document.getElementById('jobAddress').value.trim()) saveCurrentReport(true); else saveDraft();
@@ -7785,6 +7991,7 @@ function renderIssueState() {
           <button class="agreement-banner-btn issue-primary" onclick="startAmendment()">Unlock for version ${issue.version + 1}</button>
         </div>
       </div>`;
+    html += renderSentLines(reportData, currentJobQuote());
     const answer = quoteAnswerSummary(currentJobQuote());
     if (answer) html += `<div class="issue-quote-answer ${answer.tone}"><span>${escapeHtml(answer.text)}</span>
       <button class="link-btn" onclick="openQuoteFromReport()">${answer.tone === 'good' ? 'View quote' : 'Record answer'}</button></div>`;
@@ -7792,20 +7999,23 @@ function renderIssueState() {
     const items = reportAttentionItems();
     const head = amending
       ? `<strong>Amending to version ${reportVersion()}</strong> · ${escapeHtml(amending.reason)}.`
-      : `<strong>Report sent ${formatIssueDate(sent.at)}.</strong>`;
+      : '';
     const next = items.length ? 'Before the job can be completed:' : 'Everything\'s done. Complete the job to lock it.';
     const noQuote = !quoteHasItems(currentJobQuote());
-    html = `<div class="issue-banner-row"><span class="issue-banner-text">${head} ${next}</span>
+    html = `${renderSentLines(reportData, currentJobQuote())}<div class="issue-banner-row"><span class="issue-banner-text">${head} ${next}</span>
       ${items.length ? '' : '<button class="agreement-banner-btn issue-primary" onclick="markReportComplete()">Complete job</button>'}</div>
       ${items.length ? `<ul class="issue-attention">${items.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>` : ''}
       <div class="issue-links">
         ${noQuote ? `<button class="link-btn" onclick="setNoQuoteNeeded(${!reportData.noQuoteNeeded})">${reportData.noQuoteNeeded ? 'A quote is needed' : 'No quote needed'}</button>` : ''}
         ${amending ? '<button class="link-btn" onclick="cancelAmendment()">Cancel amendment</button>' : ''}
       </div>`;
+  } else if (sentDocs(reportData, currentJobQuote()).some(d => d.at)) {
+    html = renderSentLines(reportData, currentJobQuote());
   }
   banner.innerHTML = html;
   banner.style.display = html ? '' : 'none';
   banner.classList.toggle('locked', locked);
+  updateProgress();
 }
 
 // While locked, taps and typing in the report, the job details and the mic
@@ -7881,11 +8091,14 @@ async function checkDirectEmail() {
   }
 }
 
-// Returns true once the files were sent, or handed to the share sheet or
-// an email.
+// Returns true only once the files were sent: the Worker sent them, or the
+// share sheet reports it finished. When the app can't tell (the share sheet
+// was closed, or the PDFs were downloaded for an email), it asks the
+// inspector "Did that send?" and returns their answer.
 async function sendPdfsToClient({ files, to, subject, body }) {
   if (directEmail && to) return sendPdfsDirect({ files, to, subject, body });
   const fileObjs = files.map(f => new File([f.blob], f.fname, { type: 'application/pdf' }));
+  const many = files.length > 1;
   if (navigator.share && navigator.canShare && navigator.canShare({ files: fileObjs })) {
     if (to && navigator.clipboard) {
       navigator.clipboard.writeText(to).catch(() => {});
@@ -7896,15 +8109,50 @@ async function sendPdfsToClient({ files, to, subject, body }) {
       return true;
     } catch (e) {
       // Safari refuses if too long passed since the tap; a second tap works.
-      if (e.name === 'NotAllowedError') showToast('Tap Send again to open your email', 'info');
-      else if (e.name !== 'AbortError') showToast('Could not open sharing on this device', 'error');
-      return false;
+      if (e.name === 'NotAllowedError') { showToast('Tap Send again to open your email', 'info'); return false; }
+      if (e.name !== 'AbortError') { showToast('Could not open sharing on this device', 'error'); return false; }
+      return askDidItSend(many);
     }
   }
   files.forEach(f => downloadBlob(f.blob, f.fname));
   window.location.href = `mailto:${encodeURIComponent(to || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  showToast(`PDF${files.length > 1 ? 's' : ''} downloaded — attach ${files.length > 1 ? 'them' : 'it'} to the email that just opened`, 'info');
-  return true;
+  showToast(`PDF${many ? 's' : ''} downloaded — attach ${many ? 'them' : 'it'} to the email that just opened`, 'info');
+  return askDidItSend(many);
+}
+
+// "Did that send?" Yes / Not yet. Resolves true on Yes.
+let didItSendResolve = null;
+function askDidItSend(many) {
+  if (didItSendResolve) didItSendResolve(false);
+  document.getElementById('didItSendText').textContent = many
+    ? 'Tap Yes once the email with the PDFs has gone to the client. If it hasn\'t, tap Not yet and send again.'
+    : 'Tap Yes once the email with the PDF has gone to the client. If it hasn\'t, tap Not yet and send again.';
+  document.getElementById('didItSendOverlay').classList.add('open');
+  return new Promise(resolve => { didItSendResolve = resolve; });
+}
+function answerDidItSend(yes) {
+  document.getElementById('didItSendOverlay').classList.remove('open');
+  const r = didItSendResolve;
+  didItSendResolve = null;
+  if (r) r(!!yes);
+  if (!yes) showToast('Not marked as sent', 'info');
+}
+
+// One "Sent" line per document the job has (report, quote, certificate),
+// for the report banner and the quote screen. Each: { label, at, stale }.
+function sentDocs(rd, q) {
+  const sent = rd && rd.sent;
+  const docs = [{ label: 'Report', at: sent ? sent.at : null }];
+  if (quoteHasItems(q)) {
+    docs.push({ label: 'Quote', at: q.sentAt || null, stale: !!q.sentAt && q.sentHash !== quoteContentHash(q) });
+    if (q.treatment) docs.push({ label: 'Certificate', at: q.certificateSentAt || null });
+  }
+  return docs;
+}
+function renderSentLines(rd, q) {
+  return `<div class="doc-sent-lines">${sentDocs(rd, q).map(d =>
+    `<div class="doc-sent ${d.at ? (d.stale ? 'stale' : 'sent') : 'unsent'}"><span>${d.label}</span>` +
+    `<strong>${d.at ? `Sent ${formatIssueDate(d.at)}${d.stale ? ' · changed since' : ''}` : 'Not sent yet'}</strong></div>`).join('')}</div>`;
 }
 
 async function sendPdfsDirect({ files, to, subject, body }) {
@@ -7944,30 +8192,26 @@ async function sendPdfsDirect({ files, to, subject, body }) {
 // ── CHECK BEFORE SENDING ────────────────────────────────────────────────
 // Send opens a review of exactly what the client will get: who it goes to,
 // the PDFs attached, the headline results and the message, plus any gaps
-// in the report. Sending from here is a fresh tap, which the share sheet
-// needs, so the quote PDF is built while the review opens.
+// in the report, each with its own fix. The PDFs are built only once the
+// inspector confirms, so what goes is the report as it is then. If the
+// build takes too long for the share sheet, the built files are kept and
+// the next tap sends them at once.
 let sendReview = null;
 
 function openSendReview() {
-  const blob = window.__lastPdfBlob;
-  if (!blob) { showToast('Generate the PDF first', 'error'); return; }
-  // The PDF must match the report as it is now, since sending is what the
-  // report is locked against (see COMPLETED REPORTS).
-  if (window.__lastPdfFingerprint !== reportFingerprint()) {
-    showToast('The report changed after the PDF was made. Tap Generate PDF, then Send', 'error');
+  if (!jsPDF) {
+    ensureJsPDFLoaded().then(openSendReview)
+      .catch(e => showToast((e && e.message) || 'Could not load the PDF tools', 'error'));
     return;
   }
-  const files = [{ blob, fname: window.__lastPdfName || 'SAYON_Report.pdf' }];
+  const sidebar = document.getElementById('sidebarPanel');
+  if (sidebar && sidebar.classList.contains('open')) toggleDrawer();
   const quote = currentJobQuote();
-  let quoteFile = null;
-  if (quoteHasItems(quote)) {
-    try { quoteFile = buildQuotePDF(quote); files.push(quoteFile); } catch (e) { console.warn('Quote PDF failed:', e); }
-  }
   const address = getFullAddress();
   const client = document.getElementById('jobClient').value.trim();
   const email = (reportData.jobClientEmail || '').trim();
-  const withQuote = !!quoteFile;
-  sendReview = { files, quote: withQuote ? quote : null, fingerprint: window.__lastPdfFingerprint, version: window.__lastPdfVersion };
+  const withQuote = quoteHasItems(quote);
+  sendReview = { files: null, quote: withQuote ? quote : null };
 
   const esc = escapeHtml;
   document.getElementById('sendReviewTo').innerHTML =
@@ -7975,16 +8219,16 @@ function openSendReview() {
     (email ? `<div class="send-review-email">${esc(email)}</div>`
            : `<div class="send-review-warn">No client email. Add it in Job Details, or type it into your email app.</div>`);
 
-  const version = window.__lastPdfVersion || 1;
   const attach = [`<div class="send-review-file"><div><div class="send-review-file-name">Inspection report</div>` +
-    `<div class="send-review-file-meta">${esc(ensureReportNumber())} · version ${version}</div></div>` +
+    `<div class="send-review-file-meta">${esc(ensureReportNumber())} · version ${reportVersion()}</div></div>` +
     `<button class="link-btn" onclick="previewSendFile(0)">Preview</button></div>`];
   if (withQuote) {
     attach.push(`<div class="send-review-file"><div><div class="send-review-file-name">Treatment quote</div>` +
       `<div class="send-review-file-meta">${esc(quote.number || '')} · ${formatAUD(quoteTotals(quote).total)}${quote.gst !== false ? ' inc GST' : ''}</div></div>` +
       `<button class="link-btn" onclick="previewSendFile(1)">Preview</button></div>`);
   } else if (!reportData.noQuoteNeeded) {
-    attach.push('<div class="send-review-warn">No quote is attached.</div>');
+    attach.push('<div class="send-review-gap"><span class="send-review-warn">No quote is attached.</span>' +
+      '<span class="send-review-fixes"><button class="link-btn" onclick="fixSendGap(\'quote\')">Build quote now</button></span></div>');
   }
   document.getElementById('sendReviewFiles').innerHTML = attach.join('');
 
@@ -7994,12 +8238,13 @@ function openSendReview() {
       `<div class="send-review-tile tone-${tone}"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('') + '</div>' +
     (limited.length ? `<div class="send-review-sub">Not fully inspected</div><ul class="send-review-list">${limited.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : '');
 
-  const gaps = reportPrepItems();
+  const gaps = reportPrepGaps();
   const companyGaps = companyDetailGaps();
-  if (companyGaps.length) gaps.push(`Your ${joinWithAnd(companyGaps)} ${companyGaps.length === 1 ? 'is' : 'are'} missing from ${canEditBusiness() ? 'Your business (tap your initials, top right)' : 'the details your business owner set'}, so the PDFs won't show ${companyGaps.length === 1 ? 'it' : 'them'}`);
+  if (companyGaps.length) gaps.push({ text: `Your ${joinWithAnd(companyGaps)} ${companyGaps.length === 1 ? 'is' : 'are'} missing from ${canEditBusiness() ? 'Your business (tap your initials, top right)' : 'the details your business owner set'}, so the PDFs won't show ${companyGaps.length === 1 ? 'it' : 'them'}`, fix: '' });
   const gapsWrap = document.getElementById('sendReviewGaps');
   gapsWrap.style.display = gaps.length ? '' : 'none';
-  gapsWrap.innerHTML = `<div class="send-review-label">Worth checking first</div><ul class="send-review-list">${gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul>`;
+  gapsWrap.innerHTML = `<div class="send-review-label">Worth checking first</div><ul class="send-review-list">${gaps.map(g =>
+    `<li>${esc(g.text)}${g.fix ? `<span class="send-review-fixes">${g.fix}</span>` : ''}</li>`).join('')}</ul>`;
 
   document.getElementById('sendReviewSubject').value =
     `${withQuote ? 'Timber pest inspection report and quote' : 'Timber pest inspection report'} — ${address || 'your property'}`;
@@ -8008,9 +8253,35 @@ function openSendReview() {
     docs: withQuote ? 'timber pest inspection report and treatment quote' : 'timber pest inspection report',
     signOff: document.getElementById('jobInspector').value.trim(),
   });
-  document.getElementById('sendReviewBtn').textContent = gaps.length ? 'Send anyway'
+  sendReview.label = gaps.length ? 'Send anyway'
     : directEmail && email ? `Send to ${email}` : 'Open email to send';
+  const btn = document.getElementById('sendReviewBtn');
+  btn.textContent = sendReview.label;
+  btn.disabled = false;
   document.getElementById('sendReviewOverlay').classList.add('open');
+  const body = document.querySelector('#sendReviewOverlay .page-sheet-body');
+  if (body) body.scrollTop = 0;
+}
+
+// The fix buttons on the check sheet. Each changes the report, then the
+// sheet is redrawn from the report as it now is.
+function fixSendGap(kind) {
+  if (kind === 'quote') {
+    closeSendReview();
+    sendAfterQuote = true;
+    openQuoteFromReport();
+    return;
+  }
+  markRemainingAreasInspected(kind === 'na' ? 'NA' : 'INSPECTED');
+  openSendReview();
+}
+
+// After "Build quote now", coming back from the quote reopens the check.
+let sendAfterQuote = false;
+function resumeSendReview() {
+  if (!sendAfterQuote) return;
+  sendAfterQuote = false;
+  openSendReview();
 }
 
 function closeSendReview() {
@@ -8018,8 +8289,22 @@ function closeSendReview() {
   sendReview = null;
 }
 
-function previewSendFile(i) {
-  const f = sendReview && sendReview.files[i];
+// Builds this send's PDFs once and keeps them for a second tap.
+async function sendReviewFiles(r) {
+  if (r.files) return r.files;
+  const report = await buildReportPdf();
+  const files = [{ blob: report.blob, fname: report.fname }];
+  if (r.quote) files.push(buildQuotePDF(r.quote));
+  r.report = report;
+  r.files = files;
+  return files;
+}
+
+async function previewSendFile(i) {
+  const r = sendReview;
+  if (!r) return;
+  let f;
+  try { f = (await sendReviewFiles(r))[i]; } catch (e) { showToast('Could not make the PDF', 'error'); return; }
   if (!f) return;
   const url = URL.createObjectURL(f.blob);
   if (!window.open(url, '_blank')) downloadBlob(f.blob, f.fname);
@@ -8028,17 +8313,35 @@ function previewSendFile(i) {
 
 async function confirmSendReview() {
   const r = sendReview;
-  if (!r) return;
-  const sent = await sendPdfsToClient({
-    files: r.files,
-    to: (reportData.jobClientEmail || '').trim(),
-    subject: document.getElementById('sendReviewSubject').value.trim(),
-    body: document.getElementById('sendReviewBody').value,
-  });
-  if (!sent) return;
-  closeSendReview();
-  if (r.quote) markQuoteSent(r.quote);
-  recordReportSent(r.fingerprint, r.version);
+  if (!r || r.busy) return;
+  const btn = document.getElementById('sendReviewBtn');
+  r.busy = true;
+  btn.disabled = true;
+  try {
+    if (!r.files) btn.textContent = 'Making the PDFs…';
+    let files;
+    try { files = await sendReviewFiles(r); }
+    catch (e) {
+      console.error('PDF build failed:', e);
+      showToast((e && e.message) || 'Could not make the PDF', 'error');
+      return;
+    }
+    btn.textContent = r.label;
+    const sent = await sendPdfsToClient({
+      files,
+      to: (reportData.jobClientEmail || '').trim(),
+      subject: document.getElementById('sendReviewSubject').value.trim(),
+      body: document.getElementById('sendReviewBody').value,
+    });
+    if (!sent || sendReview !== r) return;
+    closeSendReview();
+    if (r.quote) markQuoteSent(r.quote);
+    recordReportSent(r.report.fingerprint, r.report.version);
+  } finally {
+    r.busy = false;
+    btn.disabled = false;
+    if (sendReview === r) btn.textContent = r.label;
+  }
 }
 
 function generateReport() {
@@ -8157,7 +8460,9 @@ function downloadBlob(blob, fname) {
   }
 }
 
-async function _buildAndDownloadPDF() {
+// Builds the report PDF as the report is now: { blob, fname, fingerprint,
+// version }. Used by Generate PDF and by Send (after the check).
+async function buildReportPdf() {
   // Photos live outside reportData (see PHOTO ATTACHMENTS), so read them all
   // up front; the drawing code below is synchronous.
   const photoSrc = {};
@@ -9371,26 +9676,14 @@ async function _buildAndDownloadPDF() {
   }
 
   const fname = `SAYON_${address.replace(/\s+/g,'_').substring(0,25)}_${today.replace(/\s+/g,'_')}.pdf`;
-  let pdfBlob = null;
-
-  try {
-    pdfBlob = doc.output('blob');
-  } catch(e) {
-    showToast('Failed to generate PDF', 'error');
-    return;
-  }
-
-  // Store blob for Share button and reveal it — do this before attempting delivery below,
-  // so the Share button still works even if the auto-delivery path fails.
-  window.__lastPdfBlob = pdfBlob;
-  window.__lastPdfName = fname;
-  window.__lastPdfFingerprint = fingerprint;
-  window.__lastPdfVersion = version;
+  const blob = doc.output('blob');
   saveDraft(); // keeps the report number it was given
-  const shareBtn = document.getElementById('shareBtn');
-  if (shareBtn) shareBtn.style.display = 'flex';
+  return { blob, fname, fingerprint, version };
+}
 
-  await deliverPdfBlob(pdfBlob, fname, {
+async function _buildAndDownloadPDF() {
+  const { blob, fname } = await buildReportPdf();
+  await deliverPdfBlob(blob, fname, {
     title: 'Timber Pest Inspection Report',
     text: `Timber Pest Inspection Report — ${getFullAddress() || 'Property'}`,
     readyToast: 'Report ready — choose where to save or send it',
