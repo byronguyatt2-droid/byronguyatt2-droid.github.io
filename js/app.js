@@ -406,9 +406,9 @@ function setAreaStatus(zoneId, status) {
   syncObstructionData();
 }
 
-function markRemainingAreasInspected() {
+function markRemainingAreasInspected(status = 'INSPECTED') {
   if (!reportData.areaStatus) reportData.areaStatus = {};
-  Object.keys(OBS_ZONES).forEach(z => { if (!reportData.areaStatus[z]) reportData.areaStatus[z] = 'INSPECTED'; });
+  Object.keys(OBS_ZONES).forEach(z => { if (!reportData.areaStatus[z]) reportData.areaStatus[z] = status; });
   syncObstructionData();
 }
 
@@ -4486,6 +4486,7 @@ function updateProgress() {
   const pct = Math.round((filled / total) * 100);
   document.getElementById('progressFill').style.width = pct + '%';
   document.getElementById('generateBtn').disabled = filled === 0;
+  document.getElementById('shareBtn').disabled = filled === 0;
 
   const ringFill = document.getElementById('progressRingFill');
   const ringText = document.getElementById('progressRingText');
@@ -7277,12 +7278,6 @@ function resetReportState() {
   setAI('ready', 'AI ready');
   fieldNotes = {};
   pendingSpeciesMatch = null;
-  window.__lastPdfBlob = null;
-  window.__lastPdfName = null;
-  window.__lastPdfFingerprint = null;
-  window.__lastPdfVersion = null;
-  const shareBtn = document.getElementById('shareBtn');
-  if (shareBtn) shareBtn.style.display = 'none';
   clearJobInfo();
   const confirm = document.getElementById('speciesConfirm');
   const intel = document.getElementById('speciesIntel');
@@ -7660,18 +7655,25 @@ function reportSummary() {
 }
 
 // Gaps in the report itself, shown before sending and before completing.
-function reportPrepItems() {
-  const items = [];
-  if (!document.getElementById('jobAddress').value.trim()) items.push('The job has no property address');
-  const unmarked = Object.keys(OBS_ZONES).filter(z => !areaStatusOf(z)).length;
-  if (unmarked) items.push(`${unmarked} area${unmarked === 1 ? ' has' : 's have'} no inspection status`);
-  if (!restrictionsAnswer()) items.push('Section 3: "restricted access?" isn\'t answered');
-  findingsMissingReferral().forEach(n => items.push(`Finding ${n}: "refer to a builder or engineer?" isn't answered`));
+function reportPrepItems() { return reportPrepGaps().map(g => g.text); }
+
+// The same list, each with the buttons that fix it from the check sheet
+// (fix: HTML, or '' when it has to be fixed in the report).
+function reportPrepGaps() {
+  const gaps = [];
+  const push = (text, fix) => gaps.push({ text, fix: fix || '' });
+  if (!document.getElementById('jobAddress').value.trim()) push('The job has no property address');
+  const unmarked = Object.keys(OBS_ZONES).filter(z => !areaStatusOf(z));
+  if (unmarked.length) push(`${unmarked.length} area${unmarked.length === 1 ? ' has' : 's have'} no inspection status (${unmarked.map(z => OBS_ZONES[z].label).join(', ')})`,
+    `<button class="link-btn" onclick="fixSendGap('inspected')">Mark the rest as inspected</button>` +
+    `<button class="link-btn" onclick="fixSendGap('na')">Not applicable</button>`);
+  if (!restrictionsAnswer()) push('Section 3: "restricted access?" isn\'t answered');
+  findingsMissingReferral().forEach(n => push(`Finding ${n}: "refer to a builder or engineer?" isn't answered`));
   const pending = (reportData.pendingNotes || []).length;
-  if (pending) items.push(`${pending} voice note${pending === 1 ? ' is' : 's are'} still waiting to be filled in`);
-  if (!reportData.inspectorSignature) items.push('The inspector hasn\'t signed');
-  if (!reportData.agreement) items.push('No pre-inspection agreement is recorded');
-  return items;
+  if (pending) push(`${pending} voice note${pending === 1 ? ' is' : 's are'} still waiting to be filled in`);
+  if (!reportData.inspectorSignature) push('The inspector hasn\'t signed');
+  if (!reportData.agreement) push('No pre-inspection agreement is recorded');
+  return gaps;
 }
 
 // Anything that should be sorted out before the job is completed and locked.
@@ -7680,7 +7682,7 @@ function reportAttentionItems() {
   const amending = reportData.amending;
   if (!reportData.sent) items.push('The report hasn\'t been sent to the client');
   else if (amending && reportData.sent.at < amending.startedAt) items.push('The amended report hasn\'t been sent to the client');
-  else if (reportData.sent.fingerprint !== reportFingerprint()) items.push('The report changed after it was sent. Generate the PDF and send it again');
+  else if (reportData.sent.fingerprint !== reportFingerprint()) items.push('The report changed after it was sent. Send it again');
   const quote = currentJobQuote();
   if (quoteHasItems(quote)) {
     if (!quote.sentAt) items.push('The quote hasn\'t been sent to the client');
@@ -7701,7 +7703,7 @@ function inspectorDisplayName() {
   return (document.getElementById('jobInspector').value || '').trim() || (authUser && authUser.email) || 'Inspector';
 }
 
-// Called after the share sheet or email opens with the report attached.
+// Called once the report was sent (see sendPdfsToClient).
 function recordReportSent(fingerprint, version) {
   reportData.sent = { at: Date.now(), fingerprint, version };
   if (document.getElementById('jobAddress').value.trim()) saveCurrentReport(true); else saveDraft();
@@ -7785,6 +7787,7 @@ function renderIssueState() {
           <button class="agreement-banner-btn issue-primary" onclick="startAmendment()">Unlock for version ${issue.version + 1}</button>
         </div>
       </div>`;
+    html += renderSentLines(reportData, currentJobQuote());
     const answer = quoteAnswerSummary(currentJobQuote());
     if (answer) html += `<div class="issue-quote-answer ${answer.tone}"><span>${escapeHtml(answer.text)}</span>
       <button class="link-btn" onclick="openQuoteFromReport()">${answer.tone === 'good' ? 'View quote' : 'Record answer'}</button></div>`;
@@ -7792,16 +7795,18 @@ function renderIssueState() {
     const items = reportAttentionItems();
     const head = amending
       ? `<strong>Amending to version ${reportVersion()}</strong> · ${escapeHtml(amending.reason)}.`
-      : `<strong>Report sent ${formatIssueDate(sent.at)}.</strong>`;
+      : '';
     const next = items.length ? 'Before the job can be completed:' : 'Everything\'s done. Complete the job to lock it.';
     const noQuote = !quoteHasItems(currentJobQuote());
-    html = `<div class="issue-banner-row"><span class="issue-banner-text">${head} ${next}</span>
+    html = `${renderSentLines(reportData, currentJobQuote())}<div class="issue-banner-row"><span class="issue-banner-text">${head} ${next}</span>
       ${items.length ? '' : '<button class="agreement-banner-btn issue-primary" onclick="markReportComplete()">Complete job</button>'}</div>
       ${items.length ? `<ul class="issue-attention">${items.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>` : ''}
       <div class="issue-links">
         ${noQuote ? `<button class="link-btn" onclick="setNoQuoteNeeded(${!reportData.noQuoteNeeded})">${reportData.noQuoteNeeded ? 'A quote is needed' : 'No quote needed'}</button>` : ''}
         ${amending ? '<button class="link-btn" onclick="cancelAmendment()">Cancel amendment</button>' : ''}
       </div>`;
+  } else if (sentDocs(reportData, currentJobQuote()).some(d => d.at)) {
+    html = renderSentLines(reportData, currentJobQuote());
   }
   banner.innerHTML = html;
   banner.style.display = html ? '' : 'none';
@@ -7881,11 +7886,14 @@ async function checkDirectEmail() {
   }
 }
 
-// Returns true once the files were sent, or handed to the share sheet or
-// an email.
+// Returns true only once the files were sent: the Worker sent them, or the
+// share sheet reports it finished. When the app can't tell (the share sheet
+// was closed, or the PDFs were downloaded for an email), it asks the
+// inspector "Did that send?" and returns their answer.
 async function sendPdfsToClient({ files, to, subject, body }) {
   if (directEmail && to) return sendPdfsDirect({ files, to, subject, body });
   const fileObjs = files.map(f => new File([f.blob], f.fname, { type: 'application/pdf' }));
+  const many = files.length > 1;
   if (navigator.share && navigator.canShare && navigator.canShare({ files: fileObjs })) {
     if (to && navigator.clipboard) {
       navigator.clipboard.writeText(to).catch(() => {});
@@ -7896,15 +7904,50 @@ async function sendPdfsToClient({ files, to, subject, body }) {
       return true;
     } catch (e) {
       // Safari refuses if too long passed since the tap; a second tap works.
-      if (e.name === 'NotAllowedError') showToast('Tap Send again to open your email', 'info');
-      else if (e.name !== 'AbortError') showToast('Could not open sharing on this device', 'error');
-      return false;
+      if (e.name === 'NotAllowedError') { showToast('Tap Send again to open your email', 'info'); return false; }
+      if (e.name !== 'AbortError') { showToast('Could not open sharing on this device', 'error'); return false; }
+      return askDidItSend(many);
     }
   }
   files.forEach(f => downloadBlob(f.blob, f.fname));
   window.location.href = `mailto:${encodeURIComponent(to || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  showToast(`PDF${files.length > 1 ? 's' : ''} downloaded — attach ${files.length > 1 ? 'them' : 'it'} to the email that just opened`, 'info');
-  return true;
+  showToast(`PDF${many ? 's' : ''} downloaded — attach ${many ? 'them' : 'it'} to the email that just opened`, 'info');
+  return askDidItSend(many);
+}
+
+// "Did that send?" Yes / Not yet. Resolves true on Yes.
+let didItSendResolve = null;
+function askDidItSend(many) {
+  if (didItSendResolve) didItSendResolve(false);
+  document.getElementById('didItSendText').textContent = many
+    ? 'Tap Yes once the email with the PDFs has gone to the client. If it hasn\'t, tap Not yet and send again.'
+    : 'Tap Yes once the email with the PDF has gone to the client. If it hasn\'t, tap Not yet and send again.';
+  document.getElementById('didItSendOverlay').classList.add('open');
+  return new Promise(resolve => { didItSendResolve = resolve; });
+}
+function answerDidItSend(yes) {
+  document.getElementById('didItSendOverlay').classList.remove('open');
+  const r = didItSendResolve;
+  didItSendResolve = null;
+  if (r) r(!!yes);
+  if (!yes) showToast('Not marked as sent', 'info');
+}
+
+// One "Sent" line per document the job has (report, quote, certificate),
+// for the report banner and the quote screen. Each: { label, at, stale }.
+function sentDocs(rd, q) {
+  const sent = rd && rd.sent;
+  const docs = [{ label: 'Report', at: sent ? sent.at : null }];
+  if (quoteHasItems(q)) {
+    docs.push({ label: 'Quote', at: q.sentAt || null, stale: !!q.sentAt && q.sentHash !== quoteContentHash(q) });
+    if (q.treatment) docs.push({ label: 'Certificate', at: q.certificateSentAt || null });
+  }
+  return docs;
+}
+function renderSentLines(rd, q) {
+  return `<div class="doc-sent-lines">${sentDocs(rd, q).map(d =>
+    `<div class="doc-sent ${d.at ? (d.stale ? 'stale' : 'sent') : 'unsent'}"><span>${d.label}</span>` +
+    `<strong>${d.at ? `Sent ${formatIssueDate(d.at)}${d.stale ? ' · changed since' : ''}` : 'Not sent yet'}</strong></div>`).join('')}</div>`;
 }
 
 async function sendPdfsDirect({ files, to, subject, body }) {
@@ -7944,30 +7987,26 @@ async function sendPdfsDirect({ files, to, subject, body }) {
 // ── CHECK BEFORE SENDING ────────────────────────────────────────────────
 // Send opens a review of exactly what the client will get: who it goes to,
 // the PDFs attached, the headline results and the message, plus any gaps
-// in the report. Sending from here is a fresh tap, which the share sheet
-// needs, so the quote PDF is built while the review opens.
+// in the report, each with its own fix. The PDFs are built only once the
+// inspector confirms, so what goes is the report as it is then. If the
+// build takes too long for the share sheet, the built files are kept and
+// the next tap sends them at once.
 let sendReview = null;
 
 function openSendReview() {
-  const blob = window.__lastPdfBlob;
-  if (!blob) { showToast('Generate the PDF first', 'error'); return; }
-  // The PDF must match the report as it is now, since sending is what the
-  // report is locked against (see COMPLETED REPORTS).
-  if (window.__lastPdfFingerprint !== reportFingerprint()) {
-    showToast('The report changed after the PDF was made. Tap Generate PDF, then Send', 'error');
+  if (!jsPDF) {
+    ensureJsPDFLoaded().then(openSendReview)
+      .catch(e => showToast((e && e.message) || 'Could not load the PDF tools', 'error'));
     return;
   }
-  const files = [{ blob, fname: window.__lastPdfName || 'SAYON_Report.pdf' }];
+  const sidebar = document.getElementById('sidebarPanel');
+  if (sidebar && sidebar.classList.contains('open')) toggleDrawer();
   const quote = currentJobQuote();
-  let quoteFile = null;
-  if (quoteHasItems(quote)) {
-    try { quoteFile = buildQuotePDF(quote); files.push(quoteFile); } catch (e) { console.warn('Quote PDF failed:', e); }
-  }
   const address = getFullAddress();
   const client = document.getElementById('jobClient').value.trim();
   const email = (reportData.jobClientEmail || '').trim();
-  const withQuote = !!quoteFile;
-  sendReview = { files, quote: withQuote ? quote : null, fingerprint: window.__lastPdfFingerprint, version: window.__lastPdfVersion };
+  const withQuote = quoteHasItems(quote);
+  sendReview = { files: null, quote: withQuote ? quote : null };
 
   const esc = escapeHtml;
   document.getElementById('sendReviewTo').innerHTML =
@@ -7975,16 +8014,16 @@ function openSendReview() {
     (email ? `<div class="send-review-email">${esc(email)}</div>`
            : `<div class="send-review-warn">No client email. Add it in Job Details, or type it into your email app.</div>`);
 
-  const version = window.__lastPdfVersion || 1;
   const attach = [`<div class="send-review-file"><div><div class="send-review-file-name">Inspection report</div>` +
-    `<div class="send-review-file-meta">${esc(ensureReportNumber())} · version ${version}</div></div>` +
+    `<div class="send-review-file-meta">${esc(ensureReportNumber())} · version ${reportVersion()}</div></div>` +
     `<button class="link-btn" onclick="previewSendFile(0)">Preview</button></div>`];
   if (withQuote) {
     attach.push(`<div class="send-review-file"><div><div class="send-review-file-name">Treatment quote</div>` +
       `<div class="send-review-file-meta">${esc(quote.number || '')} · ${formatAUD(quoteTotals(quote).total)}${quote.gst !== false ? ' inc GST' : ''}</div></div>` +
       `<button class="link-btn" onclick="previewSendFile(1)">Preview</button></div>`);
   } else if (!reportData.noQuoteNeeded) {
-    attach.push('<div class="send-review-warn">No quote is attached.</div>');
+    attach.push('<div class="send-review-gap"><span class="send-review-warn">No quote is attached.</span>' +
+      '<span class="send-review-fixes"><button class="link-btn" onclick="fixSendGap(\'quote\')">Build quote now</button></span></div>');
   }
   document.getElementById('sendReviewFiles').innerHTML = attach.join('');
 
@@ -7994,12 +8033,13 @@ function openSendReview() {
       `<div class="send-review-tile tone-${tone}"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('') + '</div>' +
     (limited.length ? `<div class="send-review-sub">Not fully inspected</div><ul class="send-review-list">${limited.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : '');
 
-  const gaps = reportPrepItems();
+  const gaps = reportPrepGaps();
   const companyGaps = companyDetailGaps();
-  if (companyGaps.length) gaps.push(`Your ${joinWithAnd(companyGaps)} ${companyGaps.length === 1 ? 'is' : 'are'} missing from ${canEditBusiness() ? 'Your business (tap your initials, top right)' : 'the details your business owner set'}, so the PDFs won't show ${companyGaps.length === 1 ? 'it' : 'them'}`);
+  if (companyGaps.length) gaps.push({ text: `Your ${joinWithAnd(companyGaps)} ${companyGaps.length === 1 ? 'is' : 'are'} missing from ${canEditBusiness() ? 'Your business (tap your initials, top right)' : 'the details your business owner set'}, so the PDFs won't show ${companyGaps.length === 1 ? 'it' : 'them'}`, fix: '' });
   const gapsWrap = document.getElementById('sendReviewGaps');
   gapsWrap.style.display = gaps.length ? '' : 'none';
-  gapsWrap.innerHTML = `<div class="send-review-label">Worth checking first</div><ul class="send-review-list">${gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul>`;
+  gapsWrap.innerHTML = `<div class="send-review-label">Worth checking first</div><ul class="send-review-list">${gaps.map(g =>
+    `<li>${esc(g.text)}${g.fix ? `<span class="send-review-fixes">${g.fix}</span>` : ''}</li>`).join('')}</ul>`;
 
   document.getElementById('sendReviewSubject').value =
     `${withQuote ? 'Timber pest inspection report and quote' : 'Timber pest inspection report'} — ${address || 'your property'}`;
@@ -8008,9 +8048,35 @@ function openSendReview() {
     docs: withQuote ? 'timber pest inspection report and treatment quote' : 'timber pest inspection report',
     signOff: document.getElementById('jobInspector').value.trim(),
   });
-  document.getElementById('sendReviewBtn').textContent = gaps.length ? 'Send anyway'
+  sendReview.label = gaps.length ? 'Send anyway'
     : directEmail && email ? `Send to ${email}` : 'Open email to send';
+  const btn = document.getElementById('sendReviewBtn');
+  btn.textContent = sendReview.label;
+  btn.disabled = false;
   document.getElementById('sendReviewOverlay').classList.add('open');
+  const body = document.querySelector('#sendReviewOverlay .page-sheet-body');
+  if (body) body.scrollTop = 0;
+}
+
+// The fix buttons on the check sheet. Each changes the report, then the
+// sheet is redrawn from the report as it now is.
+function fixSendGap(kind) {
+  if (kind === 'quote') {
+    closeSendReview();
+    sendAfterQuote = true;
+    openQuoteFromReport();
+    return;
+  }
+  markRemainingAreasInspected(kind === 'na' ? 'NA' : 'INSPECTED');
+  openSendReview();
+}
+
+// After "Build quote now", coming back from the quote reopens the check.
+let sendAfterQuote = false;
+function resumeSendReview() {
+  if (!sendAfterQuote) return;
+  sendAfterQuote = false;
+  openSendReview();
 }
 
 function closeSendReview() {
@@ -8018,8 +8084,22 @@ function closeSendReview() {
   sendReview = null;
 }
 
-function previewSendFile(i) {
-  const f = sendReview && sendReview.files[i];
+// Builds this send's PDFs once and keeps them for a second tap.
+async function sendReviewFiles(r) {
+  if (r.files) return r.files;
+  const report = await buildReportPdf();
+  const files = [{ blob: report.blob, fname: report.fname }];
+  if (r.quote) files.push(buildQuotePDF(r.quote));
+  r.report = report;
+  r.files = files;
+  return files;
+}
+
+async function previewSendFile(i) {
+  const r = sendReview;
+  if (!r) return;
+  let f;
+  try { f = (await sendReviewFiles(r))[i]; } catch (e) { showToast('Could not make the PDF', 'error'); return; }
   if (!f) return;
   const url = URL.createObjectURL(f.blob);
   if (!window.open(url, '_blank')) downloadBlob(f.blob, f.fname);
@@ -8028,17 +8108,35 @@ function previewSendFile(i) {
 
 async function confirmSendReview() {
   const r = sendReview;
-  if (!r) return;
-  const sent = await sendPdfsToClient({
-    files: r.files,
-    to: (reportData.jobClientEmail || '').trim(),
-    subject: document.getElementById('sendReviewSubject').value.trim(),
-    body: document.getElementById('sendReviewBody').value,
-  });
-  if (!sent) return;
-  closeSendReview();
-  if (r.quote) markQuoteSent(r.quote);
-  recordReportSent(r.fingerprint, r.version);
+  if (!r || r.busy) return;
+  const btn = document.getElementById('sendReviewBtn');
+  r.busy = true;
+  btn.disabled = true;
+  try {
+    if (!r.files) btn.textContent = 'Making the PDFs…';
+    let files;
+    try { files = await sendReviewFiles(r); }
+    catch (e) {
+      console.error('PDF build failed:', e);
+      showToast((e && e.message) || 'Could not make the PDF', 'error');
+      return;
+    }
+    btn.textContent = r.label;
+    const sent = await sendPdfsToClient({
+      files,
+      to: (reportData.jobClientEmail || '').trim(),
+      subject: document.getElementById('sendReviewSubject').value.trim(),
+      body: document.getElementById('sendReviewBody').value,
+    });
+    if (!sent || sendReview !== r) return;
+    closeSendReview();
+    if (r.quote) markQuoteSent(r.quote);
+    recordReportSent(r.report.fingerprint, r.report.version);
+  } finally {
+    r.busy = false;
+    btn.disabled = false;
+    if (sendReview === r) btn.textContent = r.label;
+  }
 }
 
 function generateReport() {
@@ -8157,7 +8255,9 @@ function downloadBlob(blob, fname) {
   }
 }
 
-async function _buildAndDownloadPDF() {
+// Builds the report PDF as the report is now: { blob, fname, fingerprint,
+// version }. Used by Generate PDF and by Send (after the check).
+async function buildReportPdf() {
   // Photos live outside reportData (see PHOTO ATTACHMENTS), so read them all
   // up front; the drawing code below is synchronous.
   const photoSrc = {};
@@ -9371,26 +9471,14 @@ async function _buildAndDownloadPDF() {
   }
 
   const fname = `SAYON_${address.replace(/\s+/g,'_').substring(0,25)}_${today.replace(/\s+/g,'_')}.pdf`;
-  let pdfBlob = null;
-
-  try {
-    pdfBlob = doc.output('blob');
-  } catch(e) {
-    showToast('Failed to generate PDF', 'error');
-    return;
-  }
-
-  // Store blob for Share button and reveal it — do this before attempting delivery below,
-  // so the Share button still works even if the auto-delivery path fails.
-  window.__lastPdfBlob = pdfBlob;
-  window.__lastPdfName = fname;
-  window.__lastPdfFingerprint = fingerprint;
-  window.__lastPdfVersion = version;
+  const blob = doc.output('blob');
   saveDraft(); // keeps the report number it was given
-  const shareBtn = document.getElementById('shareBtn');
-  if (shareBtn) shareBtn.style.display = 'flex';
+  return { blob, fname, fingerprint, version };
+}
 
-  await deliverPdfBlob(pdfBlob, fname, {
+async function _buildAndDownloadPDF() {
+  const { blob, fname } = await buildReportPdf();
+  await deliverPdfBlob(blob, fname, {
     title: 'Timber Pest Inspection Report',
     text: `Timber Pest Inspection Report — ${getFullAddress() || 'Property'}`,
     readyToast: 'Report ready — choose where to save or send it',

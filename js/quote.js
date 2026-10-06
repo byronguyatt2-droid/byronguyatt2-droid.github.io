@@ -368,8 +368,10 @@ function closeQuote() {
   // may have marked as sent since.
   quoteState = null;
   document.getElementById('quoteScreen').classList.remove('open');
-  if (quoteReturnTo === 'app') document.getElementById('app').style.display = 'flex';
-  else document.getElementById('mainMenu').style.display = 'flex';
+  if (quoteReturnTo === 'app') {
+    document.getElementById('app').style.display = 'flex';
+    resumeSendReview();
+  } else document.getElementById('mainMenu').style.display = 'flex';
 }
 
 // ── RENDERING ───────────────────────────────────────────────────────────────
@@ -618,7 +620,7 @@ function renderQuoteAnswer() {
   const esc = escapeHtml;
   let body;
   if (!a) {
-    body = `<div class="quote-answer-status wait">${q.sentAt ? `Sent ${formatAnswerDate(isoDate(new Date(q.sentAt)))}. Waiting on the client.` : 'Not sent yet. Record the client\'s answer here once you have it.'}</div>
+    body = `<div class="quote-answer-status wait">${q.sentAt ? 'Waiting on the client.' : 'Send the quote, then record the client\'s answer here once you have it.'}</div>
       <div class="quote-answer-btns">
         <button class="quote-btn primary" onclick="openQuoteAnswer('accepted')">Accepted</button>
         <button class="quote-btn" onclick="openQuoteAnswer('declined')">Declined</button>
@@ -634,7 +636,7 @@ function renderQuoteAnswer() {
       ${a.status === 'accepted' && !a.stale ? renderTreatmentBlock(q) : ''}
       <button class="quote-link-btn" onclick="clearQuoteAnswer()">${a.stale ? 'Record a new answer' : 'Change answer'}</button>`;
   }
-  el.innerHTML = `<div class="quote-card-title">Client's answer</div>${body}`;
+  el.innerHTML = `${renderSentLines(treatmentSourceReport(), q)}<div class="quote-card-title">Client's answer</div>${body}`;
 }
 
 let quoteAnswerPad = null;
@@ -764,16 +766,30 @@ function quoteContentHash(q) {
   const content = Object.assign({}, q);
   // 'booking' and 'invoice' are left over from features that were removed;
   // older quotes may still carry them, and they never counted as content.
-  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey', 'answer', 'booking', 'treatment', 'invoice'].forEach(k => delete content[k]);
+  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'certificateSentAt', 'reportKey', 'answer', 'booking', 'treatment', 'invoice'].forEach(k => delete content[k]);
   return sha256Hex(stableJson(content));
 }
 function markQuoteSent(q) {
   q.sentAt = Date.now();
   q.sentHash = quoteContentHash(q);
+  storeSentQuote(q);
+}
+function markCertificateSent(q) {
+  q.certificateSentAt = Date.now();
+  storeSentQuote(q);
+}
+// Saves a quote whose sent state changed, and redraws every place that
+// shows it. The report's send marks the stored quote, so the open quote
+// takes the same times.
+function storeSentQuote(q) {
+  if (quoteState && quoteState !== q && quoteState.reportKey === q.reportKey) {
+    ['sentAt', 'sentHash', 'certificateSentAt'].forEach(k => { if (q[k]) quoteState[k] = q[k]; });
+  }
   const all = readJSON(quotesStorageKey(), {});
   all[q.reportKey] = q;
   try { localStorage.setItem(quotesStorageKey(), JSON.stringify(all)); } catch (e) {}
   storeQuoteOnReport(q, true);
+  if (quoteState && quoteState.reportKey === q.reportKey) renderQuoteAnswer();
   if (typeof renderIssueState === 'function') renderIssueState();
 }
 function isQuoteLocked() {
