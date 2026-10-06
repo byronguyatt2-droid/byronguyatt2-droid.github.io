@@ -4,7 +4,7 @@ Read this before you touch voice capture, transcript cleanup, `SYSTEM_PROMPT` or
 
 - Line numbers are from `origin/main` at `e15f1f0` (2026-10-05) and drift with every change. Find code by name (`grep -n "function populateFields" js/app.js`) and use the numbers only as a rough guide.
 - Written by reading the code, not by running it, except where it says "confirmed". Check a claim in the code before you build on it.
-- Section 5 is the list of known weak points. Nothing in it has been fixed yet.
+- Section 5 is the list of known weak points. Items marked **FIXED (2026-10-06)** were changed by the extraction rewrite; `extraction-notes.md` says how. The rest stand.
 
 ## 1. Prompts
 
@@ -107,38 +107,38 @@ Read this before you touch voice capture, transcript cleanup, `SYSTEM_PROMPT` or
 
 ## 5. Mismatches and risks
 
-1. **Multi-note overwrite (the biggest risk).**
+1. **Multi-note overwrite (the biggest risk).** **FIXED in part (2026-10-06):** notes now fill in dictation order (a new note queues behind waiting ones), list-like text fields are appended rather than replaced, `areaReasons` are cleared when a status leaves PARTIAL/NOT, a NONE finding never sits beside a real one, and `SYSTEM_PROMPT` tells the model to return only what the note says (so unmentioned fields come back null and are kept). Still true: a scalar the later note does state replaces the earlier value, and `riskLevel` is only returned for whole-house notes.
    - Every scalar key is overwritten by the next note that mentions it, including YES→NO flips, borerDetails, leakLocation and highRiskAreas.
    - `riskLevel` is re-judged from one note alone, even though the prompt says "across the whole transcript" (1204).
    - A note saying "everything accessible" overwrites earlier NOT/PARTIAL statuses (1137), but `applyObstructionExtraction` never clears `areaReasons`. Compare `setAreaStatus` 402–406, which does. The PDF prints the reasons whatever the status (8629–8630), so an area can print as "Inspected — Stored Articles".
    - `processTranscript` applies the new note and then the older waiting notes (2800–2804), so stale values land last and win.
-2. **Moisture cascade order.** The schema order puts waterLeaks and leakLocation before moistureReadings. A moistureReadings of "NO" (which the prompt allows when the inspector explicitly separates the two, 1131), or a later note saying "no moisture", wipes the leak (4152–4161).
-3. **existingSystem.**
+2. **Moisture cascade order.** **FIXED (2026-10-06):** `populateFields` writes `moistureReadings` before `waterLeaks` before `leakLocation`, forces `moistureReadings` YES when the note has a leak, and ignores a `moistureReadings` NO from a note that doesn't mention leaks when a leak is already recorded. The schema order puts waterLeaks and leakLocation before moistureReadings. A moistureReadings of "NO" (which the prompt allows when the inspector explicitly separates the two, 1131), or a later note saying "no moisture", wipes the leak (4152–4161).
+3. **existingSystem.** **FIXED (2026-10-06):** the prompt returns the five type values (or "Chemical soil barrier") plus a new `existingSystemOther` key for the brand; the cascade keeps the brand when the type is unchanged; nil words are dropped before the write; the verification keys stand on their own.
    - The prompt (1128, 1124) asks for a brand as free text, e.g. "HomeGuard Blue — 66 linear metres".
    - The UI field is a 5-value *type* dropdown (`OPTIONS.existingsystem` 4015–4021), with the brand kept separately in existingSystemOther (`SPECIFIC_SYSTEMS_BY_TYPE` 4034).
    - The plate prompt is explicitly kept in sync with that list (comment at 1213–1214); `SYSTEM_PROMPT` is not.
    - A voice existingSystem also wipes a brand the plate scan read (4138).
    - The six verification keys are "only relevant when existingSystem is identified" (1145), but a note that doesn't repeat the system has no way to know one was identified.
-4. **inspectionType.** The prompt allows 4 values (1117) and gives rules for only 2 (1121). The dropdown has 8 options (686–693), including Combined Building & Pest, New Construction, Insurance/Legal and Other.
-5. **Species.**
+4. **inspectionType.** **FIXED (2026-10-06):** the prompt lists all eight dropdown values with a rule each. The prompt allows 4 values (1117) and gives rules for only 2 (1121). The dropdown has 8 options (686–693), including Combined Building & Pest, New Construction, Insurance/Legal and Other.
+5. **Species.** **FIXED in the prompt (2026-10-06):** genus-only becomes "Genus spp."; a garbled Latin word maps to a genus, never a species; the not-identified string is scoped to the finding it was said about. The list mismatches in `SPECIES_DB` stand.
    - The prompt lists 8 species (1098), and only one genus "spp." form (Microcerotermes). `SPECIES_LIST` has 22 entries including genus "spp." forms and beetles (3816–3826).
    - The homophone rule "match to closest species… e.g. Coptotermes" (1182) pulls against "Never pick a species they didn't say" (1158). A plain "Coptotermes" is not a dropdown value.
    - `SPECIES_DB` includes Mastotermes and Porotermes (849, 932), which are in neither list.
    - The aliases map a genus to one species for the intel panel: `coptotermes` → acinaciformis (1031), `nasutitermes spp.` → exitiosus (1051).
-6. **treatmentType.**
+6. **treatmentType.** **FIXED in the prompt (2026-10-06):** no "Chemical Barrier Treatment" fallback; target first, method only if said, no method word the inspector didn't use, no negatives; `inspectionFrequency` is "N months" first. The dropdown and `quote.js` keyword matching stand (wording review).
    - The prompt formats are "Termidor (Fipronil)" and the default "Chemical Barrier Treatment" (1124–1125). The dropdown uses forms like "Chemical barrier — Termidor (Fipronil)" (3906–3918).
    - Quote seeding uses keyword matching (`quote.js:204–210`). The dropdown values "Physical barrier — HomeGuard/Kordon" match the `system` rule (`quote.js:207`) and become a `system_topup` line (`quote.js:267`), not a new install.
    - `inspectionFrequency` has no format in the prompt. The UI list is at 3919–3926, and `treatment.js:78–83` regex-parses "N months" with a default of 12.
-7. **Property dropdowns.** The prompt types these fields as plain `string` and doesn't give the option lists (3845–3905, 4022–4030), so the dictated wording need not match a dropdown value.
-8. **hinderedAreas meaning.**
+7. **Property dropdowns.** **FIXED in the prompt (2026-10-06):** every list is given with its exact values; the inspector's words are kept when no value fits (e.g. a tiled roof with no tile material). The prompt types these fields as plain `string` and doesn't give the option lists (3845–3905, 4022–4030), so the dictated wording need not match a dropdown value.
+8. **hinderedAreas meaning.** **FIXED in the prompt and in `populateFields` (2026-10-06):** restricted-but-not-prevented areas only; a filled value flips the Restrictions toggle to YES and shows the detail, a nil value flips it to NO. The PDF's `'N/A'` test (8576, 8659) and the FIELD_LABELS text still stand for the wording review.
    - The prompt defines it as "readily accessible areas inspected" (1117).
    - The UI shows it as "Details & Recommendations" under a "restricted access?" YES question (1179–1191).
    - The PDF row calls it "Areas Where Inspection Was Restricted" (8671), while the PDF's own FIELD_LABELS calls it "Readily Accessible Areas Inspected" (8268).
    - The PDF decides "no restrictions" only when the text contains `'N/A'` (8576, 8659). So any extracted text, and the app's own `'NIL — No restricted access…'` (561), prints Restrictions: YES and raises the undetected-risk rating to MODERATE (8581–8583).
    - The prompt also defines restrictedAccess and hinderedAreasDetail almost identically, and obstructions/restrictedAccess are thrown away after reason-matching.
 9. **Dead option lists.** `inspectionareas` 3929, `obstructiontype` 3965, `restrictiontype` 3985 and `leaklocation` 3996 are not used by any element (leakLocation is a text field, 1343).
-10. **Notes that fail forever.** A queued note over 20,000 characters (Worker 413), one whose answer won't parse, or one that hits max_tokens fails on every retry. Because the queue stops at the first failure (2923–2927), it blocks every note behind it.
-11. **Save timing (plausible, not tested).** `processPendingNotes` calls `saveDraft` and then `saveCurrentReport(true)` (2933, 2941–2943) while the last note's 70 ms staggered writes are still pending. The Saved Reports copy may miss them.
+10. **Notes that fail forever.** **FIXED (2026-10-06):** a 413, a max_tokens cut-off or an unparseable answer is a note-specific problem: the note is marked with the reason and skipped, so the queue carries on; account-level refusals still stop it. A queued note over 20,000 characters (Worker 413), one whose answer won't parse, or one that hits max_tokens fails on every retry. Because the queue stops at the first failure (2923–2927), it blocks every note behind it.
+11. **Save timing.** **FIXED (2026-10-06):** `populateFields` returns a promise that resolves after the staggered writes, and `processPendingNotes` awaits it before saving. `processPendingNotes` calls `saveDraft` and then `saveCurrentReport(true)` (2933, 2941–2943) while the last note's 70 ms staggered writes are still pending. The Saved Reports copy may miss them.
 12. **Trade rules.**
     - The prompt itself complies: no severity words (1162–1163), structuralConcern means a builder or engineer referral (1164), riskLevel is never based on species (1203). The prompt header says "compliant with AS 3660.2-2017" (1095), while its area and borer rules cite AS 4349.3.
     - Species-based risk wording exists only in the on-screen `SPECIES_DB`: "most destructive" 878, "high-risk colony" 745, "less aggressive" 660/978/1014. `SPECIES_DB` is not referenced in the PDF code (7945–9178).
