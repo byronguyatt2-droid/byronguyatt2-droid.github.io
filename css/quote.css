@@ -263,6 +263,10 @@ select.quote-input { cursor: pointer; }
 .treat-method-qty { width: 92px; flex-shrink: 0; }
 .treat-product { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
 .treat-product .quote-link-btn, .treat-add-product { align-self: flex-start; }
+.treat-batch { display: flex; gap: 8px; align-items: center; }
+.treat-batch .job-input { flex: 1; min-width: 0; }
+.treat-batch .treat-label-btn { align-self: center; white-space: nowrap; cursor: pointer; }
+.treat-label-thumb { display: block; max-width: 160px; max-height: 120px; margin-top: 6px; border-radius: 6px; border: 1px solid var(--border); }
 .treat-sketch-wrap {
   height: auto; aspect-ratio: 4 / 3;
   background-image: linear-gradient(rgba(12,18,28,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(12,18,28,0.07) 1px, transparent 1px);
