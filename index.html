@@ -544,6 +544,9 @@
       <div class="header-job" id="headerJob">No job loaded</div>
     </div>
     <div class="header-right">
+      <button class="header-icon-btn" id="darkScreenBtn" onclick="toggleDarkScreen()" aria-label="Dark screen" aria-pressed="false" title="Dark screen for subfloors and roof voids">
+        <svg class="icon icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="icon icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
       <button class="header-icon-btn" id="dashboardBtn" onclick="openDashboard()" aria-label="Dashboard" title="Dashboard">
         <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
       </button>
@@ -633,24 +636,24 @@
             <div class="job-field-label">Street Address</div>
             <input class="job-input" id="jobAddress" placeholder="e.g. 12 Smith Street" oninput="updateJob()">
           </div>
-          <div class="job-row job-row-3">
+          <div class="job-row job-row-suburb">
             <div class="job-field">
               <div class="job-field-label">Suburb</div>
               <input class="job-input" id="jobSuburb" placeholder="Suburb" oninput="updateJob()">
             </div>
             <div class="job-field">
-              <div class="job-field-label">State</div>
-              <select class="job-input job-select" id="jobState" onchange="updateJob()">
-                <option value="">--</option>
-                <option>NSW</option><option>VIC</option><option>QLD</option>
-                <option>WA</option><option>SA</option><option>TAS</option>
-                <option>ACT</option><option>NT</option>
-              </select>
-            </div>
-            <div class="job-field">
               <div class="job-field-label">Postcode</div>
               <input class="job-input" id="jobPostcode" placeholder="0000" inputmode="numeric" maxlength="4" oninput="updateJob()">
             </div>
+          </div>
+          <div class="job-field">
+            <div class="job-field-label">State</div>
+            <select class="job-input job-select" id="jobState" onchange="updateJob()">
+              <option value="">--</option>
+              <option>NSW</option><option>VIC</option><option>QLD</option>
+              <option>WA</option><option>SA</option><option>TAS</option>
+              <option>ACT</option><option>NT</option>
+            </select>
           </div>
           <!-- Client -->
           <div class="job-row">
@@ -856,6 +859,13 @@
               <button type="button" class="text-size-btn" data-size="large" onclick="setTextSize('large')" aria-label="Large text size">A</button>
               <button type="button" class="text-size-btn" data-size="xl" onclick="setTextSize('xl')" aria-label="Extra large text size">A</button>
             </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-text">
+              <div class="settings-row-title">Dark Screen</div>
+              <div class="settings-row-desc">Black background for subfloors, roof voids and night work, so the screen doesn't dazzle you. Also on the moon button at the top.</div>
+            </div>
+            <button type="button" class="toggle-switch" id="toggleDarkScreen" onclick="toggleDarkScreen()" aria-label="Toggle dark screen"></button>
           </div>
           <div class="settings-row">
             <div class="settings-row-text">
@@ -1178,10 +1188,10 @@
             <!-- YES/NO question -->
             <div class="field field-wide">
               <div class="field-label">Were there any normally accessible areas that had restricted access?</div>
-              <div class="res-yesno" id="resYesNo">
-                <button class="res-yn-btn res-yes" id="resYesBtn" onclick="setRestrictedAccess(true)">YES</button>
-                <button class="res-yn-btn res-no" id="resNoBtn" onclick="setRestrictedAccess(false)">NO</button>
-              </div>
+              <div class="choice-panel" id="resYesNo"><div class="choice-grid" style="--cols:2">
+                <button type="button" class="choice-card tone-bad" id="resYesBtn" onclick="setRestrictedAccess(true)"><span class="choice-card-code">YES</span></button>
+                <button type="button" class="choice-card tone-good" id="resNoBtn" onclick="setRestrictedAccess(false)"><span class="choice-card-code">NO</span></button>
+              </div></div>
             </div>
           </div>
           <!-- Detail fields — shown when YES -->
@@ -1497,7 +1507,7 @@
               </div>
             </div>
           </div>
-          <div class="warn-note" style="background:#E9F6EE; border-color:rgba(45,158,95,0.35); color:#22804B;"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Signatures are saved with this report, synced to your account when you're signed in, and printed in the PDF.</div>
+          <div class="warn-note note-good"><svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Signatures are saved with this report, synced to your account when you're signed in, and printed in the PDF.</div>
         </div>
 
       </div><!-- /reportBody -->
@@ -1752,6 +1762,8 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<!-- Voice HUD: screen-edge border while listening or extracting (VOICE HUD in js/app.js) -->
+<div class="voice-hud" aria-hidden="true"></div>
 
 </div><!-- /body -->
 </div><!-- /app -->
@@ -1761,37 +1773,5 @@
 <script src="js/quote.js"></script>
 <script src="js/treatment.js"></script>
 <script src="js/business-sync.js"></script>
-<!-- Activity picker bottom sheet — rendered once, reused for all finding cards -->
-<div class="activity-sheet-overlay" id="activitySheetOverlay" onclick="closeActivitySheet()">
-  <div class="activity-sheet" onclick="event.stopPropagation()">
-    <div class="activity-sheet-handle"></div>
-    <div class="activity-sheet-title">Termite Activity Status</div>
-    <div class="activity-sheet-options">
-      <button class="activity-sheet-btn" onclick="commitFromSheet('ACTIVE')">
-        <span class="risk-tag risk-high" style="flex-shrink:0">ACTIVE</span>
-        <div>
-          <div class="activity-sheet-btn-label">Live termites sighted</div>
-          <div class="activity-sheet-btn-desc">Workers or soldiers observed moving or present at time of inspection</div>
-        </div>
-      </button>
-      <button class="activity-sheet-btn" onclick="commitFromSheet('INACTIVE')">
-        <span class="risk-tag risk-medium" style="flex-shrink:0">INACTIVE</span>
-        <div>
-          <div class="activity-sheet-btn-label">Evidence only — no live sighting</div>
-          <div class="activity-sheet-btn-desc">Mud tubes, workings or damage present but no live termites observed</div>
-        </div>
-      </button>
-      <button class="activity-sheet-btn" onclick="commitFromSheet('NONE')">
-        <span class="risk-tag risk-low" style="flex-shrink:0">NONE</span>
-        <div>
-          <div class="activity-sheet-btn-label">No activity or evidence found</div>
-          <div class="activity-sheet-btn-desc">No termite activity, workings or damage at this location</div>
-        </div>
-      </button>
-    </div>
-    <button class="activity-sheet-cancel" onclick="closeActivitySheet()">Cancel</button>
-  </div>
-</div>
-
 </body>
 </html>
