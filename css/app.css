@@ -42,6 +42,55 @@ body {
 
 /* ── ACCESSIBILITY MODES ── */
 
+/* Dark screen: for subfloors, roof voids and night work. Most colours
+   come from the tokens above, so this swaps the tokens; the rules after
+   it cover the few light tints that are written out. Signature pads stay
+   white so the ink reads. */
+body.dark-screen {
+  color-scheme: dark;
+  --bg:        #06090D;
+  --surface:   #10161D;
+  --surface2:  #161E27;
+  --surface3:  #1D2733;
+  --text:      #E8EEF4;
+  --text2:     #B4C2CF;
+  --text3:     #93A3B3;
+  --border:    #2A3644;
+  --border2:   #3B4959;
+  --silver:    #7F8E9D;
+  --yellow-text: #FFB000;
+  --risk:      #FF5A4F;
+  --green:     #2FD27A;
+  --accent2:   #2DD4BF;
+}
+body.dark-screen.high-contrast { --border: #5B6B7C; --border2: #7A8C9E; --text2: #D4DEE7; --text3: #B4C2CF; }
+body.dark-screen .choice-panel { box-shadow: inset 0 0 0 1px var(--border2); }
+body.dark-screen .findings-gate.unset { box-shadow: inset 0 0 0 3px var(--tone-warn); }
+body.dark-screen .risk-high   { background: rgba(255,90,79,0.16);  color: #FF8A80; border-color: rgba(255,90,79,0.5); }
+body.dark-screen .risk-medium { background: rgba(255,176,0,0.14);  color: #FFC53D; border-color: rgba(255,176,0,0.5); }
+body.dark-screen .risk-low    { background: rgba(47,210,122,0.14); color: #5BE39A; border-color: rgba(47,210,122,0.5); }
+body.dark-screen header { background: var(--surface); border-bottom-color: var(--border); box-shadow: none; }
+body.dark-screen .section-tabs { background: var(--surface2); border-bottom-color: var(--border); }
+body.dark-screen .report-header { border-bottom-color: var(--border); }
+body.dark-screen .report-title h2 { color: var(--text); }
+body.dark-screen .report-body { background: var(--bg); }
+body.dark-screen .report-section { border-color: var(--border2); box-shadow: none; border-top-color: var(--accent); }
+body.dark-screen .field-val.filled { background: rgba(45,212,191,0.12); color: var(--text); }
+body.dark-screen .section-photo-widget { border-color: var(--border2); }
+body.dark-screen .obs-zone-btn:not(.active) { background: var(--surface2); border-color: var(--border2); color: var(--text2); }
+body.dark-screen .obs-zone-panel-header { background: var(--surface2); border-bottom-color: var(--border); }
+body.dark-screen .warn-note:not(.note-good),
+body.dark-screen .toast.toast-error { background: rgba(255,90,79,0.12); }
+body.dark-screen .send-review-tile.tone-bad  { background: rgba(255,90,79,0.10); }
+body.dark-screen .send-review-tile.tone-warn,
+body.dark-screen .send-review-gaps          { background: rgba(255,176,0,0.10); }
+body.dark-screen .send-review-tile.tone-good { background: rgba(47,210,122,0.10); }
+body.dark-screen .pill-green { background: rgba(47,210,122,0.14); color: #5BE39A; }
+.icon-sun { display: none; }
+body.dark-screen #darkScreenBtn .icon-moon { display: none; }
+body.dark-screen #darkScreenBtn .icon-sun { display: block; }
+body.dark-screen #darkScreenBtn { color: var(--tone-warn, #FFB000); }
+
 /* Text size */
 body.text-size-large { font-size: 1.12em; }
 body.text-size-xl { font-size: 1.28em; }
@@ -2347,6 +2396,8 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
 .risk-medium { background:#FDF4E3; color:#9A6A08;      border:1px solid rgba(212,146,10,0.4); }
 .risk-low    { background:#E9F6EE; color:#22804B;      border:1px solid rgba(45,158,95,0.35); }
 
+.warn-note.note-good { background: #E9F6EE; border-color: rgba(45,158,95,0.35); color: #22804B; }
+body.dark-screen .warn-note.note-good { background: rgba(47,210,122,0.12); color: #5BE39A; }
 .warn-note {
   margin: 0 14px 12px;
   padding: 8px 10px;
@@ -2837,13 +2888,17 @@ body.report-locked #micDock { opacity: 0.4; }
 .choice-card.tone-good    { --tone: var(--tone-good);    --tone-ink: #10161D; }
 .choice-card.tone-neutral { --tone: var(--tone-neutral); --tone-ink: #10161D; }
 .choice-card.tone-neutral::before { background: var(--act-steel); }
-.choice-card:has(input:checked) {
+.choice-card:has(input:checked),
+.choice-card.active {
   background: var(--tone);
   border-color: var(--tone);
   color: var(--tone-ink);
 }
 .choice-card:has(input:checked) .choice-card-desc { color: var(--tone-ink); }
-.choice-card:has(input:checked)::before { display: none; }
+.choice-card:has(input:checked)::before,
+.choice-card.active::before { display: none; }
+button.choice-card { font: inherit; background: transparent; text-align: left; }
+button.choice-card:focus-visible,
 .choice-card:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
 body.large-touch .choice-card { min-height: 72px; }
 body.text-size-large .choice-card-code,
@@ -3404,11 +3459,6 @@ body.ai-busy:has(#app[style*="flex"]) .ai-busy-bar { display: block; }
   font-size: 12px;
   color: var(--text3);
 }
-.res-yesno { display:flex; gap:8px; margin-top:8px; }
-.res-yn-btn { flex:1; padding:11px; border:none; border-radius:8px; font-family:'Inter',sans-serif; font-size:14px; font-weight:700; cursor:pointer; transition:all 0.15s; opacity:0.4; min-height:44px; }
-.res-yn-btn.res-yes { background:#c03030; color:#fff; }
-.res-yn-btn.res-no  { background:var(--surface3); color:var(--text2); }
-.res-yn-btn.active  { opacity:1; }
 .res-disclaimer { margin:0 14px 12px; padding:10px 14px; background:rgba(245,162,35,0.07); border-left:3px solid var(--yellow); border-radius:0 6px 6px 0; font-size:12px; color:var(--text2); line-height:1.6; }
 
 
