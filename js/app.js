@@ -2206,6 +2206,7 @@ function startRecording() {
   };
   recognition.start();
   isRecording = true;
+  updateVoiceHud();
   document.getElementById('voiceBtn').classList.add('recording');
   document.getElementById('voiceBtnText').textContent = 'Recording… Tap to Stop';
   document.getElementById('waveform').classList.add('show');
@@ -2235,6 +2236,7 @@ function stopRecording() {
   const recognitionEnded = waitForRecognitionEnd(recognition);
   if (recognition) recognition.stop();
   isRecording = false;
+  updateVoiceHud();
   document.getElementById('voiceBtn').classList.remove('recording');
   document.getElementById('voiceBtnText').textContent = 'Tap to Speak';
   document.getElementById('waveform').classList.remove('show');
@@ -2373,6 +2375,26 @@ function hfSetStatus(state, text) {
   const txt = document.getElementById('hfStatusText');
   if (dot) dot.className = 'hf-status-dot ' + (state || '');
   if (txt) txt.textContent = text;
+  hfHudState = state || '';
+  updateVoiceHud();
+}
+
+// ── VOICE HUD ─────────────────────────────────────────────────────────────
+// A border round the whole screen, so the inspector can tell from the
+// corner of their eye what the app is doing without reading anything:
+//   armed     hands-free is on, waiting for "Hey Sayon": thin, steady
+//   listening the mic is taking a note: thick, slow pulse
+//   thinking  the AI is filling the report: thick, fast pulse
+// Read from the existing state (isRecording, the hands-free status, the
+// AI busy flag); nothing here changes how voice or extraction work.
+let hfHudState = '';
+function updateVoiceHud() {
+  let state = '';
+  if (isRecording || hfHudState === 'active') state = 'listening';
+  else if (hfHudState === 'processing' || document.body.classList.contains('ai-busy')) state = 'thinking';
+  else if (hfHudState === 'listening') state = 'armed';
+  if (state) document.body.dataset.voice = state;
+  else delete document.body.dataset.voice;
 }
 
 // ── Section routing ──────────────────────────────────────────────────────
@@ -7662,6 +7684,7 @@ function setAI(state, text) {
   // popover closed, so nobody taps Extract twice or thinks it failed.
   const busy = state === 'thinking';
   document.body.classList.toggle('ai-busy', busy);
+  updateVoiceHud();
   const busyText = document.getElementById('aiBusyText');
   if (busyText && busy) busyText.textContent = text;
 }
