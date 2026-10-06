@@ -16,6 +16,7 @@
 // takes effect on the very next load instead of needing an extra refresh.
 const CACHE_VERSION = 'korva-v55';
 
+
 const APP_SHELL = [
   './',
   './index.html',
