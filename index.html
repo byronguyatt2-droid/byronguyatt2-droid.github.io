@@ -1761,37 +1761,5 @@
 <script src="js/quote.js"></script>
 <script src="js/treatment.js"></script>
 <script src="js/business-sync.js"></script>
-<!-- Activity picker bottom sheet — rendered once, reused for all finding cards -->
-<div class="activity-sheet-overlay" id="activitySheetOverlay" onclick="closeActivitySheet()">
-  <div class="activity-sheet" onclick="event.stopPropagation()">
-    <div class="activity-sheet-handle"></div>
-    <div class="activity-sheet-title">Termite Activity Status</div>
-    <div class="activity-sheet-options">
-      <button class="activity-sheet-btn" onclick="commitFromSheet('ACTIVE')">
-        <span class="risk-tag risk-high" style="flex-shrink:0">ACTIVE</span>
-        <div>
-          <div class="activity-sheet-btn-label">Live termites sighted</div>
-          <div class="activity-sheet-btn-desc">Workers or soldiers observed moving or present at time of inspection</div>
-        </div>
-      </button>
-      <button class="activity-sheet-btn" onclick="commitFromSheet('INACTIVE')">
-        <span class="risk-tag risk-medium" style="flex-shrink:0">INACTIVE</span>
-        <div>
-          <div class="activity-sheet-btn-label">Evidence only — no live sighting</div>
-          <div class="activity-sheet-btn-desc">Mud tubes, workings or damage present but no live termites observed</div>
-        </div>
-      </button>
-      <button class="activity-sheet-btn" onclick="commitFromSheet('NONE')">
-        <span class="risk-tag risk-low" style="flex-shrink:0">NONE</span>
-        <div>
-          <div class="activity-sheet-btn-label">No activity or evidence found</div>
-          <div class="activity-sheet-btn-desc">No termite activity, workings or damage at this location</div>
-        </div>
-      </button>
-    </div>
-    <button class="activity-sheet-cancel" onclick="closeActivitySheet()">Cancel</button>
-  </div>
-</div>
-
 </body>
 </html>

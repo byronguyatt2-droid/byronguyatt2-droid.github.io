@@ -3694,13 +3694,28 @@ function setFindingField(id, key, val) {
   saveDraft();
 }
 
-// Renders an activity chip label
-function activityLabel(val) {
-  if (val === 'ACTIVE')   return 'ACTIVE — live termites sighted';
-  if (val === 'INACTIVE') return 'INACTIVE — evidence only';
-  if (val === 'NONE')     return 'NONE — nothing found';
-  return 'Set activity status';
-}
+// ── ACTIVITY CARDS ──────────────────────────────────────────────────────
+// The termite activity question is three big cards, built for gloves and
+// glare. Each card wraps a visually hidden native radio: the radio is the
+// control (tap, keyboard, screen reader), and its change event writes the
+// finding through commitFindingEdit like every other field. Extraction,
+// drafts and the PDF read reportData, and renderFindingsUI redraws the
+// cards from it, so nothing else needs to know the cards exist.
+const ACTIVITY_CARDS = [
+  { value: 'ACTIVE',   desc: 'Live termites seen' },
+  { value: 'INACTIVE', desc: 'Evidence, none live' },
+  { value: 'NONE',     desc: 'Nothing found' },
+];
+
+document.addEventListener('change', e => {
+  const input = e.target.closest && e.target.closest('.activity-card input');
+  if (!input) return;
+  const findingId = input.dataset.finding;
+  commitFindingEdit(findingId, 'termiteActivity', input.value);
+  // The card was redrawn; keep focus on the chosen one for keyboard users.
+  const chosen = document.querySelector(`.activity-card input[data-finding="${findingId}"]:checked`);
+  if (chosen) chosen.focus({ preventScroll: true });
+});
 
 // Generates the HTML for one finding card
 function findingCardHTML(finding, index, total) {
@@ -3735,13 +3750,20 @@ function findingCardHTML(finding, index, total) {
         ${total > 1 ? `<button class="finding-remove-btn" onclick="removeFinding('${id}')" title="Remove this finding">✕</button>` : ''}
       </div>
       <div class="finding-card-body">
-        <!-- Activity gate -->
-        <div class="findings-gate" style="margin:8px 14px 0">
-          <div class="findings-gate-question">
-            <div class="field-label">Termite Activity Status</div>
-            <div class="field-val findings-gate-val${act ? ' filled' : ''}" onclick="startFindingEdit('${id}','termiteActivity','activity')">${act ? `<span class="risk-tag ${act==='ACTIVE'?'risk-high':act==='INACTIVE'?'risk-medium':'risk-low'}">${escapeHtml(activityLabel(act))}</span>` : '—'}</div>
-          </div>
-          ${!act ? `<p class="findings-gate-hint">Answer this question to continue. Active = live termites sighted. Inactive = evidence only. None = nothing found.</p>` : ''}
+        <!-- Activity gate: three cards over native radios (see ACTIVITY CARDS) -->
+        <div class="findings-gate${act ? '' : ' unset'}">
+          <fieldset class="activity-cards">
+            <legend class="field-label">Termite Activity Status</legend>
+            <div class="activity-cards-grid">
+              ${ACTIVITY_CARDS.map(c => `
+              <label class="activity-card activity-card--${c.value.toLowerCase()}">
+                <input type="radio" class="sr-only" name="activity-${id}" value="${c.value}" data-finding="${id}"${act === c.value ? ' checked' : ''}>
+                <span class="activity-card-code">${c.value}</span>
+                <span class="activity-card-desc">${c.desc}</span>
+              </label>`).join('')}
+            </div>
+          </fieldset>
+          ${!act ? `<p class="findings-gate-hint">Pick one to continue.</p>` : ''}
         </div>
         ${showDetails ? `
         <div class="findings-details" style="display:block">
@@ -3784,36 +3806,11 @@ function renderFindingsUI() {
 // Called when a field inside a finding card is tapped
 let activeFindingEdit = null;
 
-function openActivitySheet(findingId) {
-  activeFindingEdit = { findingId, key: 'termiteActivity' };
-  const overlay = document.getElementById('activitySheetOverlay');
-  if (overlay) overlay.classList.add('open');
-}
-
-function closeActivitySheet() {
-  const overlay = document.getElementById('activitySheetOverlay');
-  if (overlay) overlay.classList.remove('open');
-  activeFindingEdit = null;
-}
-
-function commitFromSheet(value) {
-  if (!activeFindingEdit) return;
-  const { findingId } = activeFindingEdit;
-  closeActivitySheet();
-  commitFindingEdit(findingId, 'termiteActivity', value);
-}
-
 function startFindingEdit(findingId, key, type) {
   activeFindingEdit = { findingId, key };
 
   const finding = getFindings().find(f => f.id === findingId);
   if (!finding) return;
-
-  // Activity status → open the persistent bottom sheet
-  if (type === 'activity') {
-    openActivitySheet(findingId);
-    return;
-  }
 
   // For yesno fields, toggle directly
   if (type === 'yesno') {
