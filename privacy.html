@@ -136,6 +136,7 @@
     <li><strong>Photographs of the property</strong>, where the photo capture feature is in use, which may incidentally include identifiable people, vehicles, or other personal property.</li>
     <li><strong>Signatures</strong>, captured digitally from the technician and, where applicable, the client, as part of the inspection sign-off process.</li>
     <li><strong>Technician information</strong>, including the inspector's name, email address, business details, licence number and any notes they enter while using the app.</li>
+    <li><strong>App usage and error information</strong>: which screens and steps the technician uses, how long the AI takes, error messages and technical details of crashes, the type of device and browser, and the network address the app connects from. This is linked to a random account number, not to the technician's name or email, and never includes client details, dictation, report text, photos or signatures. The technician can turn it off in Menu › Data &amp; backups.</li>
     <li><strong>Billing information</strong> for paid plans. Card details are entered directly with Stripe, our payment processor. We don't see or store full card details.</li>
   </ul>
   <p>We do not knowingly collect health information, bank account details, or government identifiers (such as tax file numbers) through the app.</p>
@@ -167,9 +168,10 @@
     <li><strong>Cloudflare</strong> (global network, including the United States), which hosts our server and, when it's turned on, the optional audio transcription.</li>
     <li><strong>Apple</strong> or <strong>Google</strong> (United States), through the browser's built-in speech recognition, to turn spoken audio into text.</li>
     <li><strong>Stripe</strong> (United States and other countries), to process plan payments. Stripe receives the account holder's billing details, not client or inspection information.</li>
+    <li><strong>Sentry</strong> (United States), to tell us when the app breaks, and <strong>PostHog</strong> (United States), to show us which parts of the app get used. They receive the app usage and error information described above, not client or inspection information.</li>
     <li><strong>The client</strong>, who receives the finished report containing their own property and contact information.</li>
   </ul>
-  <p>Because Anthropic, Cloudflare, Apple, Google and Stripe may process data outside Australia, mainly in the United States, using the app involves disclosing personal information overseas.</p>
+  <p>Because Anthropic, Cloudflare, Apple, Google, Stripe, Sentry and PostHog may process data outside Australia, mainly in the United States, using the app involves disclosing personal information overseas.</p>
   <p>We do not sell personal information, and we do not share it with anyone for marketing.</p>
 
   <h2>How long we keep information</h2>
