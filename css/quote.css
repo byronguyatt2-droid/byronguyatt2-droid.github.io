@@ -155,6 +155,9 @@ select.quote-input { cursor: pointer; }
   white-space: nowrap;
   min-width: 84px;
 }
+.quote-item-start { margin-top: 6px; display: inline-block; font-size: 11px; font-weight: 600; color: #8a5a00; background: #fff4dc; border-radius: 6px; padding: 3px 8px; }
+.quote-system-choice { background: var(--surface2); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.quote-system-q { font-size: 13px; margin-bottom: 8px; }
 .quote-item-source { margin-top: 6px; font-size: 11px; color: var(--text3); }
 .quote-items-empty { font-size: 13px; color: var(--text3); padding: 6px 0 10px; }
 
