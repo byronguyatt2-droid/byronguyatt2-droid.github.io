@@ -13,7 +13,7 @@
 //
 // Only runs over https (the live site), so local testing sends nothing.
 
-const SENTRY_DSN = '';   // Sentry project sayon-app (US). Empty = Sentry off.
+const SENTRY_DSN = 'https://7d9161b096a6289e18133ac7cecfb87f@o4512207445295104.ingest.us.sentry.io/4512211160924160'; // Sentry project sayon-app (US). Public by design; empty = Sentry off.
 const POSTHOG_KEY = 'phc_t8iTajrVTkmxHcKQzhFkjEQSjLvc5Q77iAi3hDUD5HLy'; // public project key, safe in the page
 const POSTHOG_HOST = 'https://us.i.posthog.com';
 const TELEMETRY_OFF_KEY = 'korva_telemetry_off';
