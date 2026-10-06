@@ -395,6 +395,19 @@
   </div>
 </div>
 
+<!-- DID THAT SEND? (when the app can't tell from the share sheet or email).
+     Outside #app so it also shows over the quote screen. -->
+<div class="page-sheet-overlay did-it-send-overlay" id="didItSendOverlay">
+  <div class="did-it-send" role="alertdialog" aria-modal="true" aria-labelledby="didItSendTitle" aria-describedby="didItSendText">
+    <div class="did-it-send-title" id="didItSendTitle">Did that send?</div>
+    <p class="did-it-send-text" id="didItSendText"></p>
+    <div class="did-it-send-btns">
+      <button class="extract-btn" onclick="answerDidItSend(true)">Yes, it's sent</button>
+      <button class="link-btn" onclick="answerDidItSend(false)">Not yet</button>
+    </div>
+  </div>
+</div>
+
 <div class="page-sheet-overlay" id="treatmentOverlay">
   <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="treatmentTitle">
     <div class="page-sheet-header">
@@ -1739,18 +1752,6 @@
       <textarea class="job-input send-review-body" id="sendReviewBody" rows="9" aria-label="Message"></textarea>
       <button class="extract-btn" id="sendReviewBtn" onclick="confirmSendReview()">Open email to send</button>
       <button class="link-btn send-review-cancel" onclick="closeSendReview()">Not yet</button>
-    </div>
-  </div>
-</div>
-
-<!-- DID THAT SEND? (when the app can't tell from the share sheet or email) -->
-<div class="page-sheet-overlay did-it-send-overlay" id="didItSendOverlay">
-  <div class="did-it-send" role="alertdialog" aria-modal="true" aria-labelledby="didItSendTitle" aria-describedby="didItSendText">
-    <div class="did-it-send-title" id="didItSendTitle">Did that send?</div>
-    <p class="did-it-send-text" id="didItSendText"></p>
-    <div class="did-it-send-btns">
-      <button class="extract-btn" onclick="answerDidItSend(true)">Yes, it's sent</button>
-      <button class="link-btn" onclick="answerDidItSend(false)">Not yet</button>
     </div>
   </div>
 </div>

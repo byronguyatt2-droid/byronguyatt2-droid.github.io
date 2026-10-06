@@ -6643,6 +6643,7 @@ function enterApp() {
   // onto this account" behaviour found during live testing. Forcing a full
   // reset here - the same reset newReport() does - closes all of that off.
   if (appInitialised && authUser && lastActiveAccountUserId && lastActiveAccountUserId !== authUser.id) {
+    currentReportId = null;
     resetReportState();
     document.getElementById('jobAddress').value = '';
     document.getElementById('jobSuburb').value = '';
@@ -6651,7 +6652,6 @@ function enterApp() {
     document.getElementById('jobClient').value = '';
     document.getElementById('jobInspector').value = '';
     updateJob();
-    currentReportId = null;
     clearDraft();
     // Saved reports are scoped per-account (reportsStorageKey()), same as
     // company details - no wipe needed here any more. An earlier version of
@@ -7596,6 +7596,9 @@ function lastInspectorDetails() {
 
 function newReport() {
   track('report_started');
+  // Before the reset, so the banners it redraws don't show the last job's
+  // quote and certificate.
+  currentReportId = null;
   resetReportState();
   document.getElementById('jobAddress').value = '';
   document.getElementById('jobSuburb').value = '';
@@ -7607,7 +7610,6 @@ function newReport() {
   if (lastInspector.licence) reportData.inspectorLicence = lastInspector.licence;
   restoreLicenceField();
   updateJob();
-  currentReportId = null;
   clearDraft();
   showSection('property');
   showToast('New report started', 'info');
