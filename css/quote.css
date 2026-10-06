@@ -32,6 +32,7 @@
   font: 600 14px 'Inter', sans-serif;
   cursor: pointer;
   border-radius: 8px;
+  min-height: 44px;
 }
 .quote-back:hover { background: var(--surface2); }
 .quote-topbar-title {
@@ -40,7 +41,7 @@
   color: var(--text);
   letter-spacing: -0.2px;
 }
-.quote-save-state { font-size: 11px; color: var(--text3); }
+.quote-save-state { font-size: 12px; color: var(--text3); }
 
 .quote-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .quote-shell {
@@ -87,6 +88,7 @@
   background: var(--surface2);
   color: var(--text);
   font: 400 14px 'Inter', sans-serif;
+  min-height: 44px;
 }
 .quote-input:focus { outline: none; border-color: var(--accent); background: var(--surface); }
 .quote-textarea { resize: vertical; line-height: 1.45; }
@@ -104,7 +106,7 @@ select.quote-input { cursor: pointer; }
   border: 1px solid var(--border);
 }
 .quote-chip.high { color: var(--risk); border-color: rgba(192,57,43,0.35); background: rgba(192,57,43,0.07); }
-.quote-chip.medium { color: var(--yellow); border-color: rgba(212,146,10,0.35); background: rgba(212,146,10,0.07); }
+.quote-chip.medium { color: var(--yellow-text); border-color: rgba(212,146,10,0.35); background: rgba(212,146,10,0.07); }
 .quote-chip.low { color: var(--green); border-color: rgba(45,158,95,0.35); background: rgba(45,158,95,0.07); }
 
 .quote-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -158,7 +160,7 @@ select.quote-input { cursor: pointer; }
 .quote-item-start { margin-top: 6px; display: inline-block; font-size: 11px; font-weight: 600; color: #8a5a00; background: #fff4dc; border-radius: 6px; padding: 3px 8px; }
 .quote-system-choice { background: var(--surface2); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
 .quote-system-q { font-size: 13px; margin-bottom: 8px; }
-.quote-item-source { margin-top: 6px; font-size: 11px; color: var(--text3); }
+.quote-item-source { margin-top: 6px; font-size: 12px; color: var(--text3); }
 .quote-items-empty { font-size: 13px; color: var(--text3); padding: 6px 0 10px; }
 
 .quote-add-btn, .quote-link-btn {
@@ -169,8 +171,8 @@ select.quote-input { cursor: pointer; }
   border-radius: 8px;
   cursor: pointer;
 }
-.quote-add-btn { width: 100%; padding: 10px; }
-.quote-link-btn { border-style: solid; padding: 6px 10px; font-size: 12px; }
+.quote-add-btn { width: 100%; min-height: 44px; padding: 10px; }
+.quote-link-btn { border-style: solid; min-height: 44px; padding: 6px 14px; font-size: 12.5px; }
 .quote-card-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .quote-terms-field { margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
 .quote-company-gaps {
@@ -188,8 +190,8 @@ select.quote-input { cursor: pointer; }
 .quote-total-row > span:last-child { font-weight: 600; color: var(--text); }
 .quote-total-row.grand { border-top: 1px solid var(--border); padding-top: 10px; font-size: 17px; font-weight: 800; color: var(--text); }
 .quote-total-row.grand > span:last-child { color: var(--accent2); font-weight: 800; }
-.quote-gst-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.quote-gst-toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
+.quote-gst-toggle { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.quote-gst-toggle input { width: 22px; height: 22px; accent-color: var(--accent); }
 
 .quote-actions { display: flex; gap: 8px; }
 .quote-btn {
@@ -246,7 +248,7 @@ select.quote-input { cursor: pointer; }
 .quote-answer-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .quote-answer-note { font-size: 13px; color: var(--text2); font-style: italic; }
 .quote-answer-sig { max-width: 180px; max-height: 64px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
-.quote-answer-warn { font-size: 12.5px; color: var(--yellow); font-weight: 600; }
+.quote-answer-warn { font-size: 12.5px; color: var(--yellow-text); font-weight: 600; }
 .quote-answer .quote-link-btn { align-self: flex-start; }
 
 .quote-step-btn { width: 100%; flex: none; }
@@ -257,8 +259,8 @@ select.quote-input { cursor: pointer; }
 
 /* Treatment record */
 .treat-methods { display: flex; flex-direction: column; gap: 6px; }
-.treat-method { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 13.5px; color: var(--text); }
-.treat-method input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--accent); }
+.treat-method { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 13.5px; color: var(--text); }
+.treat-method input[type=checkbox] { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--accent); }
 .treat-method span { flex: 1; }
 .treat-method-qty { width: 92px; flex-shrink: 0; }
 .treat-product { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
