@@ -1179,7 +1179,7 @@
               <div class="field-label">Were there any normally accessible areas that had restricted access?</div>
               <div class="res-yesno" id="resYesNo">
                 <button class="res-yn-btn res-yes" id="resYesBtn" onclick="setRestrictedAccess(true)">YES</button>
-                <button class="res-yn-btn res-no active" id="resNoBtn" onclick="setRestrictedAccess(false)">NO</button>
+                <button class="res-yn-btn res-no" id="resNoBtn" onclick="setRestrictedAccess(false)">NO</button>
               </div>
             </div>
           </div>
@@ -1633,6 +1633,22 @@
 
     <!-- Not signed yet: job details, wording, signature -->
     <div class="page-sheet-body" id="agreementEdit">
+      <!-- The type decides the standard and the wording of clause 1, so it
+           is chosen before the client signs (see onAgreementTypeChange). -->
+      <div class="job-field">
+        <div class="job-field-label">Inspection Type</div>
+        <select class="job-input job-select" id="agreementInspectionType" onchange="onAgreementTypeChange()">
+          <option value="">Select…</option>
+          <option>Annual — Existing Building</option>
+          <option>Pre-Purchase — Timber Pest</option>
+          <option>Pre-Purchase — Combined Building & Pest</option>
+          <option>New Construction — Completion</option>
+          <option>Treatment Follow-Up</option>
+          <option>Re-inspection</option>
+          <option>Insurance / Legal</option>
+          <option>Other</option>
+        </select>
+      </div>
       <div class="job-row">
         <div class="job-field">
           <div class="job-field-label">Inspection Date</div>
