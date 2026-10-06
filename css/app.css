@@ -2751,7 +2751,10 @@ body.report-locked #micDock { opacity: 0.4; }
 }
 .photo-remove-btn:hover { text-decoration: underline; }
 
-.photo-empty-state {
+/* Empty screens: a dashed box saying what goes here, plus (on Saved reports
+   and the Dashboard) one button for the next step. */
+.photo-empty-state,
+.empty-state {
   margin: 0 14px 14px;
   padding: 24px 14px;
   text-align: center;
@@ -2760,6 +2763,9 @@ body.report-locked #micDock { opacity: 0.4; }
   border: 1px dashed var(--border);
   border-radius: 9px;
 }
+.empty-state { margin: 8px 0; color: var(--text2); font-size: 13px; line-height: 1.5; }
+.empty-state p { margin: 0 0 14px; }
+.empty-state .job-action-btn { display: inline-flex; padding: 8px 18px; }
 
 /* Findings gating question */
 .findings-gate {
@@ -3203,12 +3209,6 @@ body.report-locked #micDock { opacity: 0.4; }
   border-radius: 99px;
   flex-shrink: 0;
 }
-.dashboard-empty {
-  text-align: center;
-  color: var(--text3);
-  font-size: 12.5px;
-  padding: 30px 10px;
-}
 
 .asb-banner {
   display: flex;
@@ -3262,6 +3262,55 @@ body.report-locked #micDock { opacity: 0.4; }
 .toast.toast-info    { border-left-color: var(--blue); }
 
 .toast-icon { font-size: 15px; flex-shrink: 0; }
+/* A toast with a button (Undo) takes taps; plain toasts let them through. */
+.toast.toast-has-action { pointer-events: auto; padding-right: 8px; }
+.toast-action {
+  flex-shrink: 0;
+  min-height: 44px;
+  margin: -8px 0 -8px 4px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(var(--accent-rgb), 0.1);
+  color: var(--accent3);
+  font: 700 13px 'Inter', sans-serif;
+  cursor: pointer;
+}
+
+/* AI working: a moving bar and a line of text under the report header, shown
+   while setAI('thinking') is on (see setAI in app.js). */
+.ai-busy-bar {
+  display: none;
+  position: fixed;
+  top: calc(52px + env(safe-area-inset-top, 0px));
+  left: 0;
+  right: 0;
+  z-index: 101;
+  padding: 7px 16px 8px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  color: var(--accent3);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0,50,100,0.08);
+}
+.ai-busy-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 3px;
+  width: 35%;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
+  animation: aiBusySlide 1.3s ease-in-out infinite;
+}
+body.ai-busy:has(#app[style*="flex"]) .ai-busy-bar { display: block; }
+@keyframes aiBusySlide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(290%); }
+}
 
 .voice-privacy-hint { font-size: 12px; color: var(--text3); line-height: 1.5; margin: 6px 2px 0; }
 

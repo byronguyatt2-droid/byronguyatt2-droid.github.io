@@ -583,6 +583,7 @@
       </div>
     </div>
   </header>
+  <div class="ai-busy-bar" role="status" aria-live="polite"><span id="aiBusyText">Filling in the report…</span></div>
 
   <!-- DRAWER OVERLAY -->
   <div class="drawer-overlay" id="drawerOverlay" onclick="toggleDrawer()"></div>
@@ -775,9 +776,7 @@
         </button>
         <div class="job-panel-body" id="savedPanelBody">
         <input class="job-input saved-search-input" id="savedSearchInput" type="text" placeholder="Search by address or client" autocomplete="off" oninput="renderSavedList()">
-        <div class="saved-list" id="savedList">
-          <div class="saved-empty">No saved reports yet — fill in a job and tap "Save Report"</div>
-        </div>
+        <div class="saved-list" id="savedList"></div>
         </div>
       </div>
 
