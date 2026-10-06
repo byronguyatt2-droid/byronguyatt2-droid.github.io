@@ -176,6 +176,7 @@ function openTreatmentRecord() {
   const q = quoteState;
   if (!q) return;
   const t = q.treatment || draftTreatment(q);
+  track('screen_viewed', { screen: 'treatment_record' });
   document.getElementById('trDate').value = t.date || todayIsoDate();
   document.getElementById('trTech').value = t.technician || '';
   document.getElementById('trLicence').value = t.licence || '';
@@ -415,6 +416,7 @@ function saveTreatmentRecord() {
   if (typeof renderIssueState === 'function') renderIssueState();
   if (typeof renderSavedList === 'function') renderSavedList();
   showToast('Treatment recorded. The certificate is ready to send', 'success');
+  track('treatment_recorded', { methods: Object.keys(methods).length });
 }
 
 // ── CERTIFICATE PDF ──
@@ -423,13 +425,14 @@ function downloadTreatmentCertificate() {
   if (!q || !q.treatment) return;
   ensureJsPDFLoaded()
     .then(() => buildTreatmentCertificatePDF(q))
-    .then(({ blob, fname }) => deliverPdfBlob(blob, fname, {
+    .then(({ blob, fname }) => { track('certificate_pdf_made'); return deliverPdfBlob(blob, fname, {
       title: 'Treatment certificate',
       text: `Treatment certificate — ${q.address || 'Property'}`,
       readyToast: 'Certificate ready — choose where to save or send it',
-    }))
+    }); })
     .catch(e => {
       console.error('Certificate PDF failed:', e);
+      reportError(e, 'certificate_pdf');
       showToast((e && e.message) || 'Could not make the certificate. Check your connection and try again', 'error');
     });
 }
@@ -450,7 +453,7 @@ function emailTreatmentCertificate() {
     to: (q.clientEmail || '').trim(),
     subject: `Termite treatment certificate — ${q.address || 'your property'}`,
     body: clientMessage({ client: q.client, address: q.address, docs: 'termite treatment certificate', signOff: q.treatment.technician }),
-  }).then(sent => { if (sent) markCertificateSent(q); });
+  }).then(sent => { if (sent) { markCertificateSent(q); track('certificate_sent'); } });
 }
 
 function buildTreatmentCertificatePDF(q) {

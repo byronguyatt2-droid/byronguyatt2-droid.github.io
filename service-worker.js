@@ -25,6 +25,8 @@ const APP_SHELL = [
   './js/quote.js',
   './js/treatment.js',
   './js/business-sync.js',
+  './js/telemetry.js',
+  './js/vendor/sentry-11.4.0.min.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

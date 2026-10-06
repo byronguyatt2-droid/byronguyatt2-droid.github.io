@@ -400,6 +400,7 @@ function openQuote(from, preferKey) {
   quoteSources = collectQuoteSources();
   renderQuoteSourceOptions(preferKey);
   onQuoteSourceChange();
+  track('screen_viewed', { screen: 'quote' });
 }
 
 function openQuoteFromReport() {
@@ -795,6 +796,7 @@ function saveQuoteAnswer() {
   if (typeof renderIssueState === 'function') renderIssueState();
   if (typeof renderSavedList === 'function') renderSavedList();
   showToast(accepted ? 'Quote accepted' : 'Quote marked as declined', 'success');
+  track('quote_answered', { answer: quoteAnswerMode, method: method || 'none' });
 }
 
 function clearQuoteAnswer() {
@@ -824,13 +826,17 @@ function exportQuotePDF() {
   setTimeout(() => {
     ensureJsPDFLoaded()
       .then(() => buildQuotePDF(quoteState))
-      .then(({ blob, fname }) => deliverPdfBlob(blob, fname, {
-        title: 'SAYON Quote',
-        text: `Treatment quote — ${quoteState.address || 'Property'}`,
-        readyToast: 'Quote ready — choose where to save or send it',
-      }))
+      .then(({ blob, fname }) => {
+        track('quote_pdf_made', { items: quoteState.items.length });
+        return deliverPdfBlob(blob, fname, {
+          title: 'SAYON Quote',
+          text: `Treatment quote — ${quoteState.address || 'Property'}`,
+          readyToast: 'Quote ready — choose where to save or send it',
+        });
+      })
       .catch(e => {
         console.error('Quote PDF failed:', e);
+        reportError(e, 'quote_pdf');
         showToast((e && e.message) || 'Could not generate the PDF — check your connection and try again', 'error');
       })
       .finally(() => { btn.disabled = false; });
@@ -926,7 +932,7 @@ function emailQuoteToClient() {
     to: (q.clientEmail || '').trim(),
     subject: `Quote ${q.number || ''} — ${q.address || 'your property'}`.replace('  ', ' '),
     body: clientMessage({ client: q.client, address: q.address, docs: 'treatment quote', signOff: q.inspector }),
-  }).then(sent => { if (sent) markQuoteSent(q); });
+  }).then(sent => { if (sent) { markQuoteSent(q); track('quote_sent'); } });
 }
 
 // ── SHARED PDF PARTS (quote and treatment certificate) ──────────────────────
