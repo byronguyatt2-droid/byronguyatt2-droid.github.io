@@ -1419,6 +1419,7 @@ function openApp(appName) {
     initSignaturePads();
     installReportLockGuard();
     buildChoiceCards();
+    buildSelectCards();
     enhanceFieldsWithNotes();
     renderSavedList();
     const restored = loadDraft();
@@ -3796,6 +3797,60 @@ document.addEventListener('change', e => {
   }
 });
 
+// ── SELECT CARDS ──────────────────────────────────────────────────────────
+// The short job-detail dropdowns shown as card grids. The native <select>
+// stays in the page, hidden, and keeps the value: a card tap sets it and
+// fires its 'change', so onInspectionTypeChange(), updateJob() and
+// saveJobInfo() run as before. Code that sets a select directly ends in
+// updateJob(), saveJobInfo(), loadJobInfo() or clearJobInfo(), and those
+// call syncAllSelectCards() to redraw. Long lists (referral) stay dropdowns.
+const SELECT_CARDS = {
+  jobState:          { cols: 4 },
+  jobInspectionType: { cols: 2 },
+  jobPaymentStatus:  { cols: 2 },
+};
+
+function buildSelectCards() {
+  Object.keys(SELECT_CARDS).forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel || document.getElementById('cards-' + id)) return;
+    sel.classList.add('select-cards-source');
+    const panel = document.createElement('div');
+    panel.className = 'choice-panel select-cards';
+    panel.id = 'cards-' + id;
+    panel.setAttribute('role', 'radiogroup');
+    const label = sel.closest('.job-field')?.querySelector('.job-field-label');
+    if (label) panel.setAttribute('aria-label', label.textContent);
+    sel.insertAdjacentElement('afterend', panel);
+    panel.addEventListener('change', e => {
+      const input = e.target.closest('input');
+      if (!input || sel.value === input.value) return;
+      sel.value = input.value;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      input.focus({ preventScroll: true });
+    });
+    syncSelectCards(id);
+  });
+}
+
+function syncSelectCards(id) {
+  const sel = document.getElementById(id);
+  const panel = document.getElementById('cards-' + id);
+  if (!sel || !panel) return;
+  if (panel.firstChild && panel.dataset.value === sel.value) return;
+  panel.dataset.value = sel.value;
+  const hadFocus = panel.contains(document.activeElement);
+  const opts = [...sel.options].filter(o => o.value);
+  panel.innerHTML = `<div class="choice-grid" style="--cols:${SELECT_CARDS[id].cols}">${opts.map(o => `
+    <label class="choice-card tone-neutral">
+      <input type="radio" class="sr-only" name="cards-${id}" value="${escapeHtml(o.value)}"${sel.value === o.value ? ' checked' : ''}>
+      <span class="choice-card-code">${escapeHtml(o.textContent)}</span>
+    </label>`).join('')}</div>`;
+  if (hadFocus) { const c = panel.querySelector('input:checked'); if (c) c.focus({ preventScroll: true }); }
+}
+
+function syncAllSelectCards() { Object.keys(SELECT_CARDS).forEach(syncSelectCards); }
+
 // Generates the HTML for one finding card
 function findingCardHTML(finding, index, total) {
   const id = finding.id;
@@ -5610,6 +5665,7 @@ function updateJob() {
     summary.textContent = parts.length ? parts.join(' · ') : 'No job set';
   }
 
+  syncAllSelectCards();
   saveDraft();
 }
 
@@ -5687,6 +5743,7 @@ function saveJobInfo() {
     const el = document.getElementById(id);
     if (el) reportData[id] = el.value;
   });
+  syncAllSelectCards();
   saveDraft();
 }
 
@@ -5725,6 +5782,7 @@ function loadJobInfo() {
     const el = document.getElementById(id);
     if (el && reportData[id] !== undefined) el.value = reportData[id];
   });
+  syncAllSelectCards();
 }
 
 function clearJobInfo() {
@@ -5733,6 +5791,7 @@ function clearJobInfo() {
     if (el) el.value = '';
     delete reportData[id];
   });
+  syncAllSelectCards();
 }
 // Stored separately from report data, per-business, used on every report.
 //
