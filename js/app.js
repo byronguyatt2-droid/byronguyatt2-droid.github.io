@@ -614,10 +614,16 @@ function setRestrictedAccess(hasRestrictions) {
   updateProgress(); flushDraftSave();
 }
 
+// The Restrictions answer: YES only when restricted areas were recorded.
+// Tapping No stores the 'NIL — …' text above, and older reports hold 'N/A'.
+function hasRestrictedAreas() {
+  const v = (reportData.hinderedAreas || '').trim();
+  return !!v && !v.startsWith('NIL') && !v.includes('N/A');
+}
+
 function restoreResState() {
   if (!reportData.hinderedAreas) return;
-  const isNo = reportData.hinderedAreas.startsWith('NIL');
-  setRestrictedAccess(!isNo);
+  setRestrictedAccess(hasRestrictedAreas());
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -4634,8 +4640,8 @@ function getAgreementTemplate() {
   return (custom && custom.trim()) ? custom : DEFAULT_AGREEMENT_TEXT;
 }
 
-function agreementInspectionType(standard) {
-  return /4349/.test(standard || '') ? 'pre-purchase timber pest' : 'timber pest';
+function agreementInspectionType() {
+  return isPrePurchaseJob() ? 'pre-purchase timber pest' : 'timber pest';
 }
 
 // Fills the template's {placeholders} for this job. Anything still
@@ -4679,7 +4685,7 @@ function agreementFormValues() {
       address: getFullAddress(),
       date: formatAgreementDate(inspectionDate),
       standard,
-      inspectionType: agreementInspectionType(standard),
+      inspectionType: agreementInspectionType(),
       fee: fee || 'As quoted.',
       notes: notes || 'None.',
     }),
@@ -5441,6 +5447,17 @@ const INSPECTION_TYPE_STANDARD = {
   'Pre-Purchase — Combined Building & Pest': 'AS 4349.3-2010',
   'Annual — Existing Building': 'AS 3660.2-2017',
 };
+// Whether this job is a pre-purchase inspection. The inspection type decides;
+// only a report with no type falls back to the standard it cites. The cover
+// label, the agreement wording and the "not for buying or selling" notice all
+// use this, so an insurance or legal job citing AS 4349.3 is never labelled
+// pre-purchase.
+function isPrePurchaseJob() {
+  const type = reportData.jobInspectionType || '';
+  if (type) return /pre-purchase/i.test(type);
+  return (reportData.standard || '') === 'AS 4349.3-2010';
+}
+
 function onInspectionTypeChange() {
   saveJobInfo();
   const std = INSPECTION_TYPE_STANDARD[document.getElementById('jobInspectionType').value];
@@ -8419,7 +8436,7 @@ async function _buildAndDownloadPDF() {
     structureType:'Structure Type', wallConstruction:'Wall Construction', floorType:'Floor Type', roofType:'Roof Type',
     height:'Height', facadeDirection:'Orientation', occupancyStatus:'Occupancy Status', weatherConditions:'Weather Conditions',
     constructionEra:'Year / Period of Construction', standard:'Applicable Standard',
-    hinderedAreas:'Readily Accessible Areas Inspected', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'Restrictions', highRiskAreas:'High Risk Areas',
+    hinderedAreas:'Areas Where Inspection Was Restricted', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'Nature of Restriction', highRiskAreas:'High Risk Areas',
     borerActivity:'Borers of Seasoned Timber', borerDetails:'Borer Type, Location & Evidence', decayFound:'Wood Decay Fungi (Rot)', decayDetails:'Wood Decay Location & Evidence',
     termiteActivity:'Termite Activity Status', species:'Species', damageDescription:'Damage Description', activityLocation:'Location of Activity', nestLocated:'Workings / Nest Located', structuralConcern:'Builder / Engineer Referral',
     waterLeaks:'Water Leaks', leakLocation:'Location of Moisture Ingress', moistureReadings:'Moisture Readings', timberSoil:'Timber-to-Soil Contact', slabEdge:'Slab Edge Concealed', weepHoles:'Weep Holes (Clear / Bridged)', existingSystem:'Existing System',
@@ -8493,7 +8510,8 @@ async function _buildAndDownloadPDF() {
 
   // ── TITLE BLOCK ───────────────────────────────────────────────────────────
   // Report type label
-  const reportTypeLabel = standard.startsWith('AS 4349') ? 'PRE-PURCHASE TIMBER PEST' : 'TIMBER PEST';
+  const prePurchase = isPrePurchaseJob();
+  const reportTypeLabel = prePurchase ? 'PRE-PURCHASE TIMBER PEST' : 'TIMBER PEST';
   doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
   doc.text(reportTypeLabel, M, 70);
 
@@ -8507,7 +8525,7 @@ async function _buildAndDownloadPDF() {
 
   // Standard reference
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
-  doc.text('Prepared in accordance with', M, 118);
+  doc.text('Prepared with reference to', M, 118);
   doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
   doc.text(standardLabel, M, 125);
 
@@ -8690,7 +8708,7 @@ async function _buildAndDownloadPDF() {
   if (inspType)   row('Inspection Type', inspType);
   if (orderId)    row('Order / Job ID', orderId);
   if (invoiceNo)  row('Invoice No.', invoiceNo);
-  if (fee)        row('Fee (inc. GST)', /^\s*\$?\s*[\d,]+(\.\d+)?\s*$/.test(fee) ? '$' + parseFeeToNumber(fee).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : fee);
+  if (fee)        row('Inspection Fee', /^\s*\$?\s*[\d,]+(\.\d+)?\s*$/.test(fee) ? '$' + parseFeeToNumber(fee).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : fee);
   startPart('Property Details');
 
   sectionTitle('PROPERTY DETAILS');
@@ -8704,12 +8722,11 @@ async function _buildAndDownloadPDF() {
     row('Existing Termite Management System', reportData.existingSystem);
     if (reportData.existingSystemOther) row('Specific System Name', reportData.existingSystemOther);
   }
-  if (reportData.constructionEra && (reportData.constructionEra === '1945-1965' || reportData.constructionEra === '1965-1985')) {
+  // Asbestos is outside a timber pest inspection, so this is a general note
+  // for buildings of the period, not a rating of this property.
+  if (['1920s-1940s', '1945-1965', '1965-1985', '1985-2003'].includes(reportData.constructionEra)) {
     gap(3);
-    disclaimer('Construction era indicates a HIGH likelihood of asbestos-containing materials (fibro/ACM sheeting). Noted as observation only — not disturbed. Recommend licensed asbestos assessor if suspected ACM identified.');
-  } else if (reportData.constructionEra && (reportData.constructionEra === '1920s-1940s' || reportData.constructionEra === '1985-2003')) {
-    gap(3);
-    disclaimer('Construction era indicates a MODERATE likelihood of asbestos-containing materials. Noted as observation only.');
+    disclaimer('Buildings from this period may contain asbestos-containing materials. This is not an asbestos inspection: nothing was tested or disturbed, and no opinion is given on whether asbestos is present. Have a licensed asbestos assessor check before any work that disturbs building materials.');
   }
   notesBlock('property');
   gap(4);
@@ -8727,7 +8744,7 @@ async function _buildAndDownloadPDF() {
   resetRowShade();
 
   const hasObstruction = areasNotFullyInspected().length > 0;
-  const hasRestriction = !!(reportData.hinderedAreas && !reportData.hinderedAreas.includes('N/A'));
+  const hasRestriction = hasRestrictedAreas();
   const hasActivity    = (reportData.findings || []).some(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
   const risk           = reportData.riskLevel || 'NOT ASSESSED';
 
@@ -8810,7 +8827,7 @@ async function _buildAndDownloadPDF() {
   startPart('Restrictions');
   sectionTitle('RESTRICTIONS');
   resetRowShade();
-  const noRestrictions = !reportData.hinderedAreas || reportData.hinderedAreas.includes('N/A');
+  const noRestrictions = !hasRestriction;
   if (y + 14 > 278) newPage();
   doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, 12, 'F');
   doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, 12, 'F');
@@ -8929,13 +8946,13 @@ async function _buildAndDownloadPDF() {
 
   findings.forEach((f, idx) => findingCard(f, idx));
 
-  // Borers and wood decay: the other timber pests AS 4349.3 requires.
-  // Always printed, so an unanswered field shows as a gap rather than
-  // silently implying "none found".
+  // Borers and wood decay: the other timber pests AS 4349.3 covers. Always
+  // printed, so an unanswered field reads "Not recorded" rather than
+  // silently implying "none found" (row() drops empty values).
   subhead('BORERS & WOOD DECAY');
-  row('Borers of Seasoned Timber', reportData.borerActivity);
+  row('Borers of Seasoned Timber', reportData.borerActivity || 'Not recorded');
   if (reportData.borerDetails) row('Borer Type, Location & Evidence', reportData.borerDetails);
-  row('Wood Decay Fungi (Rot)', reportData.decayFound);
+  row('Wood Decay Fungi (Rot)', reportData.decayFound || 'Not recorded');
   if (reportData.decayDetails) row('Wood Decay Location & Evidence', reportData.decayDetails);
   gap(4);
 
@@ -9075,10 +9092,10 @@ async function _buildAndDownloadPDF() {
     ['Reasonable Access', 'Access to areas of a building that are safe, accessible, and do not require any removal, dismantling, or disturbance of fixed or stored items. Access is via a standard 3.6m ladder from ground level. Subfloor access requires minimum 400mm clearance; roof void access requires minimum 450mm x 400mm opening.'],
     ['Readily Accessible Area', 'An area that can be inspected without moving furniture, stored goods, floor coverings, wall or ceiling linings, insulation, or personal possessions.'],
     ['Obstructions', 'Physical items or conditions that prevent a complete visual inspection of an accessible area, including but not limited to furniture, stored goods, floor coverings, insulation, and vegetation. The inspector is not required to move obstructions.'],
-    ['Restrictions', 'Physical, safety, or design constraints that prevent the inspector from entering an area under the applicable Australian Standard, including subfloor clearance below 400mm, access hatch dimensions below minimum standard, unsafe structures, asbestos risk, or height beyond safe ladder reach.'],
+    ['Restrictions', 'Conditions that limited the inspection of an area without preventing it altogether, such as low clearance, stored items, insulation, poor lighting, or parts beyond safe reach. The parts of the area that could not be seen are treated like obstructed areas: timber pest activity or damage may exist in them.'],
     ['Conducive Conditions', 'Conditions that may attract termites or provide conditions favourable to timber pest activity, including moisture, timber-to-soil contact, inadequate drainage, and conditions that compromise the integrity of an existing termite management system.'],
     ['Active Termites', 'Live termites sighted by the inspector during the inspection.'],
-    ['Inactive / Evidence Only', 'Evidence of past termite activity including workings, mudding, damaged timber, and galleries, where no live termites were sighted. This finding is equally significant as active termites and warrants immediate professional attention.'],
+    ['Inactive / Evidence Only', 'Evidence of termite activity, such as workings, mudding, damaged timber or galleries, where no live termites were seen at the time of inspection. It does not show when the activity happened or whether termites are still present in concealed areas, so it should be investigated further and the recommendations in this report followed.'],
   ];
 
   defs.forEach(([term, def]) => {
@@ -9099,7 +9116,7 @@ async function _buildAndDownloadPDF() {
   doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.accentDark);
   doc.text('IMPORTANT NOTICE', M+7, y+7);
   doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.ink);
-  const noticeLines = doc.splitTextToSize('This inspection fee covers the cost of the inspection and report only. Treatment of any timber pest activity or damage identified, and any remedial work required, is not included in this fee and is the responsibility of the property owner. Standard home and contents insurance policies do not cover termite damage. If you have concerns about your coverage, contact your insurer directly.', CW - 14);
+  const noticeLines = doc.splitTextToSize('This inspection fee covers the cost of the inspection and report only. Treatment of any timber pest activity or damage identified, and any remedial work required, is not included in this fee and is the responsibility of the property owner. Standard home and contents insurance policies generally do not cover termite damage. If you have concerns about your coverage, contact your insurer directly.', CW - 14);
   doc.text(noticeLines, M+7, y+13);
   y += 34;
 
@@ -9125,7 +9142,7 @@ async function _buildAndDownloadPDF() {
   }
 
   tcHeading('1. Purpose and Nature of This Inspection');
-  tcPara(`This report records the findings of a visual, non-invasive timber pest inspection carried out in accordance with ${standard}. The purpose is to identify observable evidence of timber pest activity, damage, and conditions conducive to pest attack within the accessible areas of the property at the time of inspection. This is not a structural inspection, a pest control treatment, a compliance audit, or a certificate of any kind, and it does not constitute a warranty or guarantee that the property is or will remain free of timber pests or associated damage.`);
+  tcPara(`This report records the findings of a visual, non-invasive timber pest inspection carried out with reference to ${standard}. The purpose is to identify observable evidence of timber pest activity, damage, and conditions conducive to pest attack within the accessible areas of the property at the time of inspection. This is not a structural inspection, a pest control treatment, a compliance audit, or a certificate of any kind, and it does not constitute a warranty or guarantee that the property is or will remain free of timber pests or associated damage.`);
 
   tcHeading('2. Scope of Inspection');
   tcPara('The inspection was confined to areas that were safely and reasonably accessible at the time of the inspection. Readily accessible areas are defined in AS 4349.3-2010 as those that can be inspected without moving furniture, lifting or removing floor coverings or wall linings, breaking apart building elements, exposing concealed spaces, or causing damage to the structure or its contents. The inspector did not move, displace, or remove any floor coverings, insulation, wall linings, ceiling materials, fixed cabinetry, furniture, stored items, or personal belongings. Subfloor and roof void areas were inspected only where safe and reasonable access was available and where minimum clearance dimensions prescribed in the relevant Standard were satisfied.');
@@ -9146,13 +9163,17 @@ async function _buildAndDownloadPDF() {
   tcPara('Standard home, contents, and building insurance policies in Australia do not generally cover loss or damage caused by termites, timber borers, or other timber pests. Timber pest damage is typically treated by Australian insurers as gradual deterioration rather than a sudden or accidental event and is excluded from most mainstream policies. The client is encouraged to obtain written confirmation from their insurer regarding the specific extent of their coverage before acting in reliance on this report.');
 
   tcHeading('8. Reliance on This Report — Client Use Only');
-  tcPara('This report has been prepared exclusively for the use of the client named on the cover page of this document. It must not be provided to, or relied upon by, any third party without the prior written consent of the inspecting company. Where this report has been sought in connection with a proposed property purchase, a formal Prior-to-Purchase Timber Pest Inspection prepared in accordance with AS 4349.3-2010 and obtained prior to exchange of contracts is strongly advised. The inspecting company and inspector accept no responsibility or liability to any party other than the named client for any loss, damage, or expense arising from reliance on the contents of this report.');
+  // The "get a pre-purchase inspection" advice only makes sense on a report
+  // that isn't one.
+  tcPara('This report has been prepared exclusively for the use of the client named on the cover page of this document. It must not be provided to, or relied upon by, any third party without the prior written consent of the inspecting company. '
+    + (prePurchase ? '' : 'Where this report has been sought in connection with a proposed property purchase, a formal Prior-to-Purchase Timber Pest Inspection prepared with reference to AS 4349.3-2010 and obtained prior to exchange of contracts is strongly advised. ')
+    + 'The inspecting company and inspector accept no responsibility or liability to any party other than the named client for any loss, damage, or expense arising from reliance on the contents of this report.');
 
   tcHeading('9. Recommended Re-inspection Frequency');
   tcPara("Annual timber pest inspections are the minimum recommended frequency under AS 3660.2-2017 in the absence of an installed termite management system. Where elevated risk factors are present — including proximity to bushland or trees, prior termite history at the property, high-moisture conditions in the subfloor or roof void, the presence of timber-to-soil contact, or susceptible construction materials — a six-monthly re-inspection interval is recommended. Where an existing termite management system is installed and verified, the re-inspection frequency specified by the system installer and manufacturer should be followed. Failure to maintain regular inspection intervals may affect the terms of any system warranty in place.");
 
   tcHeading('10. Applicable Standards and Legislation');
-  tcPara(`This inspection and report have been prepared in accordance with ${standard} and the AEPMA (Australian Environmental Pest Managers Association) Code of Practice for Timber Pest Inspections where applicable. Where the property is newly constructed or has been subject to recent building work, the termite management provisions of the National Construction Code (NCC) and AS 3660.1-2014 (Termite Management — New Building Work) may also apply. State and Territory legislation may impose requirements additional to those set out in this Standard. This report is not a safety inspection, does not constitute advice regarding compliance with any building code or regulation, and is not a certificate of compliance under any legislation.`);
+  tcPara(`This inspection and report have been prepared with reference to ${standard} and, where applicable, the AEPMA (Australian Environmental Pest Managers Association) Code of Practice for Timber Pest Inspections. Termite management recommendations refer to AS 3660.2-2017 (Termite Management — In and Around Existing Buildings and Structures). Where the property is newly constructed or has been subject to recent building work, the termite management provisions of the National Construction Code (NCC) and AS 3660.1-2014 (Termite Management — New Building Work) may also apply. State and Territory legislation may impose requirements additional to those set out in this Standard. This report is not a safety inspection, does not constitute advice regarding compliance with any building code or regulation, and is not a certificate of compliance under any legislation.`);
 
   gap(6);
   if (y + 12 > 278) newPage();
@@ -9171,8 +9192,8 @@ async function _buildAndDownloadPDF() {
   gap(2);
   disclaimer('This report relates to the condition of the property in respect of timber pest activity at the time of inspection, limited to those areas that were reasonably accessible. It is not a warranty, guarantee, or certificate of compliance with any law, insurance policy, or building standard, and does not guarantee the property is, or will remain, free of termites or other timber pests. Conditions affecting the property may change after the inspection date, and concealed or inaccessible areas may contain damage or activity that could not be identified.');
   gap(3);
-  if (!standard.startsWith('AS 4349')) {
-    disclaimer('This report is for the sole use of the client named above and is not intended for use by third parties. It is not suitable for use where the property is being bought or sold — a Prior-to-Purchase inspection complying with AS 4349.3 should be obtained for that purpose.');
+  if (!prePurchase) {
+    disclaimer('This report is for the sole use of the client named above and is not intended for use by third parties. It is not suitable for use where the property is being bought or sold — a Prior-to-Purchase inspection with reference to AS 4349.3-2010 should be obtained for that purpose.');
     gap(3);
   }
   disclaimer('The client acknowledges the contents of this report and that the inspection has limitations. This report does not conclusively determine that the property is free of termites.');
@@ -9284,7 +9305,7 @@ async function _buildAndDownloadPDF() {
   doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
   doc.text(`Generated by SAYON  ·  ${today}`, M+7, y+5);
   doc.setFont('helvetica','normal'); doc.setTextColor(...C.inkMuted);
-  doc.text(`Report ID: ${reportId}  ·  ${standard} Compliant`, M+7, y+9);
+  doc.text(`Report ID: ${reportId}  ·  Prepared with reference to ${standard}`, M+7, y+9);
   doc.text(`Content fingerprint: ${formatFingerprint(fingerprint)}  ·  changes to the report change this code`, M+7, y+13);
 
   if (agreement) {
@@ -9325,7 +9346,7 @@ async function _buildAndDownloadPDF() {
   if (shareBtn) shareBtn.style.display = 'flex';
 
   await deliverPdfBlob(pdfBlob, fname, {
-    title: 'SAYONion Report',
+    title: 'Timber Pest Inspection Report',
     text: `Timber Pest Inspection Report — ${getFullAddress() || 'Property'}`,
     readyToast: 'Report ready — choose where to save or send it',
   });
