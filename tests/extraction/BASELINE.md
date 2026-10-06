@@ -52,3 +52,19 @@ Most weight-3 failures are where the keys depart on purpose from the literal pro
 | restricted-access-matcher-words | 1 | 0/3 | Didn't use the reason words the app's matcher ticks ("stored articles", "furniture") |
 | treatment-type | 2 | 2/3 | Missed the tree or the system install once |
 | no-zone-75 | 1 | 2/3 | Filled a verification field with no system present |
+
+## After the rewrite (2026-10-06)
+
+`SYSTEM_PROMPT` as rewritten on branch `claude/voice-extraction-rdusm7` (revision 2; revision 1 differed only in the riskLevel paragraph and rated `borers-rot` HIGH in one of three runs). Same runner, 3 runs per case, tag `rev2`.
+
+| Case | Before: mean (weight-3 fails per run) | After: mean (weight-3 fails per run) |
+|---|---|---|
+| house-test-1 | 91.4% (2, 3, 3) | 100% (0, 0, 0) |
+| house-test-2 (leaked into the prompt; reported, not tuned for) | 93.3% (1, 2, 1) | 100% (0, 0, 0) |
+| slab-barrier | 95.2% (0, 0, 0) | 100% (0, 0, 0) |
+| skirting-active | 98.1% (0, 0, 0) | 100% (0, 0, 0) |
+| subfloor-followup | 96.3% (1, 1, 1) | 99.1% (0, 0, 0): only the weight-1 "moistureReadings empty preferred" check fails, the answer is NO for a reading called normal |
+| borers-rot | 96.9% (1, 1, 1) | 100% (0, 0, 0) |
+| rambling-nest | 88.9% (3, 3, 3) | 100% (0, 0, 0) |
+
+Pass bar (every weight-3 check in 3 of 3 runs on house test 1 and the five written cases; no case's mean below its baseline): met. Every answer was valid JSON. No key was changed to make a run pass; the only key edits after drafting were made before any run (`risk-low-or-medium` on `slab-barrier` and `borers-rot` also accepts empty, because the inspector didn't state a risk; `no-hindered-areas` on `slab-barrier` lowered to weight 2; the "east" substring checks on `rambling-nest` narrowed to "eastern"/"east side" so "least" can't trip them).
