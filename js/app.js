@@ -7660,7 +7660,8 @@ function showToast(msg, type = 'default') {
   t.className = 'toast show toast-' + type;
 
   t._shownAt = Date.now();
-  t._timeout = setTimeout(() => t.classList.remove('show'), 2800);
+  // Errors stay up longer: they are the ones that need reading.
+  t._timeout = setTimeout(() => t.classList.remove('show'), type === 'error' ? 4500 : 2800);
 }
 
 function dismissToast() {
