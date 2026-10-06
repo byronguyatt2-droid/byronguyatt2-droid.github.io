@@ -1417,6 +1417,7 @@ function openApp(appName) {
     initMobileView();
     initSignaturePads();
     installReportLockGuard();
+    buildChoiceCards();
     enhanceFieldsWithNotes();
     renderSavedList();
     const restored = loadDraft();
@@ -3176,6 +3177,7 @@ function goToExtractBlank(i) {
   if (popover && popover.classList.contains('open')) toggleVoicePopover();
   let el = document.getElementById(b.target);
   if (!el) return;
+  if (el.classList.contains('choice-source')) el = document.getElementById(b.target.replace(/^f-/, 'choices-')) || el;
   const section = el.closest('.report-section');
   if (section && section.id.startsWith('section-')) showSection(section.id.slice(8));
   if (b.referral) {
@@ -3412,41 +3414,10 @@ async function analyzeGalleryPhoto(photoId) {
 // ── FIELD RENDERING ───────────────────────────────────────────────────────
 function renderField(el, key, val) {
   el.classList.remove('editing');
-  const yesNoKeys = ['nestLocated','waterLeaks','moistureReadings','timberSoil','treatmentRecommended','decayFound'];
-
-  if (key === 'structuralConcern') {
-    el.innerHTML = val === 'YES'
-      ? '<span class="risk-tag risk-high">YES — refer to a builder or engineer</span>'
-      : '<span class="no-tag">NO</span>';
-  } else if (key === 'termiteActivity') {
-    const cls = val==='ACTIVE'?'risk-high':val==='INACTIVE'?'risk-medium':'risk-low';
-    const label = val==='ACTIVE'?'ACTIVE — live termites sighted':val==='INACTIVE'?'INACTIVE — evidence only, no live sighting':'NONE';
-    el.innerHTML = `<span class="risk-tag ${cls}">${escapeHtml(label)}</span>`;
-  } else if (key === 'borerActivity') {
-    const cls = val==='ACTIVE'?'risk-high':val==='INACTIVE'?'risk-medium':'risk-low';
-    const label = val==='ACTIVE'?'ACTIVE — fresh frass or new exit holes':val==='INACTIVE'?'INACTIVE — old exit holes only':'NONE';
-    el.innerHTML = `<span class="risk-tag ${cls}">${escapeHtml(label)}</span>`;
-  } else if (key === 'durableNoticePresent' || key === 'zone25mmVisible' || key === 'zone75mmVisible') {
-    // these should be YES for a properly verifiable system — NO is the concerning answer
-    el.innerHTML = val === 'YES' ? '<span class="yes-tag">YES</span>' : '<span class="no-tag" style="background:rgba(192,57,43,0.14);color:var(--risk);">NO</span>';
-  } else if (key === 'antCapSoldered') {
-    const cls = val === 'NO' ? 'background:rgba(192,57,43,0.14);color:var(--risk);' : '';
-    el.innerHTML = val === 'N/A' ? '<span class="no-tag">N/A</span>' : `<span class="${val==='YES'?'yes-tag':'no-tag'}" style="${cls}">${escapeHtml(val)}</span>`;
-  } else if (key === 'hardLandscaping' || key === 'softLandscaping') {
-    // presence is informational, not inherently a concern either way
-    el.innerHTML = val === 'YES' ? '<span class="yes-tag">YES</span>' : '<span class="no-tag">NO</span>';
-  } else if (yesNoKeys.includes(key)) {
-    el.innerHTML = val === 'YES' ? '<span class="yes-tag">YES</span>' : '<span class="no-tag">NO</span>';
-  } else if (key === 'riskLevel') {
-    const cls = val==='HIGH'?'risk-high':val==='MEDIUM'?'risk-medium':'risk-low';
-    el.innerHTML = `<span class="risk-tag ${cls}">${escapeHtml(val)}</span>`;
-  } else if (key === 'slabEdge') {
-    el.innerHTML = val==='CLEAR' ? '<span class="no-tag">CLEAR</span>' : '<span class="yes-tag">OBSTRUCTED</span>';
-  } else if (key === 'weepHoles') {
-    el.innerHTML = val==='CLEAR' ? '<span class="no-tag">CLEAR</span>' : '<span class="yes-tag">BRIDGED</span>';
-  } else {
-    el.textContent = val;
-  }
+  // Short-choice fields (YES/NO, risk, weep holes...) are drawn as cards
+  // from reportData (see CHOICE CARDS); their .field-val is hidden and just
+  // holds the text so the cards can watch it change.
+  el.textContent = val;
 
   el.classList.add('filled', 'flash');
   setTimeout(() => el.classList.remove('flash'), 500);
@@ -3694,27 +3665,90 @@ function setFindingField(id, key, val) {
   saveDraft();
 }
 
-// ── ACTIVITY CARDS ──────────────────────────────────────────────────────
-// The termite activity question is three big cards, built for gloves and
+// ── CHOICE CARDS ──────────────────────────────────────────────────────────
+// Short-choice questions (termite and borer activity, YES/NO, risk, slab
+// edge, weep holes, height) are rows of big cards, built for gloves and
 // glare. Each card wraps a visually hidden native radio: the radio is the
-// control (tap, keyboard, screen reader), and its change event writes the
-// finding through commitFindingEdit like every other field. Extraction,
-// drafts and the PDF read reportData, and renderFindingsUI redraws the
-// cards from it, so nothing else needs to know the cards exist.
-const ACTIVITY_CARDS = [
-  { value: 'ACTIVE',   desc: 'Live termites seen' },
-  { value: 'INACTIVE', desc: 'Evidence, none live' },
-  { value: 'NONE',     desc: 'Nothing found' },
-];
+// control (tap, keyboard, screen reader), and its change event saves through
+// the function the old control used: commitEdit for report fields,
+// commitFindingEdit for finding cards. Report fields keep their original
+// .field-val (hidden) as the place extraction, drafts and resets write to; a
+// MutationObserver redraws the cards from reportData whenever it changes.
+// Tone colours the picked card: bad = red, warn = amber, good = green.
+const CHOICE_SETS = {
+  activity:  [['ACTIVE', 'bad', 'Live termites seen'], ['INACTIVE', 'warn', 'Evidence, none live'], ['NONE', 'good', 'Nothing found']],
+  borer:     [['ACTIVE', 'bad', 'Fresh frass or holes'], ['INACTIVE', 'warn', 'Old holes only'], ['NONE', 'good', 'None seen']],
+  yesno:     [['YES', 'bad'], ['NO', 'good'], ['N/A', 'neutral']],
+  wantyes:   [['YES', 'good'], ['NO', 'bad'], ['N/A', 'neutral']],   // NO is the concern
+  neutral:   [['YES', 'neutral'], ['NO', 'neutral'], ['N/A', 'neutral']],
+  finding:   [['YES', 'bad'], ['NO', 'good']],
+  risk:      [['LOW', 'good'], ['MEDIUM', 'warn'], ['HIGH', 'bad']],
+  slabedge:  [['CLEAR', 'good'], ['OBSTRUCTED', 'bad']],
+  weepholes: [['CLEAR', 'good'], ['BRIDGED', 'bad']],
+  height:    [['Single storey', 'neutral'], ['Double storey', 'neutral'], ['Split level', 'neutral'], ['Three storey+', 'neutral']],
+};
+// Report fields: the set comes from the field's key, else its edit type.
+const CHOICE_SET_BY_KEY = { borerActivity: 'borer', durableNoticePresent: 'wantyes', antCapSoldered: 'wantyes', hardLandscaping: 'neutral', softLandscaping: 'neutral' };
+const CHOICE_SET_BY_TYPE = { yesno: 'yesno', yesnona: 'yesno', risk: 'risk', slabedge: 'slabedge', weepholes: 'weepholes', height: 'height', activity: 'activity' };
+
+function choiceCardsHTML(set, name, current, dataAttrs) {
+  const opts = CHOICE_SETS[set];
+  return `<div class="choice-grid" style="--cols:${opts.length === 4 ? 2 : opts.length}">${opts.map(([value, tone, desc]) => `
+    <label class="choice-card tone-${tone}">
+      <input type="radio" class="sr-only" name="${name}" value="${escapeHtml(value)}" ${dataAttrs}${current === value ? ' checked' : ''}>
+      <span class="choice-card-code">${escapeHtml(value)}</span>
+      ${desc ? `<span class="choice-card-desc">${desc}</span>` : ''}
+    </label>`).join('')}</div>`;
+}
+
+// Turns each short-choice report field into cards. Runs once, on app open.
+function buildChoiceCards() {
+  document.querySelectorAll('#reportBody .field-val[id^="f-"][onclick^="startEdit"]').forEach(el => {
+    const [, key, type] = el.getAttribute('onclick').match(/startEdit\(this,'(\w+)','(\w+)'\)/) || [];
+    const set = CHOICE_SET_BY_KEY[key] || CHOICE_SET_BY_TYPE[type];
+    if (!set) return;
+    el.removeAttribute('onclick');
+    el.classList.add('choice-source');
+    const panel = document.createElement('div');
+    panel.className = 'choice-panel';
+    panel.id = 'choices-' + key;
+    panel.dataset.set = set;
+    panel.setAttribute('role', 'radiogroup');
+    const label = getFieldLabel(el);
+    if (label) panel.setAttribute('aria-label', label.textContent.trim());
+    el.insertAdjacentElement('afterend', panel);
+    const field = el.closest('.field');
+    if (field) field.classList.add('choice-field');
+    syncChoiceCards(key);
+    new MutationObserver(() => syncChoiceCards(key)).observe(el, { childList: true, characterData: true, subtree: true });
+  });
+}
+
+function syncChoiceCards(key) {
+  const panel = document.getElementById('choices-' + key);
+  if (!panel) return;
+  const val = reportData[key] || '';
+  if (panel.firstChild && panel.dataset.value === val) return;
+  panel.dataset.value = val;
+  const hadFocus = panel.contains(document.activeElement);
+  panel.innerHTML = choiceCardsHTML(panel.dataset.set, 'choice-' + key, val, `data-key="${key}"`);
+  panel.classList.toggle('unset', !val);
+  if (hadFocus) { const c = panel.querySelector('input:checked'); if (c) c.focus({ preventScroll: true }); }
+}
 
 document.addEventListener('change', e => {
-  const input = e.target.closest && e.target.closest('.activity-card input');
+  const input = e.target.closest && e.target.closest('.choice-card input');
   if (!input) return;
-  const findingId = input.dataset.finding;
-  commitFindingEdit(findingId, 'termiteActivity', input.value);
-  // The card was redrawn; keep focus on the chosen one for keyboard users.
-  const chosen = document.querySelector(`.activity-card input[data-finding="${findingId}"]:checked`);
-  if (chosen) chosen.focus({ preventScroll: true });
+  const { finding, fkey, key } = input.dataset;
+  if (finding) {
+    commitFindingEdit(finding, fkey, input.value);
+    // The finding card was redrawn; keep focus on the chosen card.
+    const chosen = document.querySelector(`.choice-card input[data-finding="${finding}"][data-fkey="${fkey}"]:checked`);
+    if (chosen) chosen.focus({ preventScroll: true });
+  } else if (key) {
+    const el = document.getElementById('f-' + key);
+    if (el) commitEdit(el, key, input.value);
+  }
 });
 
 // Generates the HTML for one finding card
@@ -3726,20 +3760,12 @@ function findingCardHTML(finding, index, total) {
   const showNone = act === 'NONE';
   const label = total === 1 ? 'Primary Finding' : `Finding ${index + 1}`;
 
-  const fv = (key, type, display) => {
+  const fv = (key, type) => {
     const val = finding[key];
-    let inner;
-    if (key === 'structuralConcern') {
-      inner = val === 'YES'
-        ? '<span class="risk-tag risk-high">YES — refer to a builder or engineer</span>'
-        : val === 'NO' ? '<span class="no-tag">NO</span>' : '—';
-    } else if (key === 'nestLocated') {
-      inner = val === 'YES' ? '<span class="yes-tag">YES</span>' : val === 'NO' ? '<span class="no-tag">NO</span>' : '—';
-    } else {
-      inner = val ? escapeHtml(val) : '—';
+    if (type === 'yesno') {
+      return `<div class="choice-panel${val ? '' : ' unset'}" role="radiogroup">${choiceCardsHTML('finding', `${key}-${id}`, val, `data-finding="${id}" data-fkey="${key}"`)}</div>`;
     }
-    const filled = val ? ' filled' : '';
-    return `<div class="field-val${filled}" onclick="startFindingEdit('${id}','${key}','${type}')">${inner}</div>`;
+    return `<div class="field-val${val ? ' filled' : ''}" onclick="startFindingEdit('${id}','${key}','${type}')">${val ? escapeHtml(val) : '—'}</div>`;
   };
 
   return `
@@ -3750,19 +3776,10 @@ function findingCardHTML(finding, index, total) {
         ${total > 1 ? `<button class="finding-remove-btn" onclick="removeFinding('${id}')" title="Remove this finding">✕</button>` : ''}
       </div>
       <div class="finding-card-body">
-        <!-- Activity gate: three cards over native radios (see ACTIVITY CARDS) -->
-        <div class="findings-gate${act ? '' : ' unset'}">
-          <fieldset class="activity-cards">
-            <legend class="field-label">Termite Activity Status</legend>
-            <div class="activity-cards-grid">
-              ${ACTIVITY_CARDS.map(c => `
-              <label class="activity-card activity-card--${c.value.toLowerCase()}">
-                <input type="radio" class="sr-only" name="activity-${id}" value="${c.value}" data-finding="${id}"${act === c.value ? ' checked' : ''}>
-                <span class="activity-card-code">${c.value}</span>
-                <span class="activity-card-desc">${c.desc}</span>
-              </label>`).join('')}
-            </div>
-          </fieldset>
+        <!-- Activity gate: the question every finding must answer -->
+        <div class="findings-gate choice-panel${act ? '' : ' unset'}" role="radiogroup" aria-label="Termite Activity Status">
+          <div class="field-label">Termite Activity Status</div>
+          ${choiceCardsHTML('activity', 'activity-' + id, act, `data-finding="${id}" data-fkey="termiteActivity"`)}
           ${!act ? `<p class="findings-gate-hint">Pick one to continue.</p>` : ''}
         </div>
         ${showDetails ? `
@@ -3771,8 +3788,8 @@ function findingCardHTML(finding, index, total) {
             <div class="field"><div class="field-label">Species / Genus</div>${fv('species','specieslist')}</div>
             <div class="field field-wide"><div class="field-label">Damage Description (location, extent, what's visible — no severity opinion)</div>${fv('damageDescription','text')}</div>
             <div class="field"><div class="field-label">Location of Activity</div>${fv('activityLocation','text')}</div>
-            <div class="field"><div class="field-label">Workings / Nest Located</div>${fv('nestLocated','yesno')}</div>
-            <div class="field"><div class="field-label">Refer to a Builder or Engineer?</div>${fv('structuralConcern','yesno')}</div>
+            <div class="field choice-field"><div class="field-label">Workings / Nest Located</div>${fv('nestLocated','yesno')}</div>
+            <div class="field choice-field"><div class="field-label">Refer to a Builder or Engineer?</div>${fv('structuralConcern','yesno')}</div>
           </div>
           ${act === 'INACTIVE' ? `<div class="inactive-reminder" style="display:flex"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span>Inactive workings can mean termites have temporarily abandoned the area, not that the risk is gone. Continued, regular inspections remain essential.</span></div>` : ''}
           ${finding.structuralConcern === 'YES' ? `<div class="warn-note" style="margin:0 0 10px"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Referral recorded. The PDF recommends a licensed builder or engineer assess this damage.</div>` : ''}
@@ -3811,14 +3828,6 @@ function startFindingEdit(findingId, key, type) {
 
   const finding = getFindings().find(f => f.id === findingId);
   if (!finding) return;
-
-  // For yesno fields, toggle directly
-  if (type === 'yesno') {
-    const cur = finding[key];
-    const next = cur === 'YES' ? 'NO' : 'YES';
-    commitFindingEdit(findingId, key, next);
-    return;
-  }
 
   // For species, show a dropdown select
   if (type === 'specieslist') {
@@ -4147,12 +4156,6 @@ function startEdit(el, key, type) {
 
   const cur = reportData[key] || '';
   const OPTIONS = {
-    yesno:       ['YES','NO','N/A'],
-    yesnona:     ['YES','NO','N/A'],
-    activity:    ['ACTIVE','INACTIVE','NONE'],
-    risk:        ['LOW','MEDIUM','HIGH'],
-    slabedge:    ['CLEAR','OBSTRUCTED'],
-    weepholes:   ['CLEAR','BRIDGED'],
     era:         ['Pre-1920s','1920s-1940s','1945-1965','1965-1985','1985-2003','Post-2003'],
     standard:    ['AS 3660.1-2014','AS 3660.2-2017','AS 3660.3-2014','AS 4349.0-2007','AS 4349.1-2007','AS 4349.3-2010'],
     structuretype: [
@@ -4190,12 +4193,6 @@ function startEdit(el, key, type) {
       'Flat membrane',
       'Mixed',
       'Other',
-    ],
-    height: [
-      'Single storey',
-      'Double storey',
-      'Split level',
-      'Three storey+',
     ],
     facadedirection: [
       'North',
