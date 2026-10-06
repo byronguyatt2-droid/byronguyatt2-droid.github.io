@@ -2912,7 +2912,7 @@ async function processTranscript() {
       extracted = true;
       pendingNotesProblem = null;
       setAI('ready', 'Data extracted');
-      showToast('Fields populated', 'success');
+      // The after-Extract sheet says what was filled, so no toast here.
     }
   } catch (err) {
     // A note too long to answer in one go would fail the same way every
