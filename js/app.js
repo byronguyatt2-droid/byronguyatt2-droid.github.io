@@ -5151,7 +5151,7 @@ function drawAgreementBody(doc, a, y, { M, CW, onNewPage }) {
   // Who agreed, how and when, as a signature block.
   y += 3;
   room(26);
-  doc.setFillColor(...C.ink); doc.rect(M, y, CW, 0.5, 'F');
+  doc.setFillColor(...C.accent); doc.rect(M, y, CW, 0.5, 'F');
   y += 18;
   const colW = (CW - 16) / 3;
   const onLine = (text, x) => {
@@ -8624,8 +8624,8 @@ function drawPdfCompanyMark(doc, company, x = 15, y = 12, size = 17) {
 }
 
 // The letterhead at the top of every client document: the business's mark,
-// name and details on the left, the document and date on the right, over an
-// ink rule. White, so it prints cleanly in black and white. Returns the y
+// name and details on the left, the document and date on the right, over a
+// teal rule. White, so it prints cleanly in black and white. Returns the y
 // below it.
 function drawPdfLetterhead(doc, company, { docLabel, date }) {
   const C = PDF_COLORS;
@@ -8647,7 +8647,7 @@ function drawPdfLetterhead(doc, company, { docLabel, date }) {
   pdfTracked(doc, (docLabel || '').toUpperCase(), W - M, 17.5, { align: 'right' });
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
   if (date) doc.text(date, W - M, 22.6, { align: 'right' });
-  doc.setFillColor(...C.ink); doc.rect(M, 33, W - M * 2, 0.5, 'F');
+  doc.setFillColor(...C.accent); doc.rect(M, 33, W - M * 2, 0.5, 'F');
   return 33.5;
 }
 
@@ -9101,7 +9101,7 @@ async function buildReportPdf() {
 
   // ── THE PROPERTY ──────────────────────────────────────────────────────────
   // The client's property, large, then the job details in a two-column grid.
-  doc.setFillColor(...C.ink); doc.rect(M, 96, CW, 0.5, 'F');
+  doc.setFillColor(...C.accent); doc.rect(M, 96, CW, 0.5, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
   pdfTracked(doc, 'PROPERTY INSPECTED', M, 104, { cs: 0.4 });
   doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.setTextColor(...C.ink);
@@ -9123,7 +9123,7 @@ async function buildReportPdf() {
   ].filter(([, v]) => v);
 
   const colW = (CW - 10) / 2, cellH = 13;
-  doc.setFillColor(...C.rule); doc.rect(M, gy, CW, 0.3, 'F');
+  gy -= 1;
   for (let i = 0; i < coverRows.length; i += 2) {
     [coverRows[i], coverRows[i + 1]].forEach((r, k) => {
       if (!r) return;
@@ -9134,7 +9134,6 @@ async function buildReportPdf() {
       doc.text(doc.splitTextToSize(String(r[1]), colW - 2)[0], x, gy + 10);
     });
     gy += cellH;
-    doc.setFillColor(...C.ruleLight); doc.rect(M, gy, CW, 0.3, 'F');
   }
 
   // ── RISK ASSESSMENT BADGE ─────────────────────────────────────────────────
@@ -9768,7 +9767,7 @@ async function buildReportPdf() {
   function sigHeading(label) {
     doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.ink);
     pdfTracked(doc, label, M, y, { cs: 0.6 });
-    doc.setFillColor(...C.ink); doc.rect(M, y + 2, CW, 0.5, 'F');
+    doc.setFillColor(...C.accent); doc.rect(M, y + 2, CW, 0.5, 'F');
     y += 21;
   }
   if (y + 60 > 278) newPage();
