@@ -5108,16 +5108,22 @@ function shareAgreementPdf() {
   const a = reportData.agreement;
   if (!a || !window.jspdf) { showToast('PDF tools are still loading — try again in a moment', 'error'); return; }
   const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
-  const C = PDF_COLORS, M = 18, W = 210, CW = W - M * 2;
+  const M = 15, CW = 180;
   const company = getCompanyDetails();
-  doc.setFillColor(...C.headerBg); doc.rect(0, 0, W, 48, 'F');
-  drawPdfCompanyMark(doc, company);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(...C.white);
-  doc.text('Pre-Inspection Agreement', 42, 24);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.accentLight);
-  doc.text([company.name, getFullAddress()].filter(Boolean).join('  ·  '), 42, 31, { maxWidth: W - 42 - M });
-  let y = 60;
-  y = drawAgreementBody(doc, a, y, { M, CW, onNewPage: () => 20 });
+  const header = () => drawPdfRunningHeader(doc, company, 'Pre-Inspection Agreement', getFullAddress(), '');
+  let y = drawPdfDocCover(doc, company, { compact: true, kicker: 'Timber pest inspection', title: 'Pre-Inspection Agreement',
+    date: formatAgreementDate(todayIsoDate()), left: [
+      ['CLIENT', a.signerName],
+      ['PROPERTY ADDRESS', getFullAddress() || 'Not specified'],
+    ], right: [
+      ['INSPECTION DATE', a.inspectionDate ? formatAgreementDate(a.inspectionDate) : ''],
+      ['INSPECTION FEE', agreementFeeText(a.fee)],
+      ['AGREED', formatAgreementSignedAt(a.signedAt)],
+      ['STANDARD', a.standard],
+    ] });
+  y += 2;
+  y = drawAgreementBody(doc, a, y, { M, CW, onNewPage: header });
+  drawPdfDocFooters(doc, `Pre-inspection agreement${company.name ? `  ·  ${company.name}` : ''}`);
   const fname = `Agreement_${(getFullAddress() || 'property').replace(/\s+/g, '_').substring(0, 25)}.pdf`;
   deliverPdfBlob(doc.output('blob'), fname, {
     title: 'Pre-Inspection Agreement',
@@ -5130,7 +5136,7 @@ function shareAgreementPdf() {
 // client's copy and the last page of the report. Returns the new y.
 function drawAgreementBody(doc, a, y, { M, CW, onNewPage }) {
   const C = PDF_COLORS;
-  const bottom = 278;
+  const bottom = 281;
   const room = (h) => { if (y + h > bottom) { doc.addPage(); y = onNewPage(); } };
   a.text.split(/\n/).forEach(line => {
     const isHeading = /^\d+\.\s/.test(line);
@@ -5139,25 +5145,26 @@ function drawAgreementBody(doc, a, y, { M, CW, onNewPage }) {
     doc.setTextColor(...(isHeading ? C.ink : C.inkLight));
     if (!line.trim()) { y += 2.5; return; }
     const wrapped = doc.splitTextToSize(line, CW);
-    wrapped.forEach(w => { room(5); doc.text(w, M, y); y += isHeading ? 5 : 4.2; });
-    if (isHeading) y += 0.5;
+    wrapped.forEach(w => { room(5); doc.text(w, M, y); y += isHeading ? 4.8 : 4; });
+    if (isHeading) y += 0.4;
   });
-  y += 6;
-  room(40);
-  doc.setDrawColor(...C.rule); doc.setLineWidth(0.3); doc.line(M, y, M + CW, y); y += 7;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-  doc.text('Agreed by:', M, y); doc.setFont('helvetica', 'bold'); doc.text(a.signerName, M + 30, y); y += 7;
-  doc.setFont('helvetica', 'normal');
-  doc.text('Signed:', M, y); doc.setFont('helvetica', 'bold'); doc.text(formatAgreementSignedAt(a.signedAt), M + 30, y); y += 7;
-  doc.setFont('helvetica', 'normal');
-  if (a.signature) {
-    doc.text('Signature:', M, y);
-    try { doc.addImage(a.signature, 'PNG', M + 30, y - 8, 46, 16); } catch (e) {}
-    y += 12;
-  } else {
-    doc.text('How:', M, y); doc.setFont('helvetica', 'bold'); doc.text(a.otherNote || 'Recorded by the inspector', M + 30, y); y += 7;
-  }
-  return y;
+  // Who agreed, how and when, as a signature block.
+  y += 3;
+  room(26);
+  doc.setFillColor(...C.ink); doc.rect(M, y, CW, 0.5, 'F');
+  y += 18;
+  const colW = (CW - 16) / 3;
+  const onLine = (text, x) => {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.ink);
+    doc.text(doc.splitTextToSize(text, colW - 2)[0], x + 1, y - 2);
+  };
+  onLine(a.signerName, M);
+  drawPdfSignature(doc, { x: M, y, w: colW, caption: 'Agreed by' });
+  drawPdfSignature(doc, { x: M + colW + 8, y, w: colW, caption: a.signature ? 'Client signature' : 'How it was signed',
+    image: a.signature, note: a.signature ? '' : (a.otherNote || 'Recorded by the inspector') });
+  onLine(formatAgreementSignedAt(a.signedAt), M + (colW + 8) * 2);
+  drawPdfSignature(doc, { x: M + (colW + 8) * 2, y, w: colW, caption: 'Signed' });
+  return y + 8;
 }
 
 // ── PHOTO ATTACHMENTS ────────────────────────────────────────────────────
@@ -6768,6 +6775,16 @@ function showAuth(panel) {
   const active = document.getElementById(panel);
   if (active) active.style.flexDirection = 'column';
   track('screen_viewed', { screen: 'auth_' + panel });
+}
+
+// Show / Hide on a password field: easier to type right on a phone.
+function toggleAuthReveal(btn) {
+  const input = btn.parentElement.querySelector('input');
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.textContent = show ? 'Hide' : 'Show';
+  btn.setAttribute('aria-pressed', String(show));
+  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
 }
 
 // ── SESSION RESTORE ON LOAD ──────────────────────────────────────────────
@@ -8576,28 +8593,89 @@ const PDF_COLORS = {
   coverMid:    [20,  30,  46],
 };
 
-// Logo mark for the dark header band: the uploaded company logo on a white
-// tile, falling back to the default K mark.
-function drawPdfCompanyMark(doc, company) {
+// Letter-spaced text for small capital labels. align 'right' measures the
+// spacing too, which jsPDF's own align doesn't.
+function pdfTracked(doc, text, x, y, { cs = 0.35, align } = {}) {
+  const w = doc.getTextWidth(text) + cs * Math.max(0, text.length - 1);
+  doc.text(text, align === 'right' ? x - w : x, y, { charSpace: cs });
+  return w;
+}
+
+// The business's mark: the uploaded logo, else its initials (or S for
+// SAYON) in a teal tile. size is the square it fits in, in mm.
+function drawPdfCompanyMark(doc, company, x = 15, y = 12, size = 17) {
   const C = PDF_COLORS;
   if (company.logo) {
     try {
-      const boxX = 12, boxY = 12, boxW = 24, boxH = 24, pad = 3;
-      doc.setFillColor(...C.white); doc.roundedRect(boxX, boxY, boxW, boxH, 3, 3, 'F');
       const natW = company.logoWidth || 1, natH = company.logoHeight || 1;
-      const maxW = boxW - pad*2, maxH = boxH - pad*2;
-      let drawW = maxW, drawH = maxW * (natH / natW);
-      if (drawH > maxH) { drawH = maxH; drawW = maxH * (natW / natH); }
-      doc.addImage(company.logo, 'PNG', boxX + (boxW-drawW)/2, boxY + (boxH-drawH)/2, drawW, drawH, undefined, 'FAST');
-      return;
+      // Wide logos get up to twice the width, so a wordmark stays legible.
+      let drawH = size, drawW = size * (natW / natH);
+      if (drawW > size * 2) { drawW = size * 2; drawH = drawW * (natH / natW); }
+      doc.addImage(company.logo, 'PNG', x, y + (size - drawH) / 2, drawW, drawH, undefined, 'FAST');
+      return drawW;
     } catch (e) {}
   }
-  // No logo: the business's initials (or S for SAYON) in a teal tile.
   const initials = (company.name || 'SAYON').split(/\s+/).filter(w => /^[A-Za-z0-9]/.test(w))
-    .slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'K';
-  doc.setFillColor(...C.accent); doc.roundedRect(14, 14, 20, 20, 3, 3, 'F');
+    .slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'S';
+  doc.setFillColor(...C.accent); doc.roundedRect(x, y, size, size, 2.2, 2.2, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(initials.length > 1 ? 11 : 13); doc.setTextColor(...C.white);
-  doc.text(initials, 24, 26.8, { align:'center' });
+  doc.text(initials, x + size / 2, y + size / 2 + 1.6, { align:'center' });
+  return size;
+}
+
+// The letterhead at the top of every client document: the business's mark,
+// name and details on the left, the document and date on the right, over an
+// ink rule. White, so it prints cleanly in black and white. Returns the y
+// below it.
+function drawPdfLetterhead(doc, company, { docLabel, date }) {
+  const C = PDF_COLORS;
+  const W = 210, M = 15;
+  doc.setFillColor(...C.accent); doc.rect(0, 0, W, 1.6, 'F');
+  const markW = drawPdfCompanyMark(doc, company, M, 11, 17);
+  const tx = M + markW + 5;
+  doc.setFont('helvetica','bold'); doc.setFontSize(13.5); doc.setTextColor(...C.ink);
+  doc.text(company.name || 'SAYON', tx, 17.5, { maxWidth: 112 - markW });
+  const sub = [];
+  if (company.licence) sub.push(`Licence ${company.licence}`);
+  if (company.abn) sub.push(`ABN ${company.abn}`);
+  const contact = [company.phone, company.email].filter(Boolean);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
+  if (sub.length) doc.text(sub.join('   ·   '), tx, 22.6);
+  if (contact.length) doc.text(contact.join('   ·   '), tx, 26.6);
+  if (!company.name) doc.text('Intelligent Inspection Platform', tx, 22.6);
+  doc.setFont('helvetica','bold'); doc.setFontSize(6.8); doc.setTextColor(...C.accentDark);
+  pdfTracked(doc, (docLabel || '').toUpperCase(), W - M, 17.5, { align: 'right' });
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
+  if (date) doc.text(date, W - M, 22.6, { align: 'right' });
+  doc.setFillColor(...C.ink); doc.rect(M, 33, W - M * 2, 0.5, 'F');
+  return 33.5;
+}
+
+// A signature over a line, with a caption under it: a drawn signature, or a
+// note (e.g. "Signed on paper") when there's none. y is the line.
+function drawPdfSignature(doc, { x, y, w, image, note, caption }) {
+  const C = PDF_COLORS;
+  if (image) {
+    try { doc.addImage(image, 'PNG', x + 1, y - 12.5, 36, 12, undefined, 'FAST'); } catch (e) {}
+  } else if (note) {
+    doc.setFont('helvetica','italic'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
+    doc.text(note, x + 1, y - 2, { maxWidth: w - 2 });
+  }
+  doc.setDrawColor(...C.ink); doc.setLineWidth(0.3); doc.line(x, y, x + w, y);
+  doc.setFont('helvetica','bold'); doc.setFontSize(6.3); doc.setTextColor(...C.inkMuted);
+  pdfTracked(doc, (caption || 'SIGNATURE').toUpperCase(), x, y + 4, { cs: 0.3 });
+}
+
+// A labelled value, small tracked label over the value. Returns the value's
+// line count.
+function drawPdfField(doc, label, value, x, y, w, size = 9.5) {
+  const C = PDF_COLORS;
+  doc.setFont('helvetica','bold'); doc.setFontSize(6.3); doc.setTextColor(...C.inkMuted);
+  pdfTracked(doc, label.toUpperCase(), x, y, { cs: 0.3 });
+  doc.setFont('helvetica','bold'); doc.setFontSize(size); doc.setTextColor(...C.ink);
+  const lines = doc.splitTextToSize(String(value), w);
+  doc.text(lines, x, y + 4.8);
+  return lines.length;
 }
 
 // Gets a finished PDF off the device. Inside the native app wrapper there is
@@ -9003,78 +9081,35 @@ async function buildReportPdf() {
   // Full white page
   doc.setFillColor(...C.white); doc.rect(0, 0, W, 297, 'F');
 
-  // Top dark header band
-  doc.setFillColor(...C.coverDark); doc.rect(0, 0, W, 52, 'F');
-  // Orange accent stripe at top
-  doc.setFillColor(...C.accent); doc.rect(0, 0, W, 3, 'F');
-  // Orange left edge
-  doc.setFillColor(...C.accent); doc.rect(0, 0, 4, 52, 'F');
-
   const company = getCompanyDetails();
-
-  drawPdfCompanyMark(doc, company);
-
-  if (company.name) {
-    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(240,234,224);
-    doc.text(company.name, 40, 22);
-    const sub = [];
-    if (company.licence) sub.push(`Lic: ${company.licence}`);
-    if (company.phone)   sub.push(company.phone);
-    if (company.abn)     sub.push(`ABN: ${company.abn}`);
-    if (sub.length) {
-      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(160,150,138);
-      doc.text(sub.join('   ·   '), 40, 29);
-    }
-    if (company.email) {
-      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(160,150,138);
-      doc.text(company.email, 40, 34);
-    }
-  } else {
-    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(240,234,224);
-    doc.text('SAYON', 40, 22);
-    doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(160,150,138);
-    doc.text('Intelligent Inspection Platform', 40, 29);
-  }
-
-  // Date in top-right corner of header
-  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(160,150,138);
-  doc.text(today, W-8, 22, { align:'right' });
+  drawPdfLetterhead(doc, company, { docLabel: 'Inspection Report', date: today });
 
   // ── TITLE BLOCK ───────────────────────────────────────────────────────────
-  // Report type label
   const prePurchase = isPrePurchaseJob();
   const reportTypeLabel = prePurchase ? 'PRE-PURCHASE TIMBER PEST' : 'TIMBER PEST';
-  doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
-  doc.text(reportTypeLabel, M, 70);
-
-  // Large report title
+  doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.accentDark);
+  pdfTracked(doc, reportTypeLabel, M, 52, { cs: 0.7 });
   doc.setFont('helvetica','bold'); doc.setFontSize(34); doc.setTextColor(...C.ink);
-  doc.text('INSPECTION', M, 88);
-  doc.text('REPORT', M, 104);
-
-  // Orange underline
-  doc.setFillColor(...C.accent); doc.rect(M, 107, 32, 2, 'F');
+  doc.text('Inspection Report', M, 66);
+  doc.setFillColor(...C.accent); doc.rect(M, 70.5, 22, 1.4, 'F');
 
   // Standard reference
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
-  doc.text('Prepared with reference to', M, 118);
+  doc.text('Prepared with reference to', M, 80);
   doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
-  doc.text(standardLabel, M, 125);
+  doc.text(standardLabel, M, 85);
 
-  // ── PROPERTY DETAILS CARD ──────────────────────────────────────────────────
-  const jobInfo = {
-    orderId:       reportData.jobOrderId || '',
-    invoiceNo:     reportData.jobInvoiceNo || '',
-    type:          reportData.jobInspectionType || '',
-    time:          reportData.jobInspectionTime || '',
-    fee:           reportData.jobFee || '',
-    paymentStatus: reportData.jobPaymentStatus || '',
-    clientPhone:   reportData.jobClientPhone || '',
-    clientEmail:   reportData.jobClientEmail || '',
-  };
+  // ── THE PROPERTY ──────────────────────────────────────────────────────────
+  // The client's property, large, then the job details in a two-column grid.
+  doc.setFillColor(...C.ink); doc.rect(M, 96, CW, 0.5, 'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
+  pdfTracked(doc, 'PROPERTY INSPECTED', M, 104, { cs: 0.4 });
+  doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.setTextColor(...C.ink);
+  const addrLines = doc.splitTextToSize(address, CW).slice(0, 2);
+  doc.text(addrLines, M, 112, { lineHeightFactor: 1.2 });
+  let gy = 112 + (addrLines.length - 1) * 7.2 + 9;
 
   const coverRows = [
-    ['PROPERTY ADDRESS',  address],
     ['CLIENT',            client],
     ['CLIENT PHONE',      reportData.jobClientPhone || ''],
     ['INSPECTOR',         inspector],
@@ -9087,65 +9122,55 @@ async function buildReportPdf() {
     ['REPORT REFERENCE',  reportId],
   ].filter(([, v]) => v);
 
-  const cardY = 136;
-  const cardH = 10 + coverRows.length * 11;
-
-  // Card shadow (subtle)
-  doc.setFillColor(235,232,228); doc.roundedRect(M+1, cardY+1, CW, cardH, 3, 3, 'F');
-  // Card background
-  doc.setFillColor(...C.white); doc.roundedRect(M, cardY, CW, cardH, 3, 3, 'F');
-  // Card border
-  doc.setDrawColor(...C.rule); doc.setLineWidth(0.5);
-  doc.roundedRect(M, cardY, CW, cardH, 3, 3, 'D');
-  // Orange left stripe
-  doc.setFillColor(...C.accent); doc.roundedRect(M, cardY, 4, cardH, 3, 3, 'F');
-  doc.rect(M+2, cardY, 2, cardH, 'F');
-
-  let cy = cardY + 9;
-  coverRows.forEach(([label, val]) => {
-    doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(...C.inkMuted);
-    doc.text(label, M+8, cy);
-    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-    const vWrapped = doc.splitTextToSize(String(val), CW-72);
-    doc.text(vWrapped[0], M+55, cy);
-    cy += 11;
-  });
+  const colW = (CW - 10) / 2, cellH = 13;
+  doc.setFillColor(...C.rule); doc.rect(M, gy, CW, 0.3, 'F');
+  for (let i = 0; i < coverRows.length; i += 2) {
+    [coverRows[i], coverRows[i + 1]].forEach((r, k) => {
+      if (!r) return;
+      const x = M + k * (colW + 10);
+      doc.setFont('helvetica','bold'); doc.setFontSize(6.3); doc.setTextColor(...C.inkMuted);
+      pdfTracked(doc, r[0], x, gy + 5.2, { cs: 0.3 });
+      doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(...C.ink);
+      doc.text(doc.splitTextToSize(String(r[1]), colW - 2)[0], x, gy + 10);
+    });
+    gy += cellH;
+    doc.setFillColor(...C.ruleLight); doc.rect(M, gy, CW, 0.3, 'F');
+  }
 
   // ── RISK ASSESSMENT BADGE ─────────────────────────────────────────────────
+  // The rating is spelt out in bold, so it reads the same printed in grey.
   const riskLvl   = reportData.riskLevel || null;
-  const riskBadgeY = cardY + cardH + 10;
+  const riskBadgeY = gy + 10;
   const riskCol    = riskLvl==='HIGH' ? C.danger : riskLvl==='MEDIUM' ? C.warn : riskLvl==='LOW' ? C.safe : C.inkMuted;
   const riskBgCol  = riskLvl==='HIGH' ? [253,242,240] : riskLvl==='MEDIUM' ? [253,247,234] : riskLvl==='LOW' ? [239,249,237] : [248,246,243];
 
-  if (riskBadgeY < 265) {
-    doc.setFillColor(...riskBgCol); doc.roundedRect(M, riskBadgeY, CW, 20, 3, 3, 'F');
-    doc.setDrawColor(...riskCol); doc.setLineWidth(0.8);
-    doc.roundedRect(M, riskBadgeY, CW, 20, 3, 3, 'D');
-    doc.setFillColor(...riskCol); doc.roundedRect(M, riskBadgeY, 4, 20, 3, 3, 'F');
-    doc.rect(M+2, riskBadgeY, 2, 20, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text('RISK OF TERMITE ATTACK', M+8, riskBadgeY+7);
-    doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...riskCol);
-    doc.text(riskLvl || 'PENDING ASSESSMENT', M+8, riskBadgeY+16);
+  if (riskBadgeY < 262) {
+    const rh = 22;
+    doc.setFillColor(...riskBgCol); doc.rect(M, riskBadgeY, CW, rh, 'F');
+    doc.setFillColor(...riskCol); doc.rect(M, riskBadgeY, 2.2, rh, 'F');
+    doc.setDrawColor(...riskCol); doc.setLineWidth(0.35); doc.rect(M, riskBadgeY, CW, rh, 'D');
+    doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkLight);
+    pdfTracked(doc, 'RISK OF TERMITE ATTACK', M+8, riskBadgeY+7.5, { cs: 0.4 });
+    doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(...riskCol);
+    doc.text(riskLvl || 'PENDING ASSESSMENT', M+8, riskBadgeY+16.5);
     const basis = riskLvl ? reportSummary().basis : [];
     if (basis.length) {
       const bw = CW - 80;
-      doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
-      doc.text('BASED ON', W-M-5, riskBadgeY+7, { align:'right' });
+      doc.setFont('helvetica','bold'); doc.setFontSize(6.3); doc.setTextColor(...C.inkMuted);
+      pdfTracked(doc, 'BASED ON', W-M-6, riskBadgeY+7.5, { cs: 0.4, align: 'right' });
       doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
       const lines = doc.splitTextToSize(basis.join(' · '), bw).slice(0, 2);
-      lines.forEach((ln, i) => doc.text(ln, W-M-5, riskBadgeY+12 + i*4, { align:'right' }));
+      lines.forEach((ln, i) => doc.text(ln, W-M-6, riskBadgeY+13 + i*4, { align:'right' }));
     }
   }
 
   // ── COVER FOOTER ──────────────────────────────────────────────────────────
-  doc.setFillColor(...C.rowAlt); doc.rect(0, 284, W, 13, 'F');
-  doc.setFillColor(...C.accent); doc.rect(0, 284, W, 0.6, 'F');
+  doc.setFillColor(...C.rule); doc.rect(M, 284, CW, 0.3, 'F');
   doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
   const footerPreparedBy = company.name ? `Prepared by ${company.name}` : 'Generated via SAYON';
   doc.text(footerPreparedBy, M, 291);
   doc.text('This report does not conclusively determine that the property is free of termites.', W/2, 291, { align:'center' });
-  doc.setFont('helvetica','bold'); doc.setTextColor(...C.accent);
+  doc.setFont('helvetica','bold'); doc.setTextColor(...C.inkLight);
   doc.text(today, W-M, 291, { align:'right' });
 
   // ─────────────────────────────────────────────────────────────────────
@@ -9733,74 +9758,55 @@ async function buildReportPdf() {
   gap(8);
 
   // ── Inspector block ─────────────────────────────────────────────────────
-  if (y + 50 > 278) newPage();
-  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-  doc.text('INSPECTOR DETAILS', M, y); y += 5;
-  doc.setDrawColor(...C.rule); doc.setLineWidth(0.3); doc.line(M, y, M+CW, y); y += 5;
-
-  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-  doc.text('Inspector Name:', M, y);
-  doc.setFont('helvetica','bold');
-  doc.text(inspector || 'Not specified', M+38, y); y += 8;
-
-  if (reportData.inspectorLicence) {
-    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-    doc.text('Pest Licence No.:', M, y);
-    doc.setFont('helvetica','bold');
-    doc.text(reportData.inspectorLicence, M+38, y); y += 8;
+  // Signature blocks: the value sits on the line, its caption under it.
+  const sigColW = (CW - 16) / 3;
+  const onSigLine = (text, x) => {
+    if (!text) return;
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...C.ink);
+    doc.text(doc.splitTextToSize(String(text), sigColW - 2)[0], x + 1, y - 2);
+  };
+  function sigHeading(label) {
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.ink);
+    pdfTracked(doc, label, M, y, { cs: 0.6 });
+    doc.setFillColor(...C.ink); doc.rect(M, y + 2, CW, 0.5, 'F');
+    y += 21;
   }
-
-  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-  doc.text('Inspector Signature:', M, y);
-  if (reportData.inspectorSignature) {
-    try { doc.addImage(reportData.inspectorSignature, 'PNG', M+38, y-6, 36, 8); } catch(e) {}
-  }
-  doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
-  doc.line(M+38, y+1, M+38+40, y+1); y += 14;
-
-  doc.text('Date:', M, y);
-  doc.setFont('helvetica','bold'); doc.text(today, M+38, y); y += 14;
+  if (y + 60 > 278) newPage();
+  sigHeading('INSPECTOR DETAILS');
+  onSigLine(inspector || 'Not specified', M);
+  drawPdfSignature(doc, { x: M, y, w: sigColW, caption: 'Inspector name' });
+  onSigLine(reportData.inspectorLicence, M + sigColW + 8);
+  drawPdfSignature(doc, { x: M + sigColW + 8, y, w: sigColW, caption: 'Pest licence no.' });
+  onSigLine(today, M + (sigColW + 8) * 2);
+  drawPdfSignature(doc, { x: M + (sigColW + 8) * 2, y, w: sigColW, caption: 'Date' });
+  y += 22;
+  drawPdfSignature(doc, { x: M, y, w: sigColW * 2 + 8, caption: 'Inspector signature', image: reportData.inspectorSignature });
+  y += 14;
 
   // ── Client agreement block ───────────────────────────────────────────────
   // The client signs the pre-inspection agreement before the job; its full
   // wording follows on the next page. Reports from before that change have
   // a client signature captured at sign-off instead, printed as it was.
   const agreement = reportData.agreement;
-  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-  doc.text(agreement ? 'PRE-INSPECTION AGREEMENT' : 'CLIENT ACKNOWLEDGEMENT', M, y); y += 5;
-  doc.setDrawColor(...C.rule); doc.setLineWidth(0.3); doc.line(M, y, M+CW, y); y += 5;
-
-  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
+  if (y + 40 > 278) newPage();
+  sigHeading(agreement ? 'PRE-INSPECTION AGREEMENT' : 'CLIENT ACKNOWLEDGEMENT');
   if (agreement) {
-    doc.text('Agreed by:', M, y);
-    doc.setFont('helvetica','bold'); doc.text(agreement.signerName, M+38, y); y += 8;
-    doc.setFont('helvetica','normal');
-    doc.text('Signed:', M, y);
-    doc.setFont('helvetica','bold');
-    doc.text(`${formatAgreementSignedAt(agreement.signedAt)}${agreement.method === 'other' ? ' — ' + agreement.otherNote : ', before the inspection'}`, M+38, y, { maxWidth: CW-38 }); y += 8;
-    if (agreement.signature) {
-      doc.setFont('helvetica','normal');
-      doc.text('Client Signature:', M, y);
-      try { doc.addImage(agreement.signature, 'PNG', M+38, y-9, 40, 12); } catch(e) {}
-      y += 8;
-    }
-    y += 6;
+    onSigLine(agreement.signerName, M);
+    drawPdfSignature(doc, { x: M, y, w: sigColW, caption: 'Agreed by' });
+    drawPdfSignature(doc, { x: M + sigColW + 8, y, w: sigColW, caption: agreement.signature ? 'Client signature' : 'How it was signed',
+      image: agreement.signature, note: agreement.signature ? '' : agreement.otherNote });
+    onSigLine(formatAgreementSignedAt(agreement.signedAt), M + (sigColW + 8) * 2);
+    drawPdfSignature(doc, { x: M + (sigColW + 8) * 2, y, w: sigColW, caption: agreement.method === 'other' ? 'Signed' : 'Signed, before the inspection' });
+    y += 14;
   } else {
-    doc.setFont('helvetica','bold'); doc.setTextColor(...C.warn);
-    if (!reportData.clientSignature) { doc.text('No pre-inspection agreement was recorded for this inspection.', M, y); y += 8; }
-    doc.setFont('helvetica','normal'); doc.setTextColor(...C.ink);
-    doc.text('Client Name:', M, y);
-    doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
-    doc.line(M+38, y+1, M+CW, y+1); y += 12;
-
-    doc.text('Client Signature:', M, y);
-    if (reportData.clientSignature) {
-      try { doc.addImage(reportData.clientSignature, 'PNG', M+38, y-9, 40, 12); } catch(e) {}
+    if (!reportData.clientSignature) {
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...C.warn);
+      doc.text('No pre-inspection agreement was recorded for this inspection.', M, y - 12);
     }
-    doc.line(M+38, y+1, M+CW, y+1); y += 12;
-
-    doc.text('Date:', M, y);
-    doc.line(M+38, y+1, M+CW, y+1); y += 14;
+    drawPdfSignature(doc, { x: M, y, w: sigColW, caption: 'Client name' });
+    drawPdfSignature(doc, { x: M + sigColW + 8, y, w: sigColW, caption: 'Client signature', image: reportData.clientSignature });
+    drawPdfSignature(doc, { x: M + (sigColW + 8) * 2, y, w: sigColW, caption: 'Date' });
+    y += 14;
   }
 
   // ── Version history ─────────────────────────────────────────────────────
@@ -9833,8 +9839,8 @@ async function buildReportPdf() {
 
   // Footer badge
   if (y + 17 > 284) newPage();
-  doc.setFillColor(...C.rowAlt); doc.roundedRect(M, y, CW, 16, 2, 2, 'F');
-  doc.setFillColor(...C.accent); doc.rect(M, y, 3, 16, 'F');
+  doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, 16, 'F');
+  doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, 16, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
   doc.text(`Generated by SAYON  ·  ${today}`, M+7, y+5);
   doc.setFont('helvetica','normal'); doc.setTextColor(...C.inkMuted);

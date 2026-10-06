@@ -20,7 +20,7 @@ Three helpers are defined but never called, so their wording never prints: `risk
 
 | # | Part (heading) | Lines | Fixed wording |
 |---|---|---|---|
-| Cover | Company band, or "SAYON" / "Intelligent Inspection Platform" when no company name | 8296–8338 | 8333 |
+| Cover | White letterhead (logo or initials, company name and details), or "SAYON" / "Intelligent Inspection Platform" when no company name | 8296–8338 | 8333 |
 | | Kicker "PRE-PURCHASE TIMBER PEST" if the standard starts with `AS 4349`, otherwise "TIMBER PEST", then "INSPECTION REPORT" | 8342–8350 | Any AS 4349.x gets the pre-purchase label, including 4349.0 and 4349.1 |
 | | "Prepared in accordance with" + `standardLabel` | 8355–8358 | |
 | | Property card (address, client, inspector, licence, date, time, type, IDs) | 8360–8408 | |
