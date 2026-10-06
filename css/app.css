@@ -308,11 +308,11 @@ body.large-touch .saved-item-delete { width: 44px; height: 44px; }
 .ob-step {
   width: 28px; height: 4px;
   border-radius: 99px;
-  background: #C8D5E3;
+  background: rgba(232,240,246,0.2);
   transition: background 0.3s, width 0.3s;
 }
-.ob-step.active { background: #0D9488; width: 44px; }
-.ob-step.done   { background: rgba(13,148,136,0.45); }
+.ob-step.active { background: #2DD4BF; width: 44px; }
+.ob-step.done   { background: rgba(45,212,191,0.55); }
 .ob-panel { animation: menuFadeIn 0.35s cubic-bezier(0.22,1,0.36,1); }
 /* "Your business" opens the sign-up form over the app (openBusinessForm) */
 #onboardScreen.ob-edit { position: fixed; inset: 0; z-index: 900; }
@@ -360,8 +360,8 @@ body.large-touch .saved-item-delete { width: 44px; height: 44px; }
   margin-top: 1px;
 }
 /* Sign-in, sign-up and business setup: the first thing a business owner
-   sees. Same look as the intro screen (soft blue with a teal glow), with a
-   crisp white card. */
+   sees, so it looks like the paid product it is. A deep ink backdrop with a
+   teal glow, the brand in white, and a crisp white card. */
 #authScreen {
   min-height: 100vh;
   min-height: 100dvh;
@@ -373,15 +373,16 @@ body.large-touch .saved-item-delete { width: 44px; height: 44px; }
 }
 #authScreen, #onboardScreen {
   background:
-    radial-gradient(90% 45% at 50% 18%, rgba(13,148,136,0.16), rgba(13,148,136,0) 70%),
-    #D6E4EF;
+    radial-gradient(120% 55% at 50% -12%, rgba(13,148,136,0.38), rgba(13,148,136,0) 62%),
+    linear-gradient(180deg, #0B141C 0%, #070B10 100%);
+  color-scheme: dark;
 }
 .auth-wrap { width:100%; max-width:400px; display:flex; flex-direction:column; align-items:center; gap:22px; }
 .auth-logo { display:flex; align-items:center; gap:11px; margin-bottom:-6px; }
 .auth-logo-icon { width:36px; height:36px; background:linear-gradient(145deg, #14B8A6, #0A7A70); border-radius:10px; display:flex; align-items:center; justify-content:center; color:white; box-shadow:0 0 0 1px rgba(255,255,255,0.12) inset, 0 6px 22px rgba(13,148,136,0.45); }
-.auth-logo-name { font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:800; letter-spacing:-0.3px; color:#0D1117; }
-.auth-tagline { font-size:14px; line-height:1.5; color:#3D5166; text-align:center; max-width:300px; margin:0; }
-.auth-card { width:100%; background:#FFFFFF; color:#0D1117; border:1px solid rgba(13,148,136,0.22); border-radius:20px; padding:28px 24px 22px; box-shadow:0 12px 36px rgba(13,40,60,0.14); display:flex; flex-direction:column; gap:16px; color-scheme: light;
+.auth-logo-name { font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:800; letter-spacing:1.5px; color:#F4F8FB; }
+.auth-tagline { font-size:14px; line-height:1.5; color:rgba(232,240,246,0.7); text-align:center; max-width:300px; margin:0; }
+.auth-card { width:100%; background:#FFFFFF; color:#0D1117; border:1px solid rgba(255,255,255,0.6); border-radius:20px; padding:28px 24px 22px; box-shadow:0 1px 0 rgba(255,255,255,0.08) inset, 0 28px 64px rgba(0,0,0,0.5); display:flex; flex-direction:column; gap:16px; color-scheme: light;
   /* The card stays light in dark mode too: reset the tokens inside it. */
   --surface:#FFFFFF; --surface2:#F4F7FA; --text:#0D1117; --text2:#3D5166; --text3:#566A7F; --border:#D8E2ED; --border2:#C8D5E3; --accent2:#0A7A70; }
 .auth-title { font-family:'Space Grotesk',sans-serif; font-size:23px; font-weight:700; color:#0D1117; letter-spacing:-0.4px; margin:0; }
@@ -408,8 +409,8 @@ body.large-touch .saved-item-delete { width: 44px; height: 44px; }
 .auth-link { background:none; border:none; color:#0A7A70; font-family:'Inter',sans-serif; font-size:14px; font-weight:600; cursor:pointer; padding:0 6px; transition:color 0.15s; min-height:44px; }
 .auth-link:hover { color:#065A53; }
 .auth-badge { width:52px; height:52px; margin:0 auto 2px; border-radius:16px; background:rgba(13,148,136,0.1); color:#0A7A70; display:flex; align-items:center; justify-content:center; }
-.auth-footer { font-size: 12px; color:#566A7F; text-align:center; line-height:1.6; margin:0; }
-.auth-footer a { color:#3D5166; text-decoration:underline; text-underline-offset:2px; }
+.auth-footer { font-size: 12px; color:rgba(232,240,246,0.6); text-align:center; line-height:1.6; margin:0; }
+.auth-footer a { color:rgba(232,240,246,0.85); text-decoration:underline; text-underline-offset:2px; }
 /* Legal links: a 44px tall tap area without moving the text around them. */
 .auth-footer a, .menu-footer a, .drawer-legal a { display:inline-block; padding:14px 2px; margin:-14px 0; }
 
@@ -4077,3 +4078,63 @@ body[data-voice="thinking"] .voice-hud { animation: hudPulse 0.6s ease-in-out in
 .extract-blank-btn span { color: var(--text2); font-size: 18px; }
 .extract-summary-done { font-size: 13px; color: var(--text2); }
 .extract-blank-flash { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+/* ── ONE THEME: the sign-in look everywhere ──
+   Every screen sits on the sign-in backdrop (deep ink with a teal glow),
+   with white cards on top and teal for actions. Bars are ink, not white,
+   and text on the backdrop is light. The dark screen (body.dark-screen)
+   keeps its own near-black rules, which win on specificity. */
+:root {
+  --ink:        #0B141C;
+  --ink2:       #111D27;
+  --on-ink:     #F4F8FB;
+  --on-ink2:    rgba(232,240,246,0.72);
+  --backdrop:
+    radial-gradient(120% 40% at 50% -8%, rgba(13,148,136,0.34), rgba(13,148,136,0) 62%),
+    linear-gradient(180deg, #0B141C 0%, #070B10 100%);
+}
+body:not(.dark-screen) { background: var(--backdrop); background-color: #070B10; }
+body:not(.dark-screen) #splash,
+body:not(.dark-screen) #mainMenu,
+body:not(.dark-screen) #quoteScreen { background: var(--backdrop); background-color: #070B10; color-scheme: dark; }
+body:not(.dark-screen) .splash-logo,
+body:not(.dark-screen) .menu-logo-text { color: var(--on-ink); }
+body:not(.dark-screen) .menu-tagline,
+body:not(.dark-screen) .menu-footer,
+body:not(.dark-screen) .menu-footer a { color: var(--on-ink2); }
+body:not(.dark-screen) .menu-logo-icon { color: #2DD4BF; }
+body:not(.dark-screen) .menu-tile { border-color: transparent; box-shadow: 0 18px 44px rgba(0,0,0,0.45); }
+
+/* Top bar and section tabs: ink, light text, teal for the active tab. */
+body:not(.dark-screen) header { background: var(--ink); border-bottom: none; box-shadow: none; }
+body:not(.dark-screen) .app-logo-name { color: var(--on-ink); }
+body:not(.dark-screen) .header-job,
+body:not(.dark-screen) .header-job span,
+body:not(.dark-screen) .header-job.has-job { color: var(--on-ink2); }
+body:not(.dark-screen) .header-icon-btn { color: var(--on-ink2); }
+body:not(.dark-screen) .header-icon-btn:hover,
+body:not(.dark-screen) .hamburger-btn:hover { background: rgba(255,255,255,0.08); color: #5EEAD4; }
+body:not(.dark-screen) .hamburger-btn span { background: var(--on-ink); }
+body:not(.dark-screen) header .progress-ring-bg { stroke: rgba(255,255,255,0.18); }
+body:not(.dark-screen) header .progress-ring-wrap { color: var(--on-ink2); }
+body:not(.dark-screen) .report-header { border-bottom: none; }
+body:not(.dark-screen) .report-title h2 { color: var(--on-ink); }
+body:not(.dark-screen) .report-title p { color: var(--on-ink2); }
+body:not(.dark-screen) .report-header .edit-btn { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.18); color: var(--on-ink); }
+body:not(.dark-screen) .report-header .edit-btn.active { background: rgba(45,212,191,0.16); border-color: rgba(45,212,191,0.5); color: #5EEAD4; }
+body:not(.dark-screen) .section-tabs { background: transparent; border-bottom: none; box-shadow: none; }
+body:not(.dark-screen) .section-tab { color: var(--on-ink2); }
+body:not(.dark-screen) .section-tab:hover { color: var(--on-ink); background: rgba(255,255,255,0.06); }
+body:not(.dark-screen) .section-tab .tab-label { color: inherit; }
+body:not(.dark-screen) .section-tab.active { color: #FFFFFF; }
+body:not(.dark-screen) .section-tab .tab-dot:not(.partial):not(.done):not(.current) { border-color: rgba(255,255,255,0.4); }
+body:not(.dark-screen) .progress-wrap { background: rgba(255,255,255,0.06); }
+body:not(.dark-screen) .report-body { background: transparent; }
+
+/* Cards on the backdrop: white, no edge line, a soft shadow for lift. */
+body:not(.dark-screen) .report-section,
+body:not(.dark-screen) #jobPanel:not(.menu-page-active) { border-color: transparent; box-shadow: 0 14px 36px rgba(0,0,0,0.35); }
+/* Banners on the backdrop need a solid face to stay readable. */
+body:not(.dark-screen) .agreement-banner { background: #FFF6E0; border-color: #F0C25A; color: #7A4F00; }
+body:not(.dark-screen) .agreement-banner.signed { background: #E6F6EC; border-color: #9AD3AE; color: #1E7A45; }
+body:not(.dark-screen) .edit-banner { background: #FFF6E0; border-bottom-color: #F0C25A; color: #7A4F00; }
