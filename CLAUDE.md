@@ -18,6 +18,7 @@ Read only the files your task needs. `js/app.js` is about 9,200 lines, so jump t
 | `css/app.css`, `css/quote.css` | Styles |
 | `service-worker.js` | Offline cache. **Bump `CACHE_VERSION` (korva-vNN) whenever cached files change** |
 | `worker/worker.js` | Cloudflare Worker `korva`: AI proxy, `/transcribe`, Stripe, `/send-email`. Pasted into Cloudflare by hand |
+| `netlify.toml` | Netlify preview links only (`deploy-preview-N--sayon-preview.netlify.app`). Never the live site |
 | `supabase/*.sql` | SQL baz applies in the Supabase SQL editor |
 | `terms.html`, `privacy.html` | Legal pages |
 | `docs/handover/` | Handover docs: start-here guide, current state, extraction and report-wording maps, a sample report PDF |
