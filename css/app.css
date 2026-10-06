@@ -3,6 +3,9 @@
 :root {
   --bg:        #D6E4EF;
   --surface:   #FFFFFF;
+  /* Room the floating mic button needs at the foot of a scroll area:
+     its 58px button, 20px from the bottom, plus a gap. */
+  --mic-clearance: calc(96px + env(safe-area-inset-bottom, 0px));
   --surface2:  #F5F7FA;
   --surface3:  #EDF0F4;
   --accent:    #0D9488;
@@ -696,6 +699,13 @@ header {
   100% { transform: scale(1); }
 }
 
+.progress-ring-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
+  margin-left: -2px;
+}
+
 .progress-ring-text {
   position: absolute;
   font-size: 7px;
@@ -1307,12 +1317,6 @@ header {
   color: var(--yellow);
   font-weight: 700;
 }
-.saved-item-pct {
-  font-size: 10px;
-  font-family: 'JetBrains Mono', monospace;
-  color: var(--text2);
-  font-weight: 600;
-}
 
 .saved-item-delete {
   width: 24px;
@@ -1500,6 +1504,15 @@ header {
   pointer-events: none;
 }
 
+/* The mic is for the report. It is hidden on the menu and its lists, the
+   quote screen, the dashboard and the sheets, where it would only cover
+   buttons. */
+body:has(#quoteScreen.open) #micDock,
+body:has(#sidebarPanel.open) #micDock,
+body:has(#dashboardOverlay.open) #micDock,
+body:has(.page-sheet-overlay.open) #micDock,
+body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
+
 .mic-dock.drawer-is-open {
   opacity: 0;
   pointer-events: none;
@@ -1643,7 +1656,8 @@ header {
   border-radius: 8px;
   padding: 10px 12px;
   min-height: 72px;
-  max-height: 110px;
+  /* Grows with the note so it can be re-read, then scrolls. */
+  max-height: min(45vh, 360px);
   font-size: 11.5px;
   color: var(--text2);
   font-family: 'JetBrains Mono', monospace;
@@ -1949,7 +1963,7 @@ header {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 16px 16px;
-  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--mic-clearance) + 16px);
   display: block;
   background: #C8D8E8;
 }
@@ -2377,13 +2391,17 @@ body.report-locked #micDock { opacity: 0.4; }
 .issue-quote-answer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text2); }
 .issue-quote-answer.good span { color: var(--green); font-weight: 600; }
 .issue-quote-answer.wait span, .issue-quote-answer.warn span { color: var(--yellow); font-weight: 600; }
-.saved-item-issued {
+.saved-item-status {
   padding: 1px 6px;
   border-radius: 5px;
-  background: rgba(40,148,72,0.12);
-  color: var(--green);
   font-weight: 700;
+  background: var(--border);
+  color: var(--text2);
 }
+.saved-item-status.ready { background: rgba(13,148,136,0.12); color: var(--accent); }
+.saved-item-status.sent { background: rgba(212,146,10,0.12); color: var(--yellow); }
+.saved-item-status.complete { background: rgba(40,148,72,0.12); color: var(--green); }
+.saved-item-status.amending { background: rgba(212,146,10,0.12); color: var(--yellow); }
 
 /* Pre-inspection agreement */
 .agreement-banner {
@@ -3183,8 +3201,9 @@ body.report-locked #micDock { opacity: 0.4; }
 /* Toast */
 .toast {
   position: fixed;
-  bottom: 44px;
-  right: 22px;
+  /* Above the mic button, so it never covers it or the buttons beside it. */
+  bottom: calc(var(--mic-clearance) + 8px);
+  right: 16px;
   background: linear-gradient(160deg, #2e3239 0%, var(--surface3) 60%);
   color: var(--text);
   padding: 11px 18px;
@@ -3202,7 +3221,7 @@ body.report-locked #micDock { opacity: 0.4; }
   display: flex;
   align-items: center;
   gap: 9px;
-  max-width: 320px;
+  max-width: min(320px, calc(100vw - 32px));
 }
 
 .toast.show { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
@@ -3454,7 +3473,8 @@ body.report-locked #micDock { opacity: 0.4; }
   align-items: flex-start;
   gap: 10px;
   padding: 10px 12px;
-  background: rgba(var(--accent-rgb), 0.05);
+  /* Solid, so the description reads against the popover's dark gradient. */
+  background: var(--surface);
   border: 1px solid rgba(var(--accent-rgb), 0.15);
   border-radius: 10px;
   margin-bottom: 2px;
@@ -3475,8 +3495,8 @@ body.report-locked #micDock { opacity: 0.4; }
   margin-bottom: 3px;
 }
 .hf-toggle-desc {
-  font-size: 10.5px;
-  color: var(--text3);
+  font-size: 11px;
+  color: var(--text2);
   line-height: 1.5;
 }
 .hf-toggle-desc strong { color: var(--accent2); }
@@ -3819,3 +3839,40 @@ button:focus-visible,
    MOBILE LAYOUT
    ══════════════════════════════════════════════════════════════════════ */
 
+
+/* Send: a fix button beside each gap on the check sheet, "Did that send?",
+   and one Sent line per document (report banner and quote screen). */
+.share-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.send-review-fixes { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
+.send-review-fixes .link-btn { font-size: 12.5px; font-weight: 700; color: var(--accent); }
+.send-review-gap { display: flex; flex-direction: column; }
+.did-it-send-overlay { z-index: 310; }
+.did-it-send {
+  position: absolute; left: 16px; right: 16px; top: 50%; transform: translateY(-50%);
+  max-width: 420px; margin: 0 auto; padding: 18px 16px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+}
+.did-it-send-title { font-size: 16px; font-weight: 800; color: var(--text); }
+.did-it-send-text { margin: 8px 0 14px; font-size: 13px; line-height: 1.5; color: var(--text2); }
+.did-it-send-btns { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.doc-sent-lines { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.doc-sent { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--text2); }
+.doc-sent strong { font-weight: 700; }
+.doc-sent.sent strong { color: var(--green, #2a9448); }
+.doc-sent.stale strong { color: var(--yellow); }
+.doc-sent.unsent strong { color: var(--text3, var(--text2)); }
+
+/* After Extract: what was filled and what's still blank */
+.extract-summary-sheet { top: auto; bottom: 0; max-height: 80vh; border-radius: 16px 16px 0 0; }
+.extract-summary-filled { font-size: 15px; font-weight: 700; color: var(--text); }
+.extract-summary-label { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; }
+.extract-summary-list { display: flex; flex-direction: column; gap: 8px; }
+.extract-blank-btn {
+  display: flex; justify-content: space-between; align-items: center;
+  min-height: 44px; padding: 10px 14px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+}
+.extract-blank-btn span { color: var(--text2); font-size: 18px; }
+.extract-summary-done { font-size: 13px; color: var(--text2); }
+.extract-blank-flash { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }

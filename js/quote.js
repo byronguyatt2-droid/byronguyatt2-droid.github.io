@@ -209,10 +209,50 @@ function classifyTreatment(text) {
   return 'generic';
 }
 
+// Every system the recommendation names, in the order classifyTreatment
+// checks them. "chemical barrier or baiting system" gives ['bait', 'barrier'].
+function treatmentKinds(text) {
+  const t = (text || '').toLowerCase();
+  const kinds = [];
+  if (/exterra|sentricon|trelona|bait/.test(t)) kinds.push('bait');
+  if (/homeguard|kordon|termimesh|reticulation|physical|existing system|top.?up/.test(t)) kinds.push('system');
+  if (/termidor|altriset|phantom|premise|fipronil|chlorantraniliprole|bifenthrin|biflex|talstar|maxxthor|chemical|barrier|soil treat/.test(t)) kinds.push('barrier');
+  return kinds;
+}
+
+// The systems to ask about when the recommendation offers a choice
+// ("chemical barrier or baiting"), or [] when it names one (or names two to
+// do together).
+function treatmentChoices(text) {
+  const kinds = treatmentKinds(text);
+  return kinds.length > 1 && /\bor\b|\/|\beither\b/i.test(text || '') ? kinds : [];
+}
+
+const QUOTE_SYSTEM_LABELS = { bait: 'Baiting system', barrier: 'Chemical barrier', system: 'Existing system top-up' };
+
+// A starting price is the catalogue price, shown on a line until this
+// business sets a price for it (typed on any quote, so it is remembered).
+// it.priceSet is true once the price was typed or came from the business's
+// own remembered rate.
+function isStartingPrice(it) {
+  if (!it || it.priceSet || !it.key || it.key === 'custom' || !(it.key in QUOTE_CATALOGUE)) return false;
+  return !(it.key in quotePriceMemory());
+}
+
+// "12 station" reads "12 stations". Short units (lm, m2) and units already
+// ending in s stay as they are.
+function pluralUnit(unit, qty) {
+  const u = (unit || '').trim();
+  const n = parseFloat(qty);
+  if (!u || n === 1 || !/^[a-z]{3,}$/i.test(u) || /s$/i.test(u)) return u;
+  return u + 's';
+}
+
 function newQuoteItem(key, overrides) {
   const cat = QUOTE_CATALOGUE[key] || QUOTE_CATALOGUE.custom;
   const mem = quotePriceMemory();
   return Object.assign({
+    priceSet: key in mem,
     id: 'qi_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
     key,
     desc: cat.desc,
@@ -224,7 +264,10 @@ function newQuoteItem(key, overrides) {
   }, overrides || {});
 }
 
-function buildQuoteItemsFromReport(rd) {
+// system: 'bait' | 'barrier' | 'system' picks the main treatment line when
+// the recommendation offers a choice; without it a choice adds no main line
+// and the builder asks which to quote (q.systemChoice).
+function buildQuoteItemsFromReport(rd, system) {
   rd = rd || {};
   const items = [];
   const findings = (Array.isArray(rd.findings) ? rd.findings : []).filter(f => f && f.termiteActivity);
@@ -234,25 +277,21 @@ function buildQuoteItemsFromReport(rd) {
 
   // Active workings get a direct treatment each, so the client sees every
   // location the report found live termites at.
+  // The detail is the location only: the species line and the report's
+  // recommendation wording are for the report, not the client's quote.
   active.forEach((f, i) => {
-    const bits = [];
-    if (f.activityLocation) bits.push(f.activityLocation);
-    if (f.species) bits.push(f.species);
-    if (f.nestLocated === 'YES') bits.push('nest located — includes nest treatment');
     items.push(newQuoteItem('direct', {
-      detail: bits.join(' · '),
+      detail: (f.activityLocation || '').trim(),
       source: `Finding ${findings.indexOf(f) + 1}: active termites`,
     }));
   });
 
   if (wantsTreatment) {
-    const kind = classifyTreatment(treatmentType);
-    // Live termites already have their own direct-treatment lines above, so
-    // the main treatment line leaves out that part of the recommendation
-    // ("barrier ..., plus direct treatment of active termites in laundry").
-    const detail = active.length
-      ? treatmentType.split(/\s*(?:,|;|\+|\bplus\b|\band\b)\s*(?=direct\b)/i)[0].replace(/[\s,;]+$/, '')
-      : treatmentType;
+    const choices = treatmentChoices(treatmentType);
+    const kind = system || (choices.length ? 'ask' : classifyTreatment(treatmentType));
+    // The main line's detail stays empty: the recommendation sentence is the
+    // report's wording (and may name other systems), so it is not copied.
+    const detail = '';
     const src = treatmentType ? `Recommendation: ${treatmentType}` : 'Recommendation: treatment';
     if (kind === 'barrier') {
       const lm = treatmentType.match(/(\d+(?:\.\d+)?)\s*(?:linear\s*)?(?:lm|m|metres|meters)\b/i);
@@ -264,7 +303,9 @@ function buildQuoteItemsFromReport(rd) {
       items.push(newQuoteItem('bait_install', { detail, qty: st ? parseInt(st[1], 10) : 12, source: src }));
       items.push(newQuoteItem('bait_monitor', { source: src }));
     } else if (kind === 'system') {
-      items.push(newQuoteItem('system_topup', { detail: treatmentType || rd.existingSystem || '', source: src }));
+      items.push(newQuoteItem('system_topup', { detail: rd.existingSystem || '', source: src }));
+    } else if (kind === 'ask') {
+      // The builder asks which system to quote (renderQuoteSystemChoice).
     } else {
       items.push(newQuoteItem('treatment', { detail, source: src }));
     }
@@ -315,6 +356,11 @@ function buildQuoteExclusions(rd) {
   return out;
 }
 
+function newSystemChoice(rd) {
+  const choices = treatmentChoices((rd && rd.treatmentType) || '');
+  return choices.length ? { options: choices, picked: null } : null;
+}
+
 function newQuoteNumber() {
   const d = new Date();
   const ymd = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
@@ -337,6 +383,7 @@ function createQuoteFromSource(src) {
     validDays: 30,
     gst: true,
     items: buildQuoteItemsFromReport(rd),
+    systemChoice: newSystemChoice(rd),
     exclusions: buildQuoteExclusions(rd).join('\n'),
     paymentTerms: defaultPaymentTerms(),
     notes: QUOTE_DEFAULT_NOTES,
@@ -368,8 +415,10 @@ function closeQuote() {
   // may have marked as sent since.
   quoteState = null;
   document.getElementById('quoteScreen').classList.remove('open');
-  if (quoteReturnTo === 'app') document.getElementById('app').style.display = 'flex';
-  else document.getElementById('mainMenu').style.display = 'flex';
+  if (quoteReturnTo === 'app') {
+    document.getElementById('app').style.display = 'flex';
+    resumeSendReview();
+  } else document.getElementById('mainMenu').style.display = 'flex';
 }
 
 // ── RENDERING ───────────────────────────────────────────────────────────────
@@ -459,7 +508,46 @@ function renderQuoteCompanyGaps() {
     : '';
 }
 
+// When the recommendation offers more than one system, the inspector picks
+// which one this quote is for. Shown above the line items until picked.
+function renderQuoteSystemChoice() {
+  const el = document.getElementById('quoteSystemChoice');
+  if (!el) return;
+  const c = quoteState && quoteState.systemChoice;
+  if (!c || c.picked || !Array.isArray(c.options) || !c.options.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const src = currentQuoteSource();
+  const rec = src && src.reportData ? (src.reportData.treatmentType || '') : '';
+  el.style.display = '';
+  el.innerHTML = `<div class="quote-system-q">The report recommends more than one system${rec ? ` (${escapeHtml(rec)})` : ''}. Which do you want to quote?</div>
+    <div class="quote-answer-btns">${c.options.map(k =>
+      `<button class="quote-btn" onclick="pickQuoteSystem('${k}')">${escapeHtml(QUOTE_SYSTEM_LABELS[k] || k)}</button>`).join('')}</div>`;
+}
+
+function pickQuoteSystem(kind) {
+  const src = currentQuoteSource();
+  const q = quoteState;
+  if (!src || !q || !q.systemChoice) return;
+  const rd = src.reportData || {};
+  const fresh = buildQuoteItemsFromReport(rd, kind).filter(it => /^Recommendation: /.test(it.source) && it.key !== 'followup');
+  // After the direct-treatment lines, before conducive conditions.
+  let at = 0;
+  while (at < q.items.length && q.items[at].key === 'direct') at++;
+  q.items.splice(at, 0, ...fresh);
+  q.systemChoice.picked = kind;
+  renderQuoteItems();
+  scheduleQuoteSave();
+}
+
+function markQuotePriceSet(id) {
+  const it = quoteState && quoteState.items.find(i => i.id === id);
+  if (!it || it.priceSet) return;
+  it.priceSet = true;
+  const row = document.querySelector(`.quote-item[data-id="${id}"] .quote-item-start`);
+  if (row) row.remove();
+}
+
 function renderQuoteItems() {
+  renderQuoteSystemChoice();
   const wrap = document.getElementById('quoteItems');
   if (!quoteState.items.length) {
     wrap.innerHTML = '<div class="quote-items-empty">No line items. The report has no findings or recommendations that call for work. Add a line to quote manually.</div>';
@@ -477,9 +565,10 @@ function renderQuoteItems() {
           <label>Unit<input class="quote-input" value="${escapeHtml(it.unit)}"
             oninput="updateQuoteItem('${it.id}','unit',this.value)"></label>
           <label>Unit price $<input class="quote-input" type="number" min="0" step="any" inputmode="decimal" value="${it.price}"
-            oninput="updateQuoteItem('${it.id}','price',this.value)" onchange="rememberQuotePrice('${it.key}', parseFloat(this.value))"></label>
+            oninput="markQuotePriceSet('${it.id}'); updateQuoteItem('${it.id}','price',this.value)" onchange="rememberQuotePrice('${it.key}', parseFloat(this.value))"></label>
           <div class="quote-item-total" id="qiTotal_${it.id}">${formatAUD(lineTotal(it))}</div>
         </div>
+        ${isStartingPrice(it) ? '<div class="quote-item-start">Starting price. Set your own price; it is remembered for next time.</div>' : ''}
         ${it.source ? `<div class="quote-item-source">From report · ${escapeHtml(it.source)}</div>` : ''}
       </div>`).join('');
     wrap.querySelectorAll('.quote-item-desc').forEach(fitQuoteText);
@@ -563,6 +652,7 @@ function rebuildQuoteFromReport() {
   if (!src || !quoteState) return;
   if (quoteState.items.length && !confirm('Replace the line items and exclusions with fresh ones from the report? Your edits to them will be lost.')) return;
   quoteState.items = buildQuoteItemsFromReport(src.reportData);
+  quoteState.systemChoice = newSystemChoice(src.reportData);
   quoteState.exclusions = buildQuoteExclusions(src.reportData).join('\n');
   document.getElementById('qExclusions').value = quoteState.exclusions;
   renderQuoteSourceSummary(src);
@@ -618,7 +708,7 @@ function renderQuoteAnswer() {
   const esc = escapeHtml;
   let body;
   if (!a) {
-    body = `<div class="quote-answer-status wait">${q.sentAt ? `Sent ${formatAnswerDate(isoDate(new Date(q.sentAt)))}. Waiting on the client.` : 'Not sent yet. Record the client\'s answer here once you have it.'}</div>
+    body = `<div class="quote-answer-status wait">${q.sentAt ? 'Waiting on the client.' : 'Send the quote, then record the client\'s answer here once you have it.'}</div>
       <div class="quote-answer-btns">
         <button class="quote-btn primary" onclick="openQuoteAnswer('accepted')">Accepted</button>
         <button class="quote-btn" onclick="openQuoteAnswer('declined')">Declined</button>
@@ -634,7 +724,7 @@ function renderQuoteAnswer() {
       ${a.status === 'accepted' && !a.stale ? renderTreatmentBlock(q) : ''}
       <button class="quote-link-btn" onclick="clearQuoteAnswer()">${a.stale ? 'Record a new answer' : 'Change answer'}</button>`;
   }
-  el.innerHTML = `<div class="quote-card-title">Client's answer</div>${body}`;
+  el.innerHTML = `${renderSentLines(treatmentSourceReport(), q)}<div class="quote-card-title">Client's answer</div>${body}`;
 }
 
 let quoteAnswerPad = null;
@@ -764,16 +854,30 @@ function quoteContentHash(q) {
   const content = Object.assign({}, q);
   // 'booking' and 'invoice' are left over from features that were removed;
   // older quotes may still carry them, and they never counted as content.
-  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'reportKey', 'answer', 'booking', 'treatment', 'invoice'].forEach(k => delete content[k]);
+  ['updatedAt', 'createdAt', 'sentAt', 'sentHash', 'certificateSentAt', 'reportKey', 'answer', 'booking', 'treatment', 'invoice'].forEach(k => delete content[k]);
   return sha256Hex(stableJson(content));
 }
 function markQuoteSent(q) {
   q.sentAt = Date.now();
   q.sentHash = quoteContentHash(q);
+  storeSentQuote(q);
+}
+function markCertificateSent(q) {
+  q.certificateSentAt = Date.now();
+  storeSentQuote(q);
+}
+// Saves a quote whose sent state changed, and redraws every place that
+// shows it. The report's send marks the stored quote, so the open quote
+// takes the same times.
+function storeSentQuote(q) {
+  if (quoteState && quoteState !== q && quoteState.reportKey === q.reportKey) {
+    ['sentAt', 'sentHash', 'certificateSentAt'].forEach(k => { if (q[k]) quoteState[k] = q[k]; });
+  }
   const all = readJSON(quotesStorageKey(), {});
   all[q.reportKey] = q;
   try { localStorage.setItem(quotesStorageKey(), JSON.stringify(all)); } catch (e) {}
   storeQuoteOnReport(q, true);
+  if (quoteState && quoteState.reportKey === q.reportKey) renderQuoteAnswer();
   if (typeof renderIssueState === 'function') renderIssueState();
 }
 function isQuoteLocked() {
@@ -959,7 +1063,7 @@ function drawPdfLineItems(doc, y, allItems, { bottom, newPage }) {
     }
     const qty = parseFloat(it.qty);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
-    doc.text(`${isFinite(qty) ? +qty.toFixed(2) : 0} ${it.unit || ''}`.trim(), X_QTY, y + 5.5, { align: 'right' });
+    doc.text(`${isFinite(qty) ? +qty.toFixed(2) : 0} ${pluralUnit(it.unit, qty)}`.trim(), X_QTY, y + 5.5, { align: 'right' });
     doc.text(formatAUD(parseFloat(it.price)), X_PRICE, y + 5.5, { align: 'right' });
     doc.setFont('helvetica', 'bold');
     doc.text(formatAUD(lineTotal(it)), X_AMT, y + 5.5, { align: 'right' });
