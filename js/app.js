@@ -1417,6 +1417,7 @@ function openApp(appName) {
     initMobileView();
     initSignaturePads();
     installReportLockGuard();
+    buildChoiceCards();
     enhanceFieldsWithNotes();
     renderSavedList();
     const restored = loadDraft();
@@ -2205,6 +2206,7 @@ function startRecording() {
   };
   recognition.start();
   isRecording = true;
+  updateVoiceHud();
   document.getElementById('voiceBtn').classList.add('recording');
   document.getElementById('voiceBtnText').textContent = 'Recording… Tap to Stop';
   document.getElementById('waveform').classList.add('show');
@@ -2234,6 +2236,7 @@ function stopRecording() {
   const recognitionEnded = waitForRecognitionEnd(recognition);
   if (recognition) recognition.stop();
   isRecording = false;
+  updateVoiceHud();
   document.getElementById('voiceBtn').classList.remove('recording');
   document.getElementById('voiceBtnText').textContent = 'Tap to Speak';
   document.getElementById('waveform').classList.remove('show');
@@ -2372,6 +2375,26 @@ function hfSetStatus(state, text) {
   const txt = document.getElementById('hfStatusText');
   if (dot) dot.className = 'hf-status-dot ' + (state || '');
   if (txt) txt.textContent = text;
+  hfHudState = state || '';
+  updateVoiceHud();
+}
+
+// ── VOICE HUD ─────────────────────────────────────────────────────────────
+// A border round the whole screen, so the inspector can tell from the
+// corner of their eye what the app is doing without reading anything:
+//   armed     hands-free is on, waiting for "Hey Sayon": thin, steady
+//   listening the mic is taking a note: thick, slow pulse
+//   thinking  the AI is filling the report: thick, fast pulse
+// Read from the existing state (isRecording, the hands-free status, the
+// AI busy flag); nothing here changes how voice or extraction work.
+let hfHudState = '';
+function updateVoiceHud() {
+  let state = '';
+  if (isRecording || hfHudState === 'active') state = 'listening';
+  else if (hfHudState === 'processing' || document.body.classList.contains('ai-busy')) state = 'thinking';
+  else if (hfHudState === 'listening') state = 'armed';
+  if (state) document.body.dataset.voice = state;
+  else delete document.body.dataset.voice;
 }
 
 // ── Section routing ──────────────────────────────────────────────────────
@@ -3176,6 +3199,7 @@ function goToExtractBlank(i) {
   if (popover && popover.classList.contains('open')) toggleVoicePopover();
   let el = document.getElementById(b.target);
   if (!el) return;
+  if (el.classList.contains('choice-source')) el = document.getElementById(b.target.replace(/^f-/, 'choices-')) || el;
   const section = el.closest('.report-section');
   if (section && section.id.startsWith('section-')) showSection(section.id.slice(8));
   if (b.referral) {
@@ -3412,41 +3436,10 @@ async function analyzeGalleryPhoto(photoId) {
 // ── FIELD RENDERING ───────────────────────────────────────────────────────
 function renderField(el, key, val) {
   el.classList.remove('editing');
-  const yesNoKeys = ['nestLocated','waterLeaks','moistureReadings','timberSoil','treatmentRecommended','decayFound'];
-
-  if (key === 'structuralConcern') {
-    el.innerHTML = val === 'YES'
-      ? '<span class="risk-tag risk-high">YES — refer to a builder or engineer</span>'
-      : '<span class="no-tag">NO</span>';
-  } else if (key === 'termiteActivity') {
-    const cls = val==='ACTIVE'?'risk-high':val==='INACTIVE'?'risk-medium':'risk-low';
-    const label = val==='ACTIVE'?'ACTIVE — live termites sighted':val==='INACTIVE'?'INACTIVE — evidence only, no live sighting':'NONE';
-    el.innerHTML = `<span class="risk-tag ${cls}">${escapeHtml(label)}</span>`;
-  } else if (key === 'borerActivity') {
-    const cls = val==='ACTIVE'?'risk-high':val==='INACTIVE'?'risk-medium':'risk-low';
-    const label = val==='ACTIVE'?'ACTIVE — fresh frass or new exit holes':val==='INACTIVE'?'INACTIVE — old exit holes only':'NONE';
-    el.innerHTML = `<span class="risk-tag ${cls}">${escapeHtml(label)}</span>`;
-  } else if (key === 'durableNoticePresent' || key === 'zone25mmVisible' || key === 'zone75mmVisible') {
-    // these should be YES for a properly verifiable system — NO is the concerning answer
-    el.innerHTML = val === 'YES' ? '<span class="yes-tag">YES</span>' : '<span class="no-tag" style="background:rgba(192,57,43,0.14);color:var(--risk);">NO</span>';
-  } else if (key === 'antCapSoldered') {
-    const cls = val === 'NO' ? 'background:rgba(192,57,43,0.14);color:var(--risk);' : '';
-    el.innerHTML = val === 'N/A' ? '<span class="no-tag">N/A</span>' : `<span class="${val==='YES'?'yes-tag':'no-tag'}" style="${cls}">${escapeHtml(val)}</span>`;
-  } else if (key === 'hardLandscaping' || key === 'softLandscaping') {
-    // presence is informational, not inherently a concern either way
-    el.innerHTML = val === 'YES' ? '<span class="yes-tag">YES</span>' : '<span class="no-tag">NO</span>';
-  } else if (yesNoKeys.includes(key)) {
-    el.innerHTML = val === 'YES' ? '<span class="yes-tag">YES</span>' : '<span class="no-tag">NO</span>';
-  } else if (key === 'riskLevel') {
-    const cls = val==='HIGH'?'risk-high':val==='MEDIUM'?'risk-medium':'risk-low';
-    el.innerHTML = `<span class="risk-tag ${cls}">${escapeHtml(val)}</span>`;
-  } else if (key === 'slabEdge') {
-    el.innerHTML = val==='CLEAR' ? '<span class="no-tag">CLEAR</span>' : '<span class="yes-tag">OBSTRUCTED</span>';
-  } else if (key === 'weepHoles') {
-    el.innerHTML = val==='CLEAR' ? '<span class="no-tag">CLEAR</span>' : '<span class="yes-tag">BRIDGED</span>';
-  } else {
-    el.textContent = val;
-  }
+  // Short-choice fields (YES/NO, risk, weep holes...) are drawn as cards
+  // from reportData (see CHOICE CARDS); their .field-val is hidden and just
+  // holds the text so the cards can watch it change.
+  el.textContent = val;
 
   el.classList.add('filled', 'flash');
   setTimeout(() => el.classList.remove('flash'), 500);
@@ -3694,13 +3687,91 @@ function setFindingField(id, key, val) {
   saveDraft();
 }
 
-// Renders an activity chip label
-function activityLabel(val) {
-  if (val === 'ACTIVE')   return 'ACTIVE — live termites sighted';
-  if (val === 'INACTIVE') return 'INACTIVE — evidence only';
-  if (val === 'NONE')     return 'NONE — nothing found';
-  return 'Set activity status';
+// ── CHOICE CARDS ──────────────────────────────────────────────────────────
+// Short-choice questions (termite and borer activity, YES/NO, risk, slab
+// edge, weep holes, height) are rows of big cards, built for gloves and
+// glare. Each card wraps a visually hidden native radio: the radio is the
+// control (tap, keyboard, screen reader), and its change event saves through
+// the function the old control used: commitEdit for report fields,
+// commitFindingEdit for finding cards. Report fields keep their original
+// .field-val (hidden) as the place extraction, drafts and resets write to; a
+// MutationObserver redraws the cards from reportData whenever it changes.
+// Tone colours the picked card: bad = red, warn = amber, good = green.
+const CHOICE_SETS = {
+  activity:  [['ACTIVE', 'bad', 'Live termites seen'], ['INACTIVE', 'warn', 'Evidence, none live'], ['NONE', 'good', 'Nothing found']],
+  borer:     [['ACTIVE', 'bad', 'Fresh frass or holes'], ['INACTIVE', 'warn', 'Old holes only'], ['NONE', 'good', 'None seen']],
+  yesno:     [['YES', 'bad'], ['NO', 'good'], ['N/A', 'neutral']],
+  wantyes:   [['YES', 'good'], ['NO', 'bad'], ['N/A', 'neutral']],   // NO is the concern
+  neutral:   [['YES', 'neutral'], ['NO', 'neutral'], ['N/A', 'neutral']],
+  finding:   [['YES', 'bad'], ['NO', 'good']],
+  risk:      [['LOW', 'good'], ['MEDIUM', 'warn'], ['HIGH', 'bad']],
+  slabedge:  [['CLEAR', 'good'], ['OBSTRUCTED', 'bad']],
+  weepholes: [['CLEAR', 'good'], ['BRIDGED', 'bad']],
+  height:    [['Single storey', 'neutral'], ['Double storey', 'neutral'], ['Split level', 'neutral'], ['Three storey+', 'neutral']],
+};
+// Report fields: the set comes from the field's key, else its edit type.
+const CHOICE_SET_BY_KEY = { borerActivity: 'borer', durableNoticePresent: 'wantyes', antCapSoldered: 'wantyes', hardLandscaping: 'neutral', softLandscaping: 'neutral' };
+const CHOICE_SET_BY_TYPE = { yesno: 'yesno', yesnona: 'yesno', risk: 'risk', slabedge: 'slabedge', weepholes: 'weepholes', height: 'height', activity: 'activity' };
+
+function choiceCardsHTML(set, name, current, dataAttrs) {
+  const opts = CHOICE_SETS[set];
+  return `<div class="choice-grid" style="--cols:${opts.length === 4 ? 2 : opts.length}">${opts.map(([value, tone, desc]) => `
+    <label class="choice-card tone-${tone}">
+      <input type="radio" class="sr-only" name="${name}" value="${escapeHtml(value)}" ${dataAttrs}${current === value ? ' checked' : ''}>
+      <span class="choice-card-code">${escapeHtml(value)}</span>
+      ${desc ? `<span class="choice-card-desc">${desc}</span>` : ''}
+    </label>`).join('')}</div>`;
 }
+
+// Turns each short-choice report field into cards. Runs once, on app open.
+function buildChoiceCards() {
+  document.querySelectorAll('#reportBody .field-val[id^="f-"][onclick^="startEdit"]').forEach(el => {
+    const [, key, type] = el.getAttribute('onclick').match(/startEdit\(this,'(\w+)','(\w+)'\)/) || [];
+    const set = CHOICE_SET_BY_KEY[key] || CHOICE_SET_BY_TYPE[type];
+    if (!set) return;
+    el.removeAttribute('onclick');
+    el.classList.add('choice-source');
+    const panel = document.createElement('div');
+    panel.className = 'choice-panel';
+    panel.id = 'choices-' + key;
+    panel.dataset.set = set;
+    panel.setAttribute('role', 'radiogroup');
+    const label = getFieldLabel(el);
+    if (label) panel.setAttribute('aria-label', label.textContent.trim());
+    el.insertAdjacentElement('afterend', panel);
+    const field = el.closest('.field');
+    if (field) field.classList.add('choice-field');
+    syncChoiceCards(key);
+    new MutationObserver(() => syncChoiceCards(key)).observe(el, { childList: true, characterData: true, subtree: true });
+  });
+}
+
+function syncChoiceCards(key) {
+  const panel = document.getElementById('choices-' + key);
+  if (!panel) return;
+  const val = reportData[key] || '';
+  if (panel.firstChild && panel.dataset.value === val) return;
+  panel.dataset.value = val;
+  const hadFocus = panel.contains(document.activeElement);
+  panel.innerHTML = choiceCardsHTML(panel.dataset.set, 'choice-' + key, val, `data-key="${key}"`);
+  panel.classList.toggle('unset', !val);
+  if (hadFocus) { const c = panel.querySelector('input:checked'); if (c) c.focus({ preventScroll: true }); }
+}
+
+document.addEventListener('change', e => {
+  const input = e.target.closest && e.target.closest('.choice-card input');
+  if (!input) return;
+  const { finding, fkey, key } = input.dataset;
+  if (finding) {
+    commitFindingEdit(finding, fkey, input.value);
+    // The finding card was redrawn; keep focus on the chosen card.
+    const chosen = document.querySelector(`.choice-card input[data-finding="${finding}"][data-fkey="${fkey}"]:checked`);
+    if (chosen) chosen.focus({ preventScroll: true });
+  } else if (key) {
+    const el = document.getElementById('f-' + key);
+    if (el) commitEdit(el, key, input.value);
+  }
+});
 
 // Generates the HTML for one finding card
 function findingCardHTML(finding, index, total) {
@@ -3711,20 +3782,12 @@ function findingCardHTML(finding, index, total) {
   const showNone = act === 'NONE';
   const label = total === 1 ? 'Primary Finding' : `Finding ${index + 1}`;
 
-  const fv = (key, type, display) => {
+  const fv = (key, type) => {
     const val = finding[key];
-    let inner;
-    if (key === 'structuralConcern') {
-      inner = val === 'YES'
-        ? '<span class="risk-tag risk-high">YES — refer to a builder or engineer</span>'
-        : val === 'NO' ? '<span class="no-tag">NO</span>' : '—';
-    } else if (key === 'nestLocated') {
-      inner = val === 'YES' ? '<span class="yes-tag">YES</span>' : val === 'NO' ? '<span class="no-tag">NO</span>' : '—';
-    } else {
-      inner = val ? escapeHtml(val) : '—';
+    if (type === 'yesno') {
+      return `<div class="choice-panel${val ? '' : ' unset'}" role="radiogroup">${choiceCardsHTML('finding', `${key}-${id}`, val, `data-finding="${id}" data-fkey="${key}"`)}</div>`;
     }
-    const filled = val ? ' filled' : '';
-    return `<div class="field-val${filled}" onclick="startFindingEdit('${id}','${key}','${type}')">${inner}</div>`;
+    return `<div class="field-val${val ? ' filled' : ''}" onclick="startFindingEdit('${id}','${key}','${type}')">${val ? escapeHtml(val) : '—'}</div>`;
   };
 
   return `
@@ -3735,13 +3798,11 @@ function findingCardHTML(finding, index, total) {
         ${total > 1 ? `<button class="finding-remove-btn" onclick="removeFinding('${id}')" title="Remove this finding">✕</button>` : ''}
       </div>
       <div class="finding-card-body">
-        <!-- Activity gate -->
-        <div class="findings-gate" style="margin:8px 14px 0">
-          <div class="findings-gate-question">
-            <div class="field-label">Termite Activity Status</div>
-            <div class="field-val findings-gate-val${act ? ' filled' : ''}" onclick="startFindingEdit('${id}','termiteActivity','activity')">${act ? `<span class="risk-tag ${act==='ACTIVE'?'risk-high':act==='INACTIVE'?'risk-medium':'risk-low'}">${escapeHtml(activityLabel(act))}</span>` : '—'}</div>
-          </div>
-          ${!act ? `<p class="findings-gate-hint">Answer this question to continue. Active = live termites sighted. Inactive = evidence only. None = nothing found.</p>` : ''}
+        <!-- Activity gate: the question every finding must answer -->
+        <div class="findings-gate choice-panel${act ? '' : ' unset'}" role="radiogroup" aria-label="Termite Activity Status">
+          <div class="field-label">Termite Activity Status</div>
+          ${choiceCardsHTML('activity', 'activity-' + id, act, `data-finding="${id}" data-fkey="termiteActivity"`)}
+          ${!act ? `<p class="findings-gate-hint">Pick one to continue.</p>` : ''}
         </div>
         ${showDetails ? `
         <div class="findings-details" style="display:block">
@@ -3749,8 +3810,8 @@ function findingCardHTML(finding, index, total) {
             <div class="field"><div class="field-label">Species / Genus</div>${fv('species','specieslist')}</div>
             <div class="field field-wide"><div class="field-label">Damage Description (location, extent, what's visible — no severity opinion)</div>${fv('damageDescription','text')}</div>
             <div class="field"><div class="field-label">Location of Activity</div>${fv('activityLocation','text')}</div>
-            <div class="field"><div class="field-label">Workings / Nest Located</div>${fv('nestLocated','yesno')}</div>
-            <div class="field"><div class="field-label">Refer to a Builder or Engineer?</div>${fv('structuralConcern','yesno')}</div>
+            <div class="field choice-field"><div class="field-label">Workings / Nest Located</div>${fv('nestLocated','yesno')}</div>
+            <div class="field choice-field"><div class="field-label">Refer to a Builder or Engineer?</div>${fv('structuralConcern','yesno')}</div>
           </div>
           ${act === 'INACTIVE' ? `<div class="inactive-reminder" style="display:flex"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span>Inactive workings can mean termites have temporarily abandoned the area, not that the risk is gone. Continued, regular inspections remain essential.</span></div>` : ''}
           ${finding.structuralConcern === 'YES' ? `<div class="warn-note" style="margin:0 0 10px"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Referral recorded. The PDF recommends a licensed builder or engineer assess this damage.</div>` : ''}
@@ -3784,44 +3845,11 @@ function renderFindingsUI() {
 // Called when a field inside a finding card is tapped
 let activeFindingEdit = null;
 
-function openActivitySheet(findingId) {
-  activeFindingEdit = { findingId, key: 'termiteActivity' };
-  const overlay = document.getElementById('activitySheetOverlay');
-  if (overlay) overlay.classList.add('open');
-}
-
-function closeActivitySheet() {
-  const overlay = document.getElementById('activitySheetOverlay');
-  if (overlay) overlay.classList.remove('open');
-  activeFindingEdit = null;
-}
-
-function commitFromSheet(value) {
-  if (!activeFindingEdit) return;
-  const { findingId } = activeFindingEdit;
-  closeActivitySheet();
-  commitFindingEdit(findingId, 'termiteActivity', value);
-}
-
 function startFindingEdit(findingId, key, type) {
   activeFindingEdit = { findingId, key };
 
   const finding = getFindings().find(f => f.id === findingId);
   if (!finding) return;
-
-  // Activity status → open the persistent bottom sheet
-  if (type === 'activity') {
-    openActivitySheet(findingId);
-    return;
-  }
-
-  // For yesno fields, toggle directly
-  if (type === 'yesno') {
-    const cur = finding[key];
-    const next = cur === 'YES' ? 'NO' : 'YES';
-    commitFindingEdit(findingId, key, next);
-    return;
-  }
 
   // For species, show a dropdown select
   if (type === 'specieslist') {
@@ -4150,12 +4178,6 @@ function startEdit(el, key, type) {
 
   const cur = reportData[key] || '';
   const OPTIONS = {
-    yesno:       ['YES','NO','N/A'],
-    yesnona:     ['YES','NO','N/A'],
-    activity:    ['ACTIVE','INACTIVE','NONE'],
-    risk:        ['LOW','MEDIUM','HIGH'],
-    slabedge:    ['CLEAR','OBSTRUCTED'],
-    weepholes:   ['CLEAR','BRIDGED'],
     era:         ['Pre-1920s','1920s-1940s','1945-1965','1965-1985','1985-2003','Post-2003'],
     standard:    ['AS 3660.1-2014','AS 3660.2-2017','AS 3660.3-2014','AS 4349.0-2007','AS 4349.1-2007','AS 4349.3-2010'],
     structuretype: [
@@ -4193,12 +4215,6 @@ function startEdit(el, key, type) {
       'Flat membrane',
       'Mixed',
       'Other',
-    ],
-    height: [
-      'Single storey',
-      'Double storey',
-      'Split level',
-      'Three storey+',
     ],
     facadedirection: [
       'North',
@@ -7668,6 +7684,7 @@ function setAI(state, text) {
   // popover closed, so nobody taps Extract twice or thinks it failed.
   const busy = state === 'thinking';
   document.body.classList.toggle('ai-busy', busy);
+  updateVoiceHud();
   const busyText = document.getElementById('aiBusyText');
   if (busyText && busy) busyText.textContent = text;
 }
