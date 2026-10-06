@@ -555,6 +555,7 @@
         </svg>
         <span class="progress-ring-text" id="progressRingText">0%</span>
       </div>
+      <span class="progress-ring-label" id="progressRingLabel" style="display:none">Complete</span>
       <div class="profile-menu-wrap" id="profileMenuWrap">
         <button class="header-icon-btn profile-btn" id="profileBtn" onclick="toggleProfileMenu()" aria-label="Account" title="Account">
           <span id="profileInitials">?</span>
@@ -1659,7 +1660,7 @@
         </div>
         <div class="job-field">
           <div class="job-field-label">Fee</div>
-          <input class="job-input" id="agreementFee" placeholder="e.g. $330 inc GST" oninput="refreshAgreementPreview()">
+          <input class="job-input" id="agreementFee" placeholder="e.g. $330 inc GST" oninput="onAgreementFeeInput()">
         </div>
       </div>
       <div class="job-field">

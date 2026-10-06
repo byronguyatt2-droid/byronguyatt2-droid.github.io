@@ -696,6 +696,13 @@ header {
   100% { transform: scale(1); }
 }
 
+.progress-ring-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
+  margin-left: -2px;
+}
+
 .progress-ring-text {
   position: absolute;
   font-size: 7px;
@@ -1306,12 +1313,6 @@ header {
 .saved-item-pending {
   color: var(--yellow);
   font-weight: 700;
-}
-.saved-item-pct {
-  font-size: 10px;
-  font-family: 'JetBrains Mono', monospace;
-  color: var(--text2);
-  font-weight: 600;
 }
 
 .saved-item-delete {
@@ -2377,13 +2378,17 @@ body.report-locked #micDock { opacity: 0.4; }
 .issue-quote-answer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text2); }
 .issue-quote-answer.good span { color: var(--green); font-weight: 600; }
 .issue-quote-answer.wait span, .issue-quote-answer.warn span { color: var(--yellow); font-weight: 600; }
-.saved-item-issued {
+.saved-item-status {
   padding: 1px 6px;
   border-radius: 5px;
-  background: rgba(40,148,72,0.12);
-  color: var(--green);
   font-weight: 700;
+  background: var(--border);
+  color: var(--text2);
 }
+.saved-item-status.ready { background: rgba(13,148,136,0.12); color: var(--accent); }
+.saved-item-status.sent { background: rgba(212,146,10,0.12); color: var(--yellow); }
+.saved-item-status.complete { background: rgba(40,148,72,0.12); color: var(--green); }
+.saved-item-status.amending { background: rgba(212,146,10,0.12); color: var(--yellow); }
 
 /* Pre-inspection agreement */
 .agreement-banner {
