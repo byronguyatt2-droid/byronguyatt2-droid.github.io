@@ -11,6 +11,18 @@ The prompt as it stood when the bench was added: `SYSTEM_PROMPT` in `js/app.js` 
 | house-test-1 | 3 | 91.4% (384/420) | 94%, 90%, 91% | 2, 3, 3 |
 | house-test-2 | 3 | 93.3% (417/447) | 94%, 91%, 95% | 1, 2, 1 |
 
+The same prompt on the five written cases added on 2026-10-06 (tag `baseline-new`, run from a worktree of `origin/main` at `53d2aa7` with the new cases copied in):
+
+| Case | Runs | Mean | Per run | Weight-3 fails per run |
+|---|---|---|---|---|
+| slab-barrier | 3 | 95.2% (277/291) | 94%, 96%, 96% | 0, 0, 0 |
+| skirting-active | 3 | 98.1% (303/309) | 98%, 98%, 98% | 0, 0, 0 |
+| subfloor-followup | 3 | 96.3% (312/324) | 96%, 96%, 96% | 1, 1, 1 |
+| borers-rot | 3 | 96.9% (282/291) | 97%, 97%, 97% | 1, 1, 1 |
+| rambling-nest | 3 | 88.9% (264/297) | 89%, 89%, 89% | 3, 3, 3 |
+
+Checks the old prompt failed on them: `slab-barrier` existing-system-other-brand 0/3 (the key is new), no-obstructions 0/3, no-hindered-areas 2/3; `skirting-active` hindered-roof-only 0/3 (listed the exterior as a restricted area); `subfloor-followup` findings-count-zero 0/3 (a NONE card for one clean area), moisture-readings-empty 0/3; `borers-rot` no-hindered-areas 0/3 (every inspected area written into the restricted-areas row); `rambling-nest` finding-damage-nest-hedged 0/3 and finding-nest-not-located 0/3 (a "possible nest" became nestLocated YES), treatment-type-stump 0/3 and treatment-type-no-product 0/3 (the "Chemical Barrier Treatment" fallback replaced the stump colony).
+
 House test 2 leaked into the prompt (its mishearings were added to the homophone list after the test), so it flatters the prompt. See `docs/handover/extraction.md` section 6.
 
 ## Checks that failed at least once
