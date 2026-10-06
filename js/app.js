@@ -7406,6 +7406,20 @@ function toggleA11y(className, btnId, storageKey) {
   try { localStorage.setItem(storageKey, on ? '1' : '0'); } catch (e) {}
 }
 
+// Dark screen: for subfloors, roof voids and night work. The header's moon
+// button and the Accessibility setting are the same switch.
+function toggleDarkScreen(on) {
+  if (typeof on !== 'boolean') on = !document.body.classList.contains('dark-screen');
+  document.body.classList.toggle('dark-screen', on);
+  const toggle = document.getElementById('toggleDarkScreen');
+  if (toggle) toggle.classList.toggle('on', on);
+  const btn = document.getElementById('darkScreenBtn');
+  if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', on ? '#06090D' : '#D6E4EF');
+  try { localStorage.setItem('korva_a11y_dark', on ? '1' : '0'); } catch (e) {}
+}
+
 const COLOUR_VISION_ACCENTS = {
   none:          { accent: '#0D9488', accent2: '#2DD4C0', accent3: '#0A6E65', rgb: '13,148,136' }, // teal (default)
   protanopia:    { accent: '#4d8aff', accent2: '#7aa8ff', accent3: '#2f5fd6', rgb: '77,138,255' }, // blue — stays distinct from lime/amber for red-green deficiency
@@ -7427,6 +7441,7 @@ function restoreA11ySettings() {
     const textSize = localStorage.getItem('korva_a11y_textsize');
     if (textSize && textSize !== 'normal') setTextSize(textSize);
 
+    if (localStorage.getItem('korva_a11y_dark') === '1') toggleDarkScreen(true);
     if (localStorage.getItem('korva_a11y_contrast') === '1') {
       document.body.classList.add('high-contrast');
       document.getElementById('toggleHighContrast').classList.add('on');
