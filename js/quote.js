@@ -961,10 +961,7 @@ function drawPdfDocCover(doc, company, { kicker, title, date, left, right, compa
   let rightH = 0;
   for (let i = 0; i < rightHs.length; i += 2) rightH += Math.max(rightHs[i], rightHs[i + 1] || 0);
   const cardH = Math.max(leftH, rightH) + 7;
-  doc.setFillColor(...C.rowAlt); doc.rect(M, cardY, CW, cardH, 'F');
-  doc.setFillColor(...C.ink); doc.rect(M, cardY, CW, 0.35, 'F');
-  doc.setFillColor(...C.rule); doc.rect(M, cardY + cardH - 0.3, CW, 0.3, 'F');
-  doc.rect(rightX - gutter / 2, cardY + 5, 0.25, cardH - 10, 'F');
+  doc.setFillColor(...C.rowAlt); doc.roundedRect(M, cardY, CW, cardH, 2.5, 2.5, 'F');
   let ly = cardY + 7.5;
   left.forEach(([label, val], i) => { drawPdfField(doc, label, val, M + 6, ly, leftW - 3); ly += leftHs[i]; });
   let ry = cardY + 7.5;
@@ -1005,12 +1002,10 @@ function drawPdfNumberedTitle(doc, y, title, num) {
   return y + 15;
 }
 
-// A table's heading row: an ink rule over it and a hairline under it,
-// instead of a solid dark bar, so tables print light.
+// A table's heading row: a pale teal band, so tables print light.
 function drawPdfTableHeadRule(doc, x, y, w) {
   const C = PDF_COLORS;
-  doc.setFillColor(...C.ink); doc.rect(x, y, w, 0.5, 'F');
-  doc.setFillColor(...C.rule); doc.rect(x, y + 7.7, w, 0.3, 'F');
+  doc.setFillColor(...C.accentLight); doc.rect(x, y, w, 8, 'F');
 }
 
 // The line items table: description and detail, qty, unit price, amount.
@@ -1078,7 +1073,7 @@ function drawPdfTotalsBox(doc, y, rows, [finalLabel, finalValue]) {
     doc.setTextColor(...C.ink); doc.text(formatAUD(val), bx + boxW - 4, ty, { align: 'right' });
     ty += 6.5;
   });
-  doc.setFillColor(...C.ink); doc.rect(bx, ty - 3, boxW, 10, 'F');
+  doc.setFillColor(...C.accentDark); doc.rect(bx, ty - 3, boxW, 10, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...C.white);
   doc.text(finalLabel, bx + 5, ty + 3.4);
   doc.text(formatAUD(finalValue), bx + boxW - 4, ty + 3.4, { align: 'right' });
@@ -1180,7 +1175,7 @@ function buildQuotePDF(q) {
   y += 3;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...C.ink);
   pdfTracked(doc, 'ACCEPTANCE', M, y + 3, { cs: 0.6 });
-  doc.setFillColor(...C.ink); doc.rect(M, y + 5, CW, 0.5, 'F');
+  doc.setFillColor(...C.accent); doc.rect(M, y + 5, CW, 0.5, 'F');
   y += 11;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
   doc.text(doc.splitTextToSize(`I accept this quote of ${formatAUD(totals.total)}${q.gst !== false ? ' (inc GST)' : ''} and authorise the work described above.`, CW), M, y);

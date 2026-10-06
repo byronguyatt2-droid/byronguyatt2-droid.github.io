@@ -666,7 +666,7 @@ function buildTreatmentCertificatePDF(q) {
   // the signature on the right.
   ensure(t.supervisor ? 34 : 30);
   y += 3;
-  doc.setFillColor(...C.ink); doc.rect(M, y, CW, 0.5, 'F');
+  doc.setFillColor(...C.accent); doc.rect(M, y, CW, 0.5, 'F');
   y += 19;
   const colW = (CW - 16) / 3;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.ink);

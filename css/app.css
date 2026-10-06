@@ -2,12 +2,13 @@
 
 :root {
   --bg:        #D6E4EF;
-  /* Rugged blocks: the heavy frame round each section and field, and the
-     dashed colour of a field still waiting for an answer. Safety amber is
-     only used on dark (11.5:1 on black but 1.8:1 on white), so daylight
-     uses a near-black frame and dark amber (5.9:1). */
-  --frame:     #0D1117;
-  --need:      #8A5A00;
+  /* Daylight keeps the intro's look: white cards with a soft teal edge.
+     --frame is the field border, --card-edge the edge of each section
+     card. The heavy black frames and amber dashes only appear in the dark
+     screen (body.dark-screen), where safety amber reads 11.5:1 on black. */
+  --frame:     #C8D5E3;
+  --need:      #C8D5E3;
+  --card-edge: rgba(13,148,136,0.22);
   --surface:   #FFFFFF;
   /* Room the floating mic button needs at the foot of a scroll area:
      its 58px button, 20px from the bottom, plus a gap. */
@@ -73,7 +74,7 @@ body.dark-screen {
 }
 body.dark-screen.high-contrast { --border: #5B6B7C; --border2: #7A8C9E; --text2: #D4DEE7; --text3: #B4C2CF; }
 body.dark-screen .choice-panel { box-shadow: inset 0 0 0 1px var(--border2); }
-body.dark-screen .findings-gate.unset { box-shadow: inset 0 0 0 3px var(--tone-warn); }
+body.dark-screen .findings-gate.unset { box-shadow: inset 0 0 0 2px var(--tone-warn); }
 body.dark-screen .risk-high   { background: rgba(255,90,79,0.16);  color: #FF8A80; border-color: rgba(255,90,79,0.5); }
 body.dark-screen .risk-medium { background: rgba(255,176,0,0.14);  color: #FFC53D; border-color: rgba(255,176,0,0.5); }
 body.dark-screen .risk-low    { background: rgba(47,210,122,0.14); color: #5BE39A; border-color: rgba(47,210,122,0.5); }
@@ -82,8 +83,17 @@ body.dark-screen .section-tabs { background: var(--surface2); border-bottom-colo
 body.dark-screen .report-header { border-bottom-color: var(--border); }
 body.dark-screen .report-title h2 { color: var(--text); }
 body.dark-screen .report-body { background: var(--bg); }
+body.dark-screen .report-section { border: 3px solid var(--frame); border-radius: 6px; box-shadow: none; }
 body.dark-screen .section-header { background: #000000; border-bottom: 2px solid var(--frame); }
-body.dark-screen .drawer-subhead { background: #000000; box-shadow: inset 0 -2px 0 var(--frame); }
+body.dark-screen .section-header h3, body.dark-screen .section-header h3 .sec-num { color: #FFFFFF; }
+body.dark-screen .section-header .sec-badge { background: transparent; border-color: currentColor; }
+body.dark-screen .section-header .sec-badge.done    { color: #5BE39A; }
+body.dark-screen .section-header .sec-badge.partial { color: #FFC53D; }
+body.dark-screen .section-header .sec-badge.empty   { color: #B4C2CF; }
+body.dark-screen #jobPanel:not(.menu-page-active) { border: 3px solid var(--frame); border-radius: 6px; }
+body.dark-screen .field-val, body.dark-screen #jobPanelBody .job-input, body.dark-screen #reportBody .job-input { border-width: 2px; border-radius: 4px; }
+body.dark-screen .field-val:not(.filled):not(.choice-source) { border-style: dashed; }
+body.dark-screen .drawer-subhead { background: #000000; color: #FFFFFF; box-shadow: inset 0 -2px 0 var(--frame); }
 body.dark-screen .field-val, body.dark-screen #jobPanelBody .job-input, body.dark-screen #reportBody .job-input { border-color: #5B6B7C; background: #000000; }
 body.dark-screen .field-val:not(.filled):not(.choice-source) { border-color: var(--need); }
 body.dark-screen .field-val.filled { border-color: #E8EEF4; background: #000000; }
@@ -298,11 +308,11 @@ body.large-touch .saved-item-delete { width: 44px; height: 44px; }
 .ob-step {
   width: 28px; height: 4px;
   border-radius: 99px;
-  background: rgba(232,240,246,0.2);
+  background: #C8D5E3;
   transition: background 0.3s, width 0.3s;
 }
-.ob-step.active { background: #2DD4BF; width: 44px; }
-.ob-step.done   { background: rgba(45,212,191,0.55); }
+.ob-step.active { background: #0D9488; width: 44px; }
+.ob-step.done   { background: rgba(13,148,136,0.45); }
 .ob-panel { animation: menuFadeIn 0.35s cubic-bezier(0.22,1,0.36,1); }
 /* "Your business" opens the sign-up form over the app (openBusinessForm) */
 #onboardScreen.ob-edit { position: fixed; inset: 0; z-index: 900; }
@@ -350,8 +360,8 @@ body.large-touch .saved-item-delete { width: 44px; height: 44px; }
   margin-top: 1px;
 }
 /* Sign-in, sign-up and business setup: the first thing a business owner
-   sees, so it looks like the paid product it is. A deep ink backdrop with a
-   teal glow, the brand in white, and a crisp white card. */
+   sees. Same look as the intro screen (soft blue with a teal glow), with a
+   crisp white card. */
 #authScreen {
   min-height: 100vh;
   min-height: 100dvh;
@@ -363,16 +373,15 @@ body.large-touch .saved-item-delete { width: 44px; height: 44px; }
 }
 #authScreen, #onboardScreen {
   background:
-    radial-gradient(120% 55% at 50% -12%, rgba(13,148,136,0.38), rgba(13,148,136,0) 62%),
-    linear-gradient(180deg, #0B141C 0%, #070B10 100%);
-  color-scheme: dark;
+    radial-gradient(90% 45% at 50% 18%, rgba(13,148,136,0.16), rgba(13,148,136,0) 70%),
+    #D6E4EF;
 }
 .auth-wrap { width:100%; max-width:400px; display:flex; flex-direction:column; align-items:center; gap:22px; }
 .auth-logo { display:flex; align-items:center; gap:11px; margin-bottom:-6px; }
 .auth-logo-icon { width:36px; height:36px; background:linear-gradient(145deg, #14B8A6, #0A7A70); border-radius:10px; display:flex; align-items:center; justify-content:center; color:white; box-shadow:0 0 0 1px rgba(255,255,255,0.12) inset, 0 6px 22px rgba(13,148,136,0.45); }
-.auth-logo-name { font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:800; letter-spacing:1.5px; color:#F4F8FB; }
-.auth-tagline { font-size:14px; line-height:1.5; color:rgba(232,240,246,0.7); text-align:center; max-width:300px; margin:0; }
-.auth-card { width:100%; background:#FFFFFF; color:#0D1117; border:1px solid rgba(255,255,255,0.6); border-radius:20px; padding:28px 24px 22px; box-shadow:0 1px 0 rgba(255,255,255,0.08) inset, 0 28px 64px rgba(0,0,0,0.5); display:flex; flex-direction:column; gap:16px; color-scheme: light;
+.auth-logo-name { font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:800; letter-spacing:-0.3px; color:#0D1117; }
+.auth-tagline { font-size:14px; line-height:1.5; color:#3D5166; text-align:center; max-width:300px; margin:0; }
+.auth-card { width:100%; background:#FFFFFF; color:#0D1117; border:1px solid rgba(13,148,136,0.22); border-radius:20px; padding:28px 24px 22px; box-shadow:0 12px 36px rgba(13,40,60,0.14); display:flex; flex-direction:column; gap:16px; color-scheme: light;
   /* The card stays light in dark mode too: reset the tokens inside it. */
   --surface:#FFFFFF; --surface2:#F4F7FA; --text:#0D1117; --text2:#3D5166; --text3:#566A7F; --border:#D8E2ED; --border2:#C8D5E3; --accent2:#0A7A70; }
 .auth-title { font-family:'Space Grotesk',sans-serif; font-size:23px; font-weight:700; color:#0D1117; letter-spacing:-0.4px; margin:0; }
@@ -399,8 +408,8 @@ body.large-touch .saved-item-delete { width: 44px; height: 44px; }
 .auth-link { background:none; border:none; color:#0A7A70; font-family:'Inter',sans-serif; font-size:14px; font-weight:600; cursor:pointer; padding:0 6px; transition:color 0.15s; min-height:44px; }
 .auth-link:hover { color:#065A53; }
 .auth-badge { width:52px; height:52px; margin:0 auto 2px; border-radius:16px; background:rgba(13,148,136,0.1); color:#0A7A70; display:flex; align-items:center; justify-content:center; }
-.auth-footer { font-size: 12px; color:rgba(232,240,246,0.6); text-align:center; line-height:1.6; margin:0; }
-.auth-footer a { color:rgba(232,240,246,0.85); text-decoration:underline; text-underline-offset:2px; }
+.auth-footer { font-size: 12px; color:#566A7F; text-align:center; line-height:1.6; margin:0; }
+.auth-footer a { color:#3D5166; text-decoration:underline; text-underline-offset:2px; }
 /* Legal links: a 44px tall tap area without moving the text around them. */
 .auth-footer a, .menu-footer a, .drawer-legal a { display:inline-block; padding:14px 2px; margin:-14px 0; }
 
@@ -1075,10 +1084,10 @@ header {
   transition: border-color 0.15s, box-shadow 0.15s;
   min-height: 44px;
 }
-/* Rugged where the inspector works: Job details gets the heavy frame.
-   Sign-up, account, billing and quote keep the lighter premium inputs. */
-#jobPanel:not(.menu-page-active) { border: 3px solid var(--frame); border-radius: 6px; }
-#jobPanelBody .job-input, #reportBody .job-input { border: 2px solid var(--frame); border-radius: 4px; font-size: 15px; min-height: 52px; }
+/* Job details: big fields for gloves, in the same soft card style as the
+   rest of the app (the heavy frame is dark screen only). */
+#jobPanel:not(.menu-page-active) { border: 1px solid var(--card-edge); border-radius: 16px; }
+#jobPanelBody .job-input, #reportBody .job-input { border: 1.5px solid var(--frame); border-radius: 10px; font-size: 15px; min-height: 52px; }
 
 .job-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15); background: var(--surface); }
 .saved-search-input { margin-bottom: 10px; }
@@ -1114,11 +1123,11 @@ header {
 .drawer-subhead {
   margin: 16px 0 12px;
   padding: 8px 10px;
-  border-radius: 4px;
-  background: #0D1117;
+  border-radius: 8px;
+  background: rgba(var(--accent-rgb),0.08);
   font-size: 12px;
   font-weight: 800;
-  color: #FFFFFF;
+  color: var(--accent2);
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -2061,14 +2070,15 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
   padding: 16px 16px;
   padding-bottom: calc(var(--mic-clearance) + 16px);
   display: block;
-  background: #C8D8E8;
+  background: var(--bg);
 }
 
 /* Report sections */
 .report-section {
   background: var(--surface);
-  border: 3px solid var(--frame);
-  border-radius: 6px;
+  border: 1px solid var(--card-edge);
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(13,40,60,0.08);
   overflow: hidden;
   margin-bottom: 14px;
   animation: sectionIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
@@ -2081,7 +2091,8 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
 
 .section-header {
   padding: 14px 16px;
-  background: #0D1117;
+  background: linear-gradient(135deg, rgba(var(--accent-rgb),0.07), rgba(var(--accent-rgb),0) 70%);
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2093,14 +2104,13 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
   font-weight: 700;
   flex: 1;
   letter-spacing: -0.2px;
-  color: #FFFFFF;
+  color: var(--text);
 }
 
 .section-header h3 .sec-num {
-  color: #FFFFFF;
+  color: var(--accent2);
   font-weight: 800;
   margin-right: 5px;
-  opacity: 0.7;
 }
 
 .sec-badge {
@@ -2113,12 +2123,7 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
 
 .sec-badge.done    { background: rgba(45,160,80,0.1); color: #2A8F4A; border: 1px solid rgba(45,160,80,0.25); }
 .sec-badge.partial { background: rgba(255,182,72,0.1); color: var(--yellow-text); border: 1px solid rgba(255,182,72,0.2); }
-.sec-badge.empty   { background: transparent; color: var(--text3); border: 1px solid rgba(255,255,255,0.06); }
-/* On the black title band */
-.section-header .sec-badge { background: transparent; border-color: currentColor; }
-.section-header .sec-badge.done    { color: #5BE39A; }
-.section-header .sec-badge.partial { color: #FFC53D; }
-.section-header .sec-badge.empty   { color: #B4C2CF; }
+.sec-badge.empty   { background: transparent; color: var(--text3); border: 1px solid var(--border2); }
 
 /* Next section button — appears at the bottom of a completed section */
 .next-section-btn {
@@ -2326,8 +2331,8 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
   font-weight: 500;
   padding: 11px 12px;
   background: var(--surface2);
-  border: 2px solid var(--frame);
-  border-radius: 4px;
+  border: 1.5px solid var(--frame);
+  border-radius: 10px;
   color: var(--text3);
   min-height: 52px;
   display: flex;
@@ -2337,9 +2342,9 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
   line-height: 1.4;
 }
 
-.field-val:not(.filled):not(.choice-source) { border-style: dashed; border-color: var(--need); }
+.field-val:not(.filled):not(.choice-source) { border-color: var(--need); }
 .field-val.filled {
-  border-color: var(--frame);
+  border-color: rgba(var(--accent-rgb),0.4);
   background: var(--surface);
   color: var(--text);
   font-weight: 600;
@@ -2863,19 +2868,34 @@ body.report-locked #micDock { opacity: 0.4; }
 }
 .choice-field { grid-column: 1 / -1; }
 .choice-source { display: none !important; }
+/* Daylight: white cards on a light panel, each with a coloured edge, and
+   the picked one filled in its colour. The dark screen swaps in the black
+   panel (body.dark-screen .choice-panel below). */
 .choice-panel {
+  --act-panel:   var(--surface2);
+  --act-steel:   var(--border2);
+  --act-ink:     var(--text);
+  --act-dim:     var(--text3);
+  --act-card:    var(--surface);
+  --tone-bad:    #D7261E;
+  --tone-warn:   #FFB000;
+  --tone-good:   #2FD27A;
+  --tone-neutral:var(--accent);
+  padding: 6px;
+  background: var(--act-panel);
+  border-radius: 12px;
+}
+body.dark-screen .choice-panel {
   --act-panel:   #10161D;
   --act-steel:   #5B6B7C;
   --act-ink:     #E8EEF4;
   --act-dim:     #A9B6C3;
-  --tone-bad:    #D7261E;
-  --tone-warn:   #FFB000;
-  --tone-good:   #2FD27A;
+  --act-card:    transparent;
   --tone-neutral:#E8EEF4;
-  padding: 6px;
-  background: var(--act-panel);
   border-radius: 6px;
 }
+body.dark-screen .choice-card { border-width: 3px; border-radius: 4px; }
+body.dark-screen .choice-card.tone-neutral { --tone-ink: #10161D; }
 .choice-grid {
   display: grid;
   grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
@@ -2889,8 +2909,9 @@ body.report-locked #micDock { opacity: 0.4; }
   gap: 4px;
   min-height: 60px;
   padding: 8px 6px 8px 11px;
-  border: 3px solid var(--act-steel);
-  border-radius: 4px;
+  border: 1.5px solid var(--act-steel);
+  border-radius: 10px;
+  background: var(--act-card);
   color: var(--act-ink);
   cursor: pointer;
   user-select: none;
@@ -2913,13 +2934,14 @@ body.report-locked #micDock { opacity: 0.4; }
   color: var(--act-dim);
 }
 .choice-card::before {
-  content: ''; position: absolute; left: -3px; top: -3px; bottom: -3px; width: 6px;
-  border-radius: 4px 0 0 4px; background: var(--tone);
+  content: ''; position: absolute; left: -1.5px; top: -1.5px; bottom: -1.5px; width: 5px;
+  border-radius: 10px 0 0 10px; background: var(--tone);
 }
+body.dark-screen .choice-card::before { left: -3px; top: -3px; bottom: -3px; width: 6px; border-radius: 4px 0 0 4px; }
 .choice-card.tone-bad     { --tone: var(--tone-bad);     --tone-ink: #FFFFFF; }
 .choice-card.tone-warn    { --tone: var(--tone-warn);    --tone-ink: #10161D; }
 .choice-card.tone-good    { --tone: var(--tone-good);    --tone-ink: #10161D; }
-.choice-card.tone-neutral { --tone: var(--tone-neutral); --tone-ink: #10161D; }
+.choice-card.tone-neutral { --tone: var(--tone-neutral); --tone-ink: #FFFFFF; }
 .choice-card.tone-neutral::before { background: var(--act-steel); }
 .choice-card:has(input:checked),
 .choice-card.active {
@@ -2930,7 +2952,7 @@ body.report-locked #micDock { opacity: 0.4; }
 .choice-card:has(input:checked) .choice-card-desc { color: var(--tone-ink); }
 .choice-card:has(input:checked)::before,
 .choice-card.active::before { display: none; }
-button.choice-card { font: inherit; background: transparent; text-align: left; }
+button.choice-card { font: inherit; background: var(--act-card); text-align: left; }
 button.choice-card:focus-visible,
 .choice-card:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
 body.large-touch .choice-card { min-height: 72px; }
@@ -2962,7 +2984,7 @@ body.large-touch .findings-gate .choice-card { min-height: 88px; }
   margin-top: 8px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--tone-warn);
+  color: var(--yellow-text);
 }
 
 /* Findings details reveal animation */
