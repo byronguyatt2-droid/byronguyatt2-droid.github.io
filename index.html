@@ -41,18 +41,19 @@
       <div class="auth-logo-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="4" r="2" fill="currentColor"/></svg></div>
       <div class="auth-logo-name">SAYON</div>
     </div>
+    <p class="auth-tagline">Timber pest reports, quotes and certificates, finished on site.</p>
 
     <!-- Sign In -->
     <div class="auth-card" id="authSignIn">
       <h2 class="auth-title">Welcome back</h2>
       <p class="auth-subtitle">Sign in to your SAYON account</p>
       <div class="auth-field">
-        <label class="auth-label">Email</label>
+        <label class="auth-label" for="siEmail">Email</label>
         <input class="auth-input" id="siEmail" type="email" placeholder="you@company.com" autocomplete="email">
       </div>
       <div class="auth-field">
-        <label class="auth-label">Password</label>
-        <input class="auth-input" id="siPassword" type="password" placeholder="Your password" autocomplete="current-password">
+        <label class="auth-label" for="siPassword">Password</label>
+        <div class="auth-pass"><input class="auth-input" id="siPassword" type="password" placeholder="Your password" autocomplete="current-password"><button type="button" class="auth-reveal" onclick="toggleAuthReveal(this)" aria-label="Show password" aria-pressed="false">Show</button></div>
       </div>
       <div class="auth-error" id="siError"></div>
       <button class="auth-btn" id="siBtn" onclick="signIn()">Sign In</button>
@@ -67,20 +68,20 @@
       <h2 class="auth-title">Create your account</h2>
       <p class="auth-subtitle">Set up SAYON for your business</p>
       <div class="auth-field">
-        <label class="auth-label">Your Name</label>
+        <label class="auth-label" for="suName">Your Name</label>
         <input class="auth-input" id="suName" type="text" placeholder="e.g. Luke Smith" autocomplete="name">
       </div>
       <div class="auth-field">
-        <label class="auth-label">Business Name</label>
+        <label class="auth-label" for="suBusiness">Business Name</label>
         <input class="auth-input" id="suBusiness" type="text" placeholder="e.g. ABC Pest Control">
       </div>
       <div class="auth-field">
-        <label class="auth-label">Email</label>
+        <label class="auth-label" for="suEmail">Email</label>
         <input class="auth-input" id="suEmail" type="email" placeholder="you@company.com" autocomplete="email">
       </div>
       <div class="auth-field">
-        <label class="auth-label">Password</label>
-        <input class="auth-input" id="suPassword" type="password" placeholder="Min. 8 characters" autocomplete="new-password">
+        <label class="auth-label" for="suPassword">Password</label>
+        <div class="auth-pass"><input class="auth-input" id="suPassword" type="password" placeholder="Min. 8 characters" autocomplete="new-password"><button type="button" class="auth-reveal" onclick="toggleAuthReveal(this)" aria-label="Show password" aria-pressed="false">Show</button></div>
       </div>
       <div class="auth-error" id="suError"></div>
       <button class="auth-btn" id="suBtn" onclick="signUp()">Create Account</button>
@@ -94,7 +95,7 @@
       <h2 class="auth-title">Reset password</h2>
       <p class="auth-subtitle">We'll send a reset link to your email</p>
       <div class="auth-field">
-        <label class="auth-label">Email</label>
+        <label class="auth-label" for="fpEmail">Email</label>
         <input class="auth-input" id="fpEmail" type="email" placeholder="you@company.com">
       </div>
       <div class="auth-error" id="fpError"></div>
@@ -109,12 +110,12 @@
       <h2 class="auth-title">Set a new password</h2>
       <p class="auth-subtitle">Choose a new password for your SAYON account</p>
       <div class="auth-field">
-        <label class="auth-label">New Password</label>
-        <input class="auth-input" id="rpPassword" type="password" placeholder="Min. 8 characters" autocomplete="new-password">
+        <label class="auth-label" for="rpPassword">New Password</label>
+        <div class="auth-pass"><input class="auth-input" id="rpPassword" type="password" placeholder="Min. 8 characters" autocomplete="new-password"><button type="button" class="auth-reveal" onclick="toggleAuthReveal(this)" aria-label="Show password" aria-pressed="false">Show</button></div>
       </div>
       <div class="auth-field">
-        <label class="auth-label">Confirm Password</label>
-        <input class="auth-input" id="rpPasswordConfirm" type="password" placeholder="Re-enter password" autocomplete="new-password">
+        <label class="auth-label" for="rpPasswordConfirm">Confirm Password</label>
+        <div class="auth-pass"><input class="auth-input" id="rpPasswordConfirm" type="password" placeholder="Re-enter password" autocomplete="new-password"><button type="button" class="auth-reveal" onclick="toggleAuthReveal(this)" aria-label="Show password" aria-pressed="false">Show</button></div>
       </div>
       <div class="auth-error" id="rpError"></div>
       <button class="auth-btn" id="rpBtn" onclick="submitPasswordReset()">Update Password</button>
@@ -122,7 +123,7 @@
 
     <!-- Email confirmation message -->
     <div class="auth-card" id="authConfirm" style="display:none">
-      <div class="auth-confirm-icon">✉️</div>
+      <div class="auth-badge" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div>
       <h2 class="auth-title">Check your email</h2>
       <p class="auth-subtitle">We've sent a confirmation link to <strong id="authConfirmEmail"></strong>. Click it to activate your account then sign in.</p>
       <button class="auth-btn" onclick="showAuth('authSignIn')">Back to Sign In</button>
@@ -150,27 +151,27 @@
     <!-- Step 1: Business setup. The same form edits the details later
          (account menu › Your business): see openBusinessForm(). -->
     <div class="auth-card ob-panel" id="ob-panel-0">
-      <div class="ob-icon">🏢</div>
+      <div class="auth-badge" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01M15 10h.01"/></svg></div>
       <h2 class="auth-title" id="obBusinessTitle">Set up your business</h2>
       <p class="auth-subtitle">This appears on every report, quote and certificate you send to clients.</p>
       <div class="auth-field">
-        <label class="auth-label">Business Name</label>
+        <label class="auth-label" for="ob-companyName">Business Name</label>
         <input class="auth-input" id="ob-companyName" placeholder="e.g. ABC Pest Control">
       </div>
       <div class="auth-field">
-        <label class="auth-label">Pest Licence No.</label>
+        <label class="auth-label" for="ob-licence">Pest Licence No.</label>
         <input class="auth-input" id="ob-licence" placeholder="e.g. PL12345">
       </div>
       <div class="auth-field">
-        <label class="auth-label">Business Phone</label>
+        <label class="auth-label" for="ob-phone">Business Phone</label>
         <input class="auth-input" id="ob-phone" type="tel" placeholder="e.g. 0400 000 000">
       </div>
       <div class="auth-field">
-        <label class="auth-label">Business Email</label>
+        <label class="auth-label" for="ob-email">Business Email</label>
         <input class="auth-input" id="ob-email" type="email" placeholder="e.g. office@abcpest.com.au">
       </div>
       <div class="auth-field">
-        <label class="auth-label">ABN <span class="auth-label-optional">(optional)</span></label>
+        <label class="auth-label" for="ob-abn">ABN <span class="auth-label-optional">(optional)</span></label>
         <input class="auth-input" id="ob-abn" placeholder="e.g. 12 345 678 901">
       </div>
       <div class="auth-field">
@@ -192,7 +193,7 @@
 
     <!-- Step 2: Voice demo -->
     <div class="auth-card ob-panel" id="ob-panel-1" style="display:none">
-      <div class="ob-icon">🎙️</div>
+      <div class="auth-badge" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v4"/></svg></div>
       <h2 class="auth-title">Meet the voice</h2>
       <p class="auth-subtitle">SAYON uses AI voice extraction. Speak your inspection notes — it fills the report automatically.</p>
       <div class="ob-demo-box" id="obDemoBox">
@@ -202,12 +203,12 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         Play Demo
       </button>
-      <button class="auth-btn" id="obDemoNext" onclick="obNext(1)" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);margin-top:6px">Continue →</button>
+      <button class="auth-btn secondary" id="obDemoNext" onclick="obNext(1)">Continue →</button>
     </div>
 
     <!-- Step 3: Ready -->
     <div class="auth-card ob-panel" id="ob-panel-2" style="display:none">
-      <div class="ob-icon">✅</div>
+      <div class="auth-badge" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg></div>
       <h2 class="auth-title">You're ready</h2>
       <p class="auth-subtitle">SAYON is set up and ready to go. Here's the workflow:</p>
       <div class="ob-checklist">
