@@ -2888,7 +2888,7 @@ function extractionProblem(err) {
 
 async function processTranscript() {
   if (!currentTranscript.trim()) return;
-  setAI('thinking', 'Extracting data...');
+  setAI('thinking', 'Filling in the report from your note...');
   document.getElementById('extractBtn').disabled = true;
   const before = extractSnapshot();
   let extracted = false;
@@ -3667,10 +3667,22 @@ function addFinding() {
 function removeFinding(id) {
   const findings = getFindings();
   if (findings.length <= 1) return; // always keep at least one
+  const index = findings.findIndex(f => f.id === id);
+  if (index < 0) return;
+  const removed = findings[index];
   reportData.findings = findings.filter(f => f.id !== id);
   renderFindingsUI();
   updateProgress();
   saveDraft();
+  showToast(`Finding ${index + 1} removed`, 'info', { label: 'Undo', run: () => {
+    const list = getFindings();
+    if (list.some(f => f.id === removed.id)) return;
+    list.splice(Math.min(index, list.length), 0, removed);
+    reportData.findings = list;
+    renderFindingsUI();
+    updateProgress();
+    saveDraft();
+  } });
 }
 
 function setFindingField(id, key, val) {
@@ -7518,7 +7530,13 @@ function renderDashboard() {
   const reports = getSavedReports();
 
   if (reports.length === 0) {
-    body.innerHTML = '<div class="dashboard-empty">No saved reports yet on this device.</div>';
+    const hasDraft = !!document.getElementById('jobAddress')?.value.trim();
+    body.innerHTML = `<div class="empty-state">
+        <p>No saved reports yet. Each report you save shows up here with its progress and status.</p>
+        ${hasDraft
+          ? '<button class="job-action-btn save" onclick="saveCurrentReport(); renderDashboard()">Save this report</button>'
+          : '<button class="job-action-btn" onclick="closeDashboard()">Back to the report</button>'}
+      </div>`;
     return;
   }
 
@@ -7570,13 +7588,18 @@ function renderDashboard() {
   `;
 }
 
+const SAVED_EMPTY_HTML = `<div class="empty-state">
+    <p>No saved reports yet. Fill in a job, then tap Save Report in Job details and it appears here.</p>
+    <button class="job-action-btn" onclick="toggleDrawer()">Back to the report</button>
+  </div>`;
+
 function renderSavedList() {
   const list = document.getElementById('savedList');
   const allReports = getSavedReports();
   const summary = document.getElementById('savedPanelSummary');
 
   if (allReports.length === 0) {
-    list.innerHTML = '<div class="saved-empty">No saved reports yet — fill in a job and tap "Save Report"</div>';
+    list.innerHTML = SAVED_EMPTY_HTML;
     if (summary) summary.textContent = 'None saved';
     return;
   }
@@ -7641,9 +7664,16 @@ function escapeHtml(str) {
 function setAI(state, text) {
   document.getElementById('aiStatus').textContent = text;
   document.getElementById('aiDot').className = 'ai-dot' + (state === 'thinking' ? ' thinking' : '');
+  // The bar under the header shows the AI is working even with the voice
+  // popover closed, so nobody taps Extract twice or thinks it failed.
+  const busy = state === 'thinking';
+  document.body.classList.toggle('ai-busy', busy);
+  const busyText = document.getElementById('aiBusyText');
+  if (busyText && busy) busyText.textContent = text;
 }
 
-function showToast(msg, type = 'default') {
+// action: optional { label, run } adds a button to the toast (e.g. Undo).
+function showToast(msg, type = 'default', action) {
   const t = document.getElementById('toast');
   clearTimeout(t._timeout);
 
@@ -7657,11 +7687,18 @@ function showToast(msg, type = 'default') {
   };
 
   t.innerHTML = `${icons[type] || icons.default}<span>${escapeHtml(String(msg))}</span>`;
-  t.className = 'toast show toast-' + type;
+  t.className = 'toast show toast-' + type + (action ? ' toast-has-action' : '');
+  if (action) {
+    const btn = document.createElement('button');
+    btn.className = 'toast-action';
+    btn.textContent = action.label;
+    btn.onclick = () => { dismissToast(); action.run(); };
+    t.appendChild(btn);
+  }
 
   t._shownAt = Date.now();
-  // Errors stay up longer: they are the ones that need reading.
-  t._timeout = setTimeout(() => t.classList.remove('show'), type === 'error' ? 4500 : 2800);
+  // Errors, and toasts with a button to press, stay up longer.
+  t._timeout = setTimeout(() => t.classList.remove('show'), (type === 'error' || action) ? 6000 : 2800);
 }
 
 function dismissToast() {
