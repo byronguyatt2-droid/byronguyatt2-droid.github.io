@@ -1,0 +1,545 @@
+{
+  "id": "slab-barrier",
+  "transcript": "transcripts/slab-barrier.txt",
+  "about": "Annual inspection of the owner's own slab-on-ground brick veneer home with an existing Termidor barrier read off a durable notice. Tests that a chemical barrier is not mistaken for a treatment recommendation, that a bridged slab edge and weep holes are recorded without inventing activity, that slab means no subfloor, and that five invented mishearings (brick venue, colour bond, durable noticed, termite door, slab hedge) are corrected.",
+  "checks": [
+    {
+      "id": "floor-slab",
+      "kind": "mentions",
+      "path": "floorType",
+      "all": [
+        [
+          "slab",
+          "concrete"
+        ]
+      ],
+      "none": [
+        "suspend",
+        "stump",
+        "timber floor",
+        "bearer",
+        "joist"
+      ],
+      "weight": 3,
+      "why": "said 'concrete slab on ground so no subfloor'"
+    },
+    {
+      "id": "walls-brick-veneer",
+      "kind": "mentions",
+      "path": "wallConstruction",
+      "all": [
+        [
+          "veneer"
+        ]
+      ],
+      "none": [
+        "double brick",
+        "double-brick",
+        "cavity",
+        "solid brick"
+      ],
+      "weight": 3,
+      "why": "said 'brick venue' (brick veneer)"
+    },
+    {
+      "id": "roof-colorbond",
+      "kind": "mentions",
+      "path": "roofType",
+      "all": [
+        [
+          "colorbond",
+          "colourbond",
+          "metal",
+          "steel"
+        ]
+      ],
+      "none": [
+        "tile",
+        "terracotta",
+        "concrete"
+      ],
+      "weight": 2,
+      "why": "said 'colour bond roof'"
+    },
+    {
+      "id": "era",
+      "kind": "equals",
+      "path": "constructionEra",
+      "values": [
+        "1985-2003"
+      ],
+      "weight": 2,
+      "why": "said 'built around 1998'"
+    },
+    {
+      "id": "existing-system-chemical",
+      "kind": "mentions",
+      "path": "existingSystem",
+      "all": [
+        [
+          "chemical"
+        ]
+      ],
+      "none": [
+        "physical",
+        "bait"
+      ],
+      "weight": 3,
+      "why": "durable notice reads 'chemical termite barrier soil treatment'"
+    },
+    {
+      "id": "existing-system-other-brand",
+      "kind": "mentions",
+      "path": "existingSystemOther",
+      "all": [
+        [
+          "termidor"
+        ]
+      ],
+      "weight": 2,
+      "why": "notice says product 'termite door' (Termidor)"
+    },
+    {
+      "id": "durable-notice-yes",
+      "kind": "equals",
+      "path": "durableNoticePresent",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "read the durable notice out"
+    },
+    {
+      "id": "slab-edge-obstructed",
+      "kind": "equals",
+      "path": "slabEdge",
+      "values": [
+        "OBSTRUCTED"
+      ],
+      "weight": 3,
+      "why": "garden bed 'built up over the slab hedge' on the east side"
+    },
+    {
+      "id": "weep-holes-bridged",
+      "kind": "equals",
+      "path": "weepHoles",
+      "values": [
+        "BRIDGED"
+      ],
+      "weight": 2,
+      "why": "garden bed 'bridging the weep holes on the east side'"
+    },
+    {
+      "id": "soft-landscaping-yes",
+      "kind": "equals",
+      "path": "softLandscaping",
+      "values": [
+        "YES"
+      ],
+      "weight": 1,
+      "why": "'soft landscaping yes'"
+    },
+    {
+      "id": "zone75-no",
+      "kind": "equals",
+      "path": "zone75mmVisible",
+      "values": [
+        "NO"
+      ],
+      "weight": 2,
+      "why": "'no 75 mil inspection zone on that side'"
+    },
+    {
+      "id": "hard-landscaping-yes",
+      "kind": "equals",
+      "path": "hardLandscaping",
+      "values": [
+        "YES"
+      ],
+      "weight": 1,
+      "why": "'hard landscaping yes' paved path north side"
+    },
+    {
+      "id": "zone25-yes",
+      "kind": "equals",
+      "path": "zone25mmVisible",
+      "values": [
+        "YES"
+      ],
+      "weight": 1,
+      "why": "'the 25 mil zone is visible'"
+    },
+    {
+      "id": "area-subfloor-na",
+      "kind": "equals",
+      "path": "areaStatus.subfloor",
+      "values": [
+        "NA"
+      ],
+      "weight": 3,
+      "why": "slab on ground, 'not applicable'"
+    },
+    {
+      "id": "area-interior",
+      "kind": "equals",
+      "path": "areaStatus.interior",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'interior was fully inspected'"
+    },
+    {
+      "id": "area-exterior",
+      "kind": "equals",
+      "path": "areaStatus.exterior",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'exterior is all inspected fully'"
+    },
+    {
+      "id": "area-roofvoid",
+      "kind": "equals",
+      "path": "areaStatus.roofvoid",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'inspected the whole roof void fully'"
+    },
+    {
+      "id": "no-partial-or-not",
+      "kind": "mentions",
+      "path": "areaStatus",
+      "none": [
+        "partial",
+        "not"
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "everything said was fully inspected"
+    },
+    {
+      "id": "no-obstructions",
+      "kind": "mentions",
+      "path": "obstructions",
+      "all": [
+        [
+          "nil",
+          "none",
+          "n/a",
+          "no restriction",
+          "readily accessible",
+          "no limitation"
+        ]
+      ],
+      "nullOk": true,
+      "weight": 2,
+      "why": "nothing was not inspected; the garden bed is a slab edge issue not an obstruction"
+    },
+    {
+      "id": "no-restricted-access",
+      "kind": "mentions",
+      "path": "restrictedAccess",
+      "all": [
+        [
+          "nil",
+          "none",
+          "n/a",
+          "no restriction",
+          "readily accessible",
+          "no limitation"
+        ]
+      ],
+      "nullOk": true,
+      "weight": 2,
+      "why": "every area fully inspected"
+    },
+    {
+      "id": "no-hindered-areas",
+      "kind": "mentions",
+      "path": "hinderedAreas",
+      "all": [
+        [
+          "nil",
+          "none",
+          "n/a",
+          "no restriction",
+          "readily accessible",
+          "no limitation"
+        ]
+      ],
+      "nullOk": true,
+      "weight": 2,
+      "why": "he said every area was fully inspected with no limitations; a concealed slab edge is a conducive condition, not a restriction, but listing it here is a judgement call"
+    },
+    {
+      "id": "no-high-risk-areas",
+      "kind": "absent",
+      "path": "highRiskAreas",
+      "weight": 3,
+      "why": "nothing was inaccessible"
+    },
+    {
+      "id": "findings-count",
+      "kind": "count",
+      "path": "findings",
+      "min": 0,
+      "max": 1,
+      "weight": 2,
+      "why": "no termite activity anywhere; at most one NONE card"
+    },
+    {
+      "id": "findings-all-none",
+      "kind": "every",
+      "path": "findings",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "NONE"
+          ]
+        },
+        {
+          "kind": "absent",
+          "path": "species"
+        },
+        {
+          "kind": "absent",
+          "path": "damageDescription"
+        },
+        {
+          "kind": "absent",
+          "path": "activityLocation"
+        },
+        {
+          "kind": "absent",
+          "path": "nestLocated"
+        },
+        {
+          "kind": "absent",
+          "path": "structuralConcern"
+        }
+      ],
+      "weight": 3,
+      "why": "'no termite activity' so any finding is NONE with every detail empty"
+    },
+    {
+      "id": "borers-none",
+      "kind": "equals",
+      "path": "borerActivity",
+      "values": [
+        "NONE"
+      ],
+      "weight": 3,
+      "why": "'no borers'"
+    },
+    {
+      "id": "decay-no",
+      "kind": "equals",
+      "path": "decayFound",
+      "values": [
+        "NO"
+      ],
+      "weight": 3,
+      "why": "'no decay'"
+    },
+    {
+      "id": "leaks-no",
+      "kind": "equals",
+      "path": "waterLeaks",
+      "values": [
+        "NO",
+        null
+      ],
+      "weight": 3,
+      "why": "'no leaks anywhere'"
+    },
+    {
+      "id": "no-leak-location",
+      "kind": "absent",
+      "path": "leakLocation",
+      "weight": 3,
+      "why": "no leak so no location"
+    },
+    {
+      "id": "moisture-readings-no",
+      "kind": "equals",
+      "path": "moistureReadings",
+      "values": [
+        "NO",
+        null
+      ],
+      "weight": 3,
+      "why": "both readings 'normal nothing of concern'"
+    },
+    {
+      "id": "meter-readings",
+      "kind": "mentions",
+      "path": "moistureMeterReadings",
+      "all": [
+        [
+          "laundry"
+        ],
+        [
+          "12"
+        ],
+        [
+          "bathroom"
+        ],
+        [
+          "14"
+        ]
+      ],
+      "weight": 2,
+      "why": "laundry 12% bathroom 14%"
+    },
+    {
+      "id": "timber-soil-no",
+      "kind": "equals",
+      "path": "timberSoil",
+      "values": [
+        "NO",
+        null
+      ],
+      "weight": 2,
+      "why": "'no timber in contact with the soil'"
+    },
+    {
+      "id": "treatment-not-recommended",
+      "kind": "equals",
+      "path": "treatmentRecommended",
+      "values": [
+        "NO"
+      ],
+      "weight": 3,
+      "why": "'no treatment required'"
+    },
+    {
+      "id": "treatment-type-no-product",
+      "kind": "mentions",
+      "path": "treatmentType",
+      "none": [
+        "barrier",
+        "bait",
+        "chemical",
+        "termidor",
+        "reticulation",
+        "top-up",
+        "top up"
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "no treatment needed; the existing barrier must not be re-recommended"
+    },
+    {
+      "id": "risk-low-or-medium",
+      "kind": "equals",
+      "path": "riskLevel",
+      "values": [
+        "LOW",
+        "MEDIUM",
+        null
+      ],
+      "weight": 3,
+      "why": "he did not state a risk, so empty is right too; nothing found, so HIGH would be invented"
+    },
+    {
+      "id": "risk-stated",
+      "kind": "equals",
+      "path": "riskLevel",
+      "values": [
+        "LOW",
+        "MEDIUM"
+      ],
+      "weight": 1,
+      "why": "a whole-house note gives enough to rate it; leaving it empty is a minor deduction"
+    },
+    {
+      "id": "inspection-type",
+      "kind": "equals",
+      "path": "inspectionType",
+      "values": [
+        "Annual — Existing Building"
+      ],
+      "weight": 2,
+      "why": "'the annual inspection at my own place'"
+    },
+    {
+      "id": "no-species",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "coptotermes",
+        "schedorhinotermes",
+        "nasutitermes",
+        "heterotermes",
+        "microcerotermes",
+        "cryptotermes",
+        "mastotermes",
+        "porotermes",
+        "acinaciformis",
+        "frenchi",
+        "intermedius",
+        "exitiosus",
+        "walkeri",
+        "ferox",
+        "copter"
+      ],
+      "weight": 3,
+      "why": "no species named, no activity"
+    },
+    {
+      "id": "no-severity",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "minor",
+        "moderate",
+        "severe",
+        "extensive",
+        "significant",
+        "extreme",
+        "major",
+        "heavy"
+      ],
+      "weight": 3,
+      "why": "no severity wording was said"
+    },
+    {
+      "id": "no-structural",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "structural",
+        "compromised",
+        "structurally"
+      ],
+      "weight": 3,
+      "why": "no structural opinion"
+    },
+    {
+      "id": "no-mishearings",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "durable noticed",
+        "termite door",
+        "slab hedge",
+        "brick venue",
+        "colour bond"
+      ],
+      "weight": 3,
+      "why": "dictation slips are corrected, not copied"
+    },
+    {
+      "id": "barrier-not-recommended",
+      "kind": "manual",
+      "description": "The existing Termidor barrier is described as existing (existingSystem and notice) and is not worded as a recommended or new treatment anywhere."
+    },
+    {
+      "id": "garden-bed-recommendation",
+      "kind": "manual",
+      "description": "The garden bed pull-back recommendation, if captured anywhere, is not turned into a finding, a risk rating or a treatment."
+    }
+  ]
+}

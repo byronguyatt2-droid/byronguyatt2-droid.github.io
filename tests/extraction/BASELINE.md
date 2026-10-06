@@ -11,6 +11,18 @@ The prompt as it stood when the bench was added: `SYSTEM_PROMPT` in `js/app.js` 
 | house-test-1 | 3 | 91.4% (384/420) | 94%, 90%, 91% | 2, 3, 3 |
 | house-test-2 | 3 | 93.3% (417/447) | 94%, 91%, 95% | 1, 2, 1 |
 
+The same prompt on the five written cases added on 2026-10-06 (tag `baseline-new`, run from a worktree of `origin/main` at `53d2aa7` with the new cases copied in):
+
+| Case | Runs | Mean | Per run | Weight-3 fails per run |
+|---|---|---|---|---|
+| slab-barrier | 3 | 95.2% (277/291) | 94%, 96%, 96% | 0, 0, 0 |
+| skirting-active | 3 | 98.1% (303/309) | 98%, 98%, 98% | 0, 0, 0 |
+| subfloor-followup | 3 | 96.3% (312/324) | 96%, 96%, 96% | 1, 1, 1 |
+| borers-rot | 3 | 96.9% (282/291) | 97%, 97%, 97% | 1, 1, 1 |
+| rambling-nest | 3 | 88.9% (264/297) | 89%, 89%, 89% | 3, 3, 3 |
+
+Checks the old prompt failed on them: `slab-barrier` existing-system-other-brand 0/3 (the key is new), no-obstructions 0/3, no-hindered-areas 2/3; `skirting-active` hindered-roof-only 0/3 (listed the exterior as a restricted area); `subfloor-followup` findings-count-zero 0/3 (a NONE card for one clean area), moisture-readings-empty 0/3; `borers-rot` no-hindered-areas 0/3 (every inspected area written into the restricted-areas row); `rambling-nest` finding-damage-nest-hedged 0/3 and finding-nest-not-located 0/3 (a "possible nest" became nestLocated YES), treatment-type-stump 0/3 and treatment-type-no-product 0/3 (the "Chemical Barrier Treatment" fallback replaced the stump colony).
+
 House test 2 leaked into the prompt (its mishearings were added to the homophone list after the test), so it flatters the prompt. See `docs/handover/extraction.md` section 6.
 
 ## Checks that failed at least once
@@ -40,3 +52,19 @@ Most weight-3 failures are where the keys depart on purpose from the literal pro
 | restricted-access-matcher-words | 1 | 0/3 | Didn't use the reason words the app's matcher ticks ("stored articles", "furniture") |
 | treatment-type | 2 | 2/3 | Missed the tree or the system install once |
 | no-zone-75 | 1 | 2/3 | Filled a verification field with no system present |
+
+## After the rewrite (2026-10-06)
+
+`SYSTEM_PROMPT` as rewritten on branch `claude/voice-extraction-rdusm7` (revision 2; revision 1 differed only in the riskLevel paragraph and rated `borers-rot` HIGH in one of three runs). Same runner, 3 runs per case, tag `rev2`.
+
+| Case | Before: mean (weight-3 fails per run) | After: mean (weight-3 fails per run) |
+|---|---|---|
+| house-test-1 | 91.4% (2, 3, 3) | 100% (0, 0, 0) |
+| house-test-2 (leaked into the prompt; reported, not tuned for) | 93.3% (1, 2, 1) | 100% (0, 0, 0) |
+| slab-barrier | 95.2% (0, 0, 0) | 100% (0, 0, 0) |
+| skirting-active | 98.1% (0, 0, 0) | 100% (0, 0, 0) |
+| subfloor-followup | 96.3% (1, 1, 1) | 99.1% (0, 0, 0): only the weight-1 "moistureReadings empty preferred" check fails, the answer is NO for a reading called normal |
+| borers-rot | 96.9% (1, 1, 1) | 100% (0, 0, 0) |
+| rambling-nest | 88.9% (3, 3, 3) | 100% (0, 0, 0) |
+
+Pass bar (every weight-3 check in 3 of 3 runs on house test 1 and the five written cases; no case's mean below its baseline): met. Every answer was valid JSON. No key was changed to make a run pass; the only key edits after drafting were made before any run (`risk-low-or-medium` on `slab-barrier` and `borers-rot` also accepts empty, because the inspector didn't state a risk; `no-hindered-areas` on `slab-barrier` lowered to weight 2; the "east" substring checks on `rambling-nest` narrowed to "eastern"/"east side" so "least" can't trip them).

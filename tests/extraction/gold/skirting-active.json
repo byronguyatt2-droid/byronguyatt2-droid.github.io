@@ -1,0 +1,600 @@
+{
+  "id": "skirting-active",
+  "transcript": "transcripts/skirting-active.txt",
+  "about": "Pre-purchase of a double storey brick veneer slab house with live Coptotermes in a bedroom three skirting board. Tests genus-only species handling, dropping the 'looks pretty severe' opinion while keeping the builder referral, no nest invented, a partly inspected roof void (insulation batts), a clean subfloor of NA, timber sleepers touching the house, an elevated reading with no leak, and five invented mishearings.",
+  "checks": [
+    {
+      "id": "inspection-type",
+      "kind": "equals",
+      "path": "inspectionType",
+      "values": [
+        "Pre-Purchase — Timber Pest"
+      ],
+      "weight": 2,
+      "why": "'pre purchase timber pest inspection'"
+    },
+    {
+      "id": "height-double",
+      "kind": "mentions",
+      "path": "height",
+      "all": [
+        [
+          "double",
+          "two",
+          "2"
+        ]
+      ],
+      "none": [
+        "single",
+        "one storey"
+      ],
+      "weight": 2,
+      "why": "'double storey'"
+    },
+    {
+      "id": "walls-brick-veneer",
+      "kind": "mentions",
+      "path": "wallConstruction",
+      "all": [
+        [
+          "veneer"
+        ]
+      ],
+      "none": [
+        "double brick",
+        "double-brick",
+        "cavity",
+        "solid brick"
+      ],
+      "weight": 3,
+      "why": "'brick veneer house'"
+    },
+    {
+      "id": "floor-slab",
+      "kind": "mentions",
+      "path": "floorType",
+      "all": [
+        [
+          "slab",
+          "concrete"
+        ]
+      ],
+      "none": [
+        "suspend",
+        "stump",
+        "timber floor",
+        "bearer",
+        "joist"
+      ],
+      "weight": 3,
+      "why": "'on a concrete slab'"
+    },
+    {
+      "id": "era",
+      "kind": "equals",
+      "path": "constructionEra",
+      "values": [
+        "Post-2003"
+      ],
+      "weight": 2,
+      "why": "'built around 2005'"
+    },
+    {
+      "id": "client-name",
+      "kind": "mentions",
+      "path": "clientName",
+      "all": [
+        [
+          "priya"
+        ],
+        [
+          "nair"
+        ]
+      ],
+      "weight": 1,
+      "why": "said 'Priya Nair' (extra)"
+    },
+    {
+      "id": "address",
+      "kind": "mentions",
+      "path": "propertyStreetAddress",
+      "all": [
+        [
+          "9",
+          "nine"
+        ],
+        [
+          "jacaranda"
+        ]
+      ],
+      "weight": 1,
+      "why": "said 'nine Jacaranda Place' (extra)"
+    },
+    {
+      "id": "finding-active-skirting",
+      "kind": "findingMatch",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "ACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "skirting",
+              "bedroom"
+            ]
+          ],
+          "none": [
+            "roof"
+          ]
+        }
+      ],
+      "weight": 3,
+      "why": "'live termites in the skating board in bedroom three'"
+    },
+    {
+      "id": "finding-damage-description",
+      "kind": "every",
+      "path": "findings",
+      "checks": [
+        {
+          "kind": "mentions",
+          "path": "damageDescription",
+          "all": [
+            [
+              "skirting",
+              "bottom plate",
+              "plate"
+            ],
+            [
+              "mud",
+              "hollow"
+            ]
+          ],
+          "none": [
+            "minor",
+            "moderate",
+            "severe",
+            "extensive",
+            "significant",
+            "extreme",
+            "major",
+            "heavy",
+            "structural",
+            "compromised"
+          ]
+        }
+      ],
+      "weight": 3,
+      "why": "skirting hollow when tapped, mud behind it, damage into the bottom plate; 'looks pretty severe' is dropped"
+    },
+    {
+      "id": "finding-structural-referral",
+      "kind": "every",
+      "path": "findings",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "structuralConcern",
+          "values": [
+            "YES"
+          ]
+        }
+      ],
+      "weight": 3,
+      "why": "'I'd want a builder to check the wall framing behind it'"
+    },
+    {
+      "id": "finding-species-genus",
+      "kind": "every",
+      "path": "findings",
+      "checks": [
+        {
+          "kind": "mentions",
+          "path": "species",
+          "all": [
+            [
+              "coptotermes"
+            ]
+          ],
+          "none": [
+            "acinaciformis",
+            "frenchi",
+            "lacteus"
+          ]
+        }
+      ],
+      "weight": 3,
+      "why": "'Coptotermes but I'm not sure of the species beyond that'"
+    },
+    {
+      "id": "finding-nest-not-yes",
+      "kind": "every",
+      "path": "findings",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "nestLocated",
+          "values": [
+            null,
+            "NO"
+          ]
+        }
+      ],
+      "weight": 3,
+      "why": "no nest found or mentioned"
+    },
+    {
+      "id": "findings-count-one",
+      "kind": "count",
+      "path": "findings",
+      "min": 1,
+      "max": 1,
+      "weight": 2,
+      "why": "one finding only, the bedroom three skirting"
+    },
+    {
+      "id": "area-roofvoid-partial",
+      "kind": "equals",
+      "path": "areaStatus.roofvoid",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 3,
+      "why": "'insulation batts covering the ceiling joists... partly inspected'"
+    },
+    {
+      "id": "area-subfloor-na",
+      "kind": "equals",
+      "path": "areaStatus.subfloor",
+      "values": [
+        "NA"
+      ],
+      "weight": 2,
+      "why": "'no subfloor because it's a slab'"
+    },
+    {
+      "id": "area-interior",
+      "kind": "equals",
+      "path": "areaStatus.interior",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'interior inspected downstairs and upstairs'"
+    },
+    {
+      "id": "area-exterior",
+      "kind": "equals",
+      "path": "areaStatus.exterior",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'exterior is inspected all the way around'"
+    },
+    {
+      "id": "obstructions-insulation",
+      "kind": "mentions",
+      "path": "obstructions",
+      "all": [
+        [
+          "insulation"
+        ],
+        [
+          "roof"
+        ]
+      ],
+      "weight": 2,
+      "why": "insulation batts over the joists in the roof void"
+    },
+    {
+      "id": "restricted-access-insulation",
+      "kind": "mentions",
+      "path": "restrictedAccess",
+      "all": [
+        [
+          "insulation"
+        ],
+        [
+          "roof"
+        ]
+      ],
+      "weight": 2,
+      "why": "same restriction; the app ticks reason words in either field"
+    },
+    {
+      "id": "hindered-roof-only",
+      "kind": "mentions",
+      "path": "hinderedAreas",
+      "all": [
+        [
+          "roof void",
+          "roof space",
+          "roofvoid",
+          "roof",
+          "ceiling"
+        ]
+      ],
+      "none": [
+        "bedroom",
+        "skirting",
+        "exterior",
+        "subfloor",
+        "garden"
+      ],
+      "nullOk": true,
+      "weight": 2,
+      "why": "only the roof void was restricted"
+    },
+    {
+      "id": "high-risk-not-active-area",
+      "kind": "mentions",
+      "path": "highRiskAreas",
+      "none": [
+        "bedroom",
+        "skirting"
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "the active bedroom is a finding, never a high risk area"
+    },
+    {
+      "id": "timber-soil-yes",
+      "kind": "equals",
+      "path": "timberSoil",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "'timber sleeper retaining wall touching the rear wall'"
+    },
+    {
+      "id": "slab-edge-clear",
+      "kind": "equals",
+      "path": "slabEdge",
+      "values": [
+        "CLEAR"
+      ],
+      "weight": 2,
+      "why": "'slab edge is visible all round'"
+    },
+    {
+      "id": "weep-holes-clear",
+      "kind": "equals",
+      "path": "weepHoles",
+      "values": [
+        "CLEAR"
+      ],
+      "weight": 2,
+      "why": "'weep holes are all clear'"
+    },
+    {
+      "id": "no-existing-system",
+      "kind": "absent",
+      "path": "existingSystem",
+      "weight": 3,
+      "why": "'no existing termite system'"
+    },
+    {
+      "id": "durable-notice-no",
+      "kind": "equals",
+      "path": "durableNoticePresent",
+      "values": [
+        "NO",
+        null
+      ],
+      "weight": 2,
+      "why": "'no durable notice'"
+    },
+    {
+      "id": "moisture-yes",
+      "kind": "equals",
+      "path": "moistureReadings",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "'24% so that's elevated'"
+    },
+    {
+      "id": "leaks-no",
+      "kind": "equals",
+      "path": "waterLeaks",
+      "values": [
+        "NO"
+      ],
+      "weight": 3,
+      "why": "'I couldn't find any leak no leaking taps or pipes'"
+    },
+    {
+      "id": "no-leak-location",
+      "kind": "absent",
+      "path": "leakLocation",
+      "weight": 3,
+      "why": "no leak so no location"
+    },
+    {
+      "id": "meter-bedroom-24",
+      "kind": "mentions",
+      "path": "moistureMeterReadings",
+      "all": [
+        [
+          "bedroom"
+        ],
+        [
+          "24"
+        ]
+      ],
+      "weight": 2,
+      "why": "bedroom three wall 24%"
+    },
+    {
+      "id": "treatment-yes",
+      "kind": "equals",
+      "path": "treatmentRecommended",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "'treat the active termites... install a full chemical barrier'"
+    },
+    {
+      "id": "treatment-type-barrier",
+      "kind": "mentions",
+      "path": "treatmentType",
+      "all": [
+        [
+          "termidor",
+          "chemical barrier",
+          "chemical"
+        ],
+        [
+          "treat"
+        ]
+      ],
+      "weight": 2,
+      "why": "treat the activity and a full 'terminator' (Termidor) chemical barrier"
+    },
+    {
+      "id": "treatment-type-no-bait",
+      "kind": "mentions",
+      "path": "treatmentType",
+      "none": [
+        "bait"
+      ],
+      "nullOk": true,
+      "weight": 2,
+      "why": "no baiting system was mentioned"
+    },
+    {
+      "id": "frequency-3-months-first",
+      "kind": "mentions",
+      "path": "inspectionFrequency",
+      "all": [
+        [
+          "3 month",
+          "three month"
+        ]
+      ],
+      "none": [
+        "6 month",
+        "six month"
+      ],
+      "weight": 3,
+      "why": "'re inspect in 3 months and then annually'"
+    },
+    {
+      "id": "frequency-annual",
+      "kind": "mentions",
+      "path": "inspectionFrequency",
+      "all": [
+        [
+          "12 month",
+          "twelve month",
+          "annual",
+          "yearly",
+          "every year"
+        ]
+      ],
+      "weight": 2,
+      "why": "'and then annually after that'"
+    },
+    {
+      "id": "risk-high",
+      "kind": "equals",
+      "path": "riskLevel",
+      "values": [
+        "HIGH"
+      ],
+      "weight": 3,
+      "why": "'overall risk is high'"
+    },
+    {
+      "id": "borers-none",
+      "kind": "equals",
+      "path": "borerActivity",
+      "values": [
+        "NONE"
+      ],
+      "weight": 3,
+      "why": "'no borers'"
+    },
+    {
+      "id": "decay-no",
+      "kind": "equals",
+      "path": "decayFound",
+      "values": [
+        "NO"
+      ],
+      "weight": 3,
+      "why": "'no decay noted anywhere'"
+    },
+    {
+      "id": "no-wrong-species",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "acinaciformis",
+        "frenchi",
+        "lacteus"
+      ],
+      "weight": 3,
+      "why": "genus only was said"
+    },
+    {
+      "id": "no-severity",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "minor",
+        "moderate",
+        "severe",
+        "extensive",
+        "significant",
+        "extreme",
+        "major",
+        "heavy"
+      ],
+      "weight": 3,
+      "why": "'looks pretty severe' is an opinion that is dropped"
+    },
+    {
+      "id": "no-structural-words",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "compromised",
+        "structurally"
+      ],
+      "weight": 3,
+      "why": "a builder referral is not a structural verdict"
+    },
+    {
+      "id": "no-mishearings",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "copper termites",
+        "skating",
+        "bottom played",
+        "mud parking",
+        "terminator"
+      ],
+      "weight": 3,
+      "why": "dictation slips are corrected, not copied"
+    },
+    {
+      "id": "no-structural-verdict",
+      "kind": "manual",
+      "description": "No field says the wall frame is or is not structurally sound; the builder referral is only the structuralConcern flag."
+    },
+    {
+      "id": "risk-not-from-species",
+      "kind": "manual",
+      "description": "Nothing bases the risk on the termite genus."
+    }
+  ]
+}
