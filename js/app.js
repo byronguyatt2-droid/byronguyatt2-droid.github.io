@@ -1165,6 +1165,21 @@ const SECTIONS = {
   photos:          { fields:['photos'], total:1 },
   signoff:         { fields:['inspectorLicence','inspectorSignature','agreement'], total:3 }
 };
+// The fields a finished report needs. Progress (the ring, the section badges
+// and the saved list's Ready status) counts only these, so a complete job can
+// reach 100%: height, facade, high-risk areas, follow-on details (leak
+// location, treatment type, restriction detail) and photos are optional.
+// 'standard' is set from the inspection type, so it isn't counted either.
+const REQUIRED_FIELDS = {
+  property:        ['structureType','occupancyStatus','weatherConditions','wallConstruction','roofType','floorType','constructionEra'],
+  obstructions:    ['areaStatus'],
+  restrictions:    ['hinderedAreas'],
+  findings:        ['findings','borerActivity','decayFound'],
+  conducive:       ['waterLeaks','moistureReadings','timberSoil','slabEdge','weepHoles'],
+  recommendations: ['riskLevel','treatmentRecommended','inspectionFrequency'],
+  photos:          [],
+  signoff:         ['inspectorLicence','inspectorSignature','agreement'],
+};
 
 const SYSTEM_PROMPT = `You extract report fields for SAYON, an app that Australian timber pest inspectors dictate into. The user message is ONE dictated note from a timber pest inspection (AS 4349.3 / AS 3660.2). An inspector usually records several notes on one job, one per area, and the app merges them: so extract ONLY what THIS note states, and leave every other field null. A field left null stays as it was; a wrong value replaces a right one. Return ONLY a valid JSON object, no markdown and no commentary.
 
@@ -4461,18 +4476,20 @@ function updateProgress() {
   // definition (isFieldFilled) so this can't drift out of sync again.
   let filled = 0, total = 0;
   Object.entries(SECTIONS).forEach(([sec, cfg]) => {
-    const f = cfg.fields.filter(k => isFieldFilled(k)).length;
-    filled += f; total += cfg.total;
+    const req = REQUIRED_FIELDS[sec] || [];
+    const reqFilled = req.filter(k => isFieldFilled(k)).length;
+    const any = cfg.fields.some(k => isFieldFilled(k));
+    filled += reqFilled; total += req.length;
 
     const dot = document.getElementById('dot-' + sec);
     const sts = document.getElementById('sts-' + sec);
     const nextBtn = document.getElementById('next-btn-' + sec);
 
-    if (f === 0) {
+    if (!any) {
       if (dot) dot.className = 'tab-dot';
       if (sts) { sts.className = 'sec-badge empty'; sts.textContent = 'Not started'; }
       if (nextBtn) nextBtn.classList.remove('visible');
-    } else if (f < cfg.total) {
+    } else if (reqFilled < req.length) {
       if (dot) dot.className = 'tab-dot partial';
       if (sts) { sts.className = 'sec-badge partial'; sts.textContent = 'In progress'; }
       if (nextBtn) nextBtn.classList.remove('visible');
@@ -4483,10 +4500,12 @@ function updateProgress() {
     }
   });
 
-  const pct = Math.round((filled / total) * 100);
+  // A completed (locked) job reads Complete whatever the count says.
+  const locked = isReportLocked();
+  const pct = locked ? 100 : Math.round((filled / total) * 100);
   document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('generateBtn').disabled = filled === 0;
-  document.getElementById('shareBtn').disabled = filled === 0;
+  document.getElementById('generateBtn').disabled = filled === 0 && !locked;
+  document.getElementById('shareBtn').disabled = filled === 0 && !locked;
 
   const ringFill = document.getElementById('progressRingFill');
   const ringText = document.getElementById('progressRingText');
@@ -4495,7 +4514,15 @@ function updateProgress() {
     const offset = circumference - (pct / 100) * circumference;
     ringFill.style.strokeDashoffset = offset;
     ringFill.classList.toggle('complete', pct === 100);
-    ringText.textContent = pct + '%';
+    ringText.textContent = locked ? '✓' : pct + '%';
+    const wrap = ringFill.closest('.progress-ring-wrap');
+    if (wrap) {
+      wrap.classList.toggle('locked', locked);
+      wrap.title = locked ? 'Job complete' : `Report ${pct}% complete (required fields)`;
+      wrap.setAttribute('aria-label', wrap.title);
+    }
+    const label = document.getElementById('progressRingLabel');
+    if (label) label.style.display = locked ? '' : 'none';
   }
 }
 
@@ -4698,7 +4725,7 @@ function todayIsoDate() { return isoDate(new Date()); }
 function agreementFormValues() {
   const standard = reportData.standard || 'AS 3660.2-2017';
   const inspectionDate = document.getElementById('agreementDate').value || todayIsoDate();
-  const fee = document.getElementById('agreementFee').value.trim();
+  const fee = agreementFeeText(document.getElementById('agreementFee').value);
   const notes = document.getElementById('agreementNotes').value.trim();
   return {
     standard, inspectionDate, fee, notes,
@@ -4750,8 +4777,7 @@ function openAgreementSheet() {
     document.getElementById('agreementInspectionType').value = reportData.jobInspectionType || '';
     // Job Details may already have the inspection date and fee.
     document.getElementById('agreementDate').value = reportData.jobInspectionDate || todayIsoDate();
-    const jobFee = (reportData.jobFee || '').trim();
-    document.getElementById('agreementFee').value = jobFee ? `${/^\$/.test(jobFee) ? '' : '$'}${jobFee} inc GST` : '';
+    document.getElementById('agreementFee').value = jobFeeOf(reportData);
     document.getElementById('agreementNotes').value = '';
     document.getElementById('agreementAgree').checked = false;
     document.getElementById('agreementOtherNote').value = '';
@@ -4760,6 +4786,24 @@ function openAgreementSheet() {
     refreshAgreementPreview();
   }
   document.getElementById('agreementOverlay').classList.add('open');
+}
+
+// The fee as the agreement prints it: "$440 inc GST" from "440".
+function agreementFeeText(raw) {
+  const fee = String(raw || '').trim();
+  if (!fee) return '';
+  return `${/^\$|^[^0-9]/.test(fee) ? '' : '$'}${fee}${/gst/i.test(fee) ? '' : ' inc GST'}`;
+}
+
+// The agreement's fee box is the Job details fee: typing in either updates
+// the one stored value.
+function onAgreementFeeInput() {
+  const v = document.getElementById('agreementFee').value;
+  reportData.jobFee = v;
+  const jobEl = document.getElementById('jobFee');
+  if (jobEl) jobEl.value = v;
+  saveDraft();
+  refreshAgreementPreview();
 }
 
 function closeAgreementSheet() {
@@ -5508,6 +5552,8 @@ function onInspectionTypeChange() {
 }
 
 function loadJobInfo() {
+  // Older reports kept the fee only on the signed agreement.
+  if (!reportData.jobFee && reportData.agreement && reportData.agreement.fee) reportData.jobFee = reportData.agreement.fee;
   JOB_INFO_FIELDS.forEach(id => {
     const el = document.getElementById(id);
     if (el && reportData[id] !== undefined) el.value = reportData[id];
@@ -6862,11 +6908,31 @@ function setSavedReports(reports) {
 
 function calculateCompletion() {
   let filled = 0, total = 0;
-  Object.values(SECTIONS).forEach(cfg => {
-    filled += cfg.fields.filter(k => isFieldFilled(k)).length;
-    total += cfg.total;
+  Object.values(REQUIRED_FIELDS).forEach(req => {
+    filled += req.filter(k => isFieldFilled(k)).length;
+    total += req.length;
   });
   return Math.round((filled / total) * 100);
+}
+
+// One word for where a saved job is up to: Draft, Ready (every required
+// field filled), Sent, Complete vN or Amending vN.
+function savedReportStatus(r) {
+  const d = r.reportData || {};
+  if (d.issue) return d.amending
+    ? { label: `Amending v${d.issue.version}`, tone: 'amending' }
+    : { label: `Complete v${d.issue.version}`, tone: 'complete' };
+  if (d.sent) return { label: 'Sent', tone: 'sent' };
+  if ((r.completion || 0) >= 100) return { label: 'Ready', tone: 'ready' };
+  return { label: 'Draft', tone: 'draft' };
+}
+
+// The job's fee. Job details and the agreement share one field
+// (reportData.jobFee); reports saved before that may hold it only on the
+// signed agreement.
+function jobFeeOf(data) {
+  if (!data) return '';
+  return String(data.jobFee || (data.agreement && data.agreement.fee) || '').trim();
 }
 
 // FIX: a plain "is this key present" check silently overcounted the
@@ -7350,10 +7416,8 @@ function renderDashboard() {
 
   const totalJobs = reports.length;
   const jobsThisWeek = thisWeek.length;
-  const avgCompletion = Math.round(
-    reports.reduce((sum, r) => sum + (r.completion || 0), 0) / totalJobs
-  );
-  const totalRevenue = reports.reduce((sum, r) => sum + parseFeeToNumber(r.reportData && r.reportData.jobFee), 0);
+  const completedJobs = reports.filter(r => r.reportData && r.reportData.issue && !r.reportData.amending).length;
+  const totalRevenue = reports.reduce((sum, r) => sum + parseFeeToNumber(jobFeeOf(r.reportData)), 0);
 
   const sorted = [...reports].sort((a, b) => b.savedAt - a.savedAt).slice(0, 8);
 
@@ -7371,8 +7435,8 @@ function renderDashboard() {
         <div class="dashboard-stat-label">This Week</div>
       </div>
       <div class="dashboard-stat-card">
-        <div class="dashboard-stat-value">${avgCompletion}%</div>
-        <div class="dashboard-stat-label">Avg. Completion</div>
+        <div class="dashboard-stat-value">${completedJobs}</div>
+        <div class="dashboard-stat-label">Completed</div>
       </div>
       <div class="dashboard-stat-card">
         <div class="dashboard-stat-value">${fmtMoney(totalRevenue)}</div>
@@ -7387,7 +7451,7 @@ function renderDashboard() {
             <div class="dashboard-recent-addr">${escapeHtml(r.address || 'No address')}</div>
             <div class="dashboard-recent-meta">${fmtDate(r.savedAt)}${r.client ? ' · ' + escapeHtml(r.client) : ''}</div>
           </div>
-          <div class="dashboard-recent-completion">${r.completion || 0}%</div>
+          <div class="dashboard-recent-completion">${savedReportStatus(r).label}</div>
         </div>
       `).join('')}
     </div>
@@ -7433,9 +7497,8 @@ function renderSavedList() {
     const risk = r.reportData.riskLevel || 'none';
     const addr = r.address || 'Untitled property';
     const pending = (r.reportData.pendingNotes || []).length;
-    const issue = r.reportData.issue;
-    const issueTag = issue
-      ? `<span class="saved-item-issued">${r.reportData.amending ? 'Amending' : 'Complete'} v${issue.version}</span>` : '';
+    const status = savedReportStatus(r);
+    const statusTag = `<span class="saved-item-status ${status.tone}">${status.label}</span>`;
     const answer = quoteAnswerSummary(getSavedQuotes()[r.id] || r.quote);
     const answerTag = answer ? `<span class="saved-item-quote ${answer.tone}">${answer.short}</span>` : '';
     return `
@@ -7445,8 +7508,7 @@ function renderSavedList() {
           <div class="saved-item-meta">
             <span>${dateStr}</span>
             <span class="saved-item-risk ${risk}">${risk === 'none' ? 'N/A' : risk}</span>
-            <span class="saved-item-pct">${r.completion}%</span>
-            ${issueTag}
+            ${statusTag}
             ${answerTag}
             ${pending ? `<span class="saved-item-pending">${pending} note${pending !== 1 ? 's' : ''} to fill in</span>` : ''}
           </div>
@@ -7811,6 +7873,7 @@ function renderIssueState() {
   banner.innerHTML = html;
   banner.style.display = html ? '' : 'none';
   banner.classList.toggle('locked', locked);
+  updateProgress();
 }
 
 // While locked, taps and typing in the report, the job details and the mic
