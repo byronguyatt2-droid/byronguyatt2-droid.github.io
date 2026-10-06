@@ -3819,3 +3819,25 @@ button:focus-visible,
    MOBILE LAYOUT
    ══════════════════════════════════════════════════════════════════════ */
 
+
+/* Send: a fix button beside each gap on the check sheet, "Did that send?",
+   and one Sent line per document (report banner and quote screen). */
+.share-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.send-review-fixes { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
+.send-review-fixes .link-btn { font-size: 12.5px; font-weight: 700; color: var(--accent); }
+.send-review-gap { display: flex; flex-direction: column; }
+.did-it-send-overlay { z-index: 310; }
+.did-it-send {
+  position: absolute; left: 16px; right: 16px; top: 50%; transform: translateY(-50%);
+  max-width: 420px; margin: 0 auto; padding: 18px 16px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+}
+.did-it-send-title { font-size: 16px; font-weight: 800; color: var(--text); }
+.did-it-send-text { margin: 8px 0 14px; font-size: 13px; line-height: 1.5; color: var(--text2); }
+.did-it-send-btns { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.doc-sent-lines { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.doc-sent { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--text2); }
+.doc-sent strong { font-weight: 700; }
+.doc-sent.sent strong { color: var(--green, #2a9448); }
+.doc-sent.stale strong { color: var(--yellow); }
+.doc-sent.unsent strong { color: var(--text3, var(--text2)); }

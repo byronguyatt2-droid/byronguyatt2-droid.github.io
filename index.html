@@ -976,7 +976,7 @@
         <button class="share-btn" id="quoteFromReportBtn" onclick="openQuoteFromReport()" title="Build a treatment quote from this report">
           <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>Quote
         </button>
-        <button class="share-btn" id="shareBtn" onclick="openSendReview()" style="display:none" title="Email the report (and quote) to the client">
+        <button class="share-btn" id="shareBtn" onclick="openSendReview()" disabled title="Check the report, then email it (and the quote) to the client">
           <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>Send
         </button>
       </div>
@@ -1720,6 +1720,18 @@
       <textarea class="job-input send-review-body" id="sendReviewBody" rows="9" aria-label="Message"></textarea>
       <button class="extract-btn" id="sendReviewBtn" onclick="confirmSendReview()">Open email to send</button>
       <button class="link-btn send-review-cancel" onclick="closeSendReview()">Not yet</button>
+    </div>
+  </div>
+</div>
+
+<!-- DID THAT SEND? (when the app can't tell from the share sheet or email) -->
+<div class="page-sheet-overlay did-it-send-overlay" id="didItSendOverlay">
+  <div class="did-it-send" role="alertdialog" aria-modal="true" aria-labelledby="didItSendTitle" aria-describedby="didItSendText">
+    <div class="did-it-send-title" id="didItSendTitle">Did that send?</div>
+    <p class="did-it-send-text" id="didItSendText"></p>
+    <div class="did-it-send-btns">
+      <button class="extract-btn" onclick="answerDidItSend(true)">Yes, it's sent</button>
+      <button class="link-btn" onclick="answerDidItSend(false)">Not yet</button>
     </div>
   </div>
 </div>

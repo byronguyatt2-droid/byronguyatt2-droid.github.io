@@ -420,7 +420,7 @@ function emailTreatmentCertificate() {
     to: (q.clientEmail || '').trim(),
     subject: `Termite treatment certificate — ${q.address || 'your property'}`,
     body: clientMessage({ client: q.client, address: q.address, docs: 'termite treatment certificate', signOff: q.treatment.technician }),
-  });
+  }).then(sent => { if (sent) markCertificateSent(q); });
 }
 
 function buildTreatmentCertificatePDF(q) {
