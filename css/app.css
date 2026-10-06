@@ -84,7 +84,7 @@ body.dark-screen .report-title h2 { color: var(--text); }
 body.dark-screen .report-body { background: var(--bg); }
 body.dark-screen .section-header { background: #000000; border-bottom: 2px solid var(--frame); }
 body.dark-screen .drawer-subhead { background: #000000; box-shadow: inset 0 -2px 0 var(--frame); }
-body.dark-screen .field-val, body.dark-screen .job-input { border-color: #5B6B7C; background: #000000; }
+body.dark-screen .field-val, body.dark-screen #jobPanelBody .job-input, body.dark-screen #reportBody .job-input { border-color: #5B6B7C; background: #000000; }
 body.dark-screen .field-val:not(.filled):not(.choice-source) { border-color: var(--need); }
 body.dark-screen .field-val.filled { border-color: #E8EEF4; background: #000000; }
 body.dark-screen .section-photo-widget { border-color: var(--border2); }
@@ -129,7 +129,8 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
 body.large-touch .field-val { min-height: 56px; padding: 13px 14px; font-size: 16px; }
 body.large-touch .notes-toggle { width: 52px; }
 body.large-touch .section-tab { min-height: 52px; padding: 14px 18px; font-size: 14px; }
-body.large-touch .job-input { min-height: 56px; padding: 14px 13px; font-size: 16px; }
+body.large-touch .job-input { min-height: 52px; padding: 14px 13px; font-size: 15px; }
+body.large-touch #jobPanelBody .job-input, body.large-touch #reportBody .job-input { min-height: 56px; font-size: 16px; }
 body.large-touch .job-action-btn,
 body.large-touch .extract-btn,
 body.large-touch .generate-btn,
@@ -962,8 +963,8 @@ header {
 /* Job details */
 .job-panel {
   background: var(--surface);
-  border: 3px solid var(--frame);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
   overflow: hidden;
 }
 
@@ -1048,15 +1049,19 @@ header {
 .job-input {
   width: 100%;
   background: var(--surface2);
-  border: 2px solid var(--frame);
-  border-radius: 4px;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
   padding: 11px 12px;
   color: var(--text);
   font-family: 'Inter', sans-serif;
-  font-size: 15px;
+  font-size: 14px;
   transition: border-color 0.15s, box-shadow 0.15s;
-  min-height: 52px;
+  min-height: 44px;
 }
+/* Rugged where the inspector works: Job details gets the heavy frame.
+   Sign-up, account, billing and quote keep the lighter premium inputs. */
+#jobPanel:not(.menu-page-active) { border: 3px solid var(--frame); border-radius: 6px; }
+#jobPanelBody .job-input, #reportBody .job-input { border: 2px solid var(--frame); border-radius: 4px; font-size: 15px; min-height: 52px; }
 
 .job-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15); background: var(--surface); }
 .saved-search-input { margin-bottom: 10px; }
