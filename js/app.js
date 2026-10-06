@@ -7547,8 +7547,38 @@ function showToast(msg, type = 'default') {
   t.innerHTML = `${icons[type] || icons.default}<span>${escapeHtml(String(msg))}</span>`;
   t.className = 'toast show toast-' + type;
 
+  t._shownAt = Date.now();
   t._timeout = setTimeout(() => t.classList.remove('show'), 2800);
 }
+
+function dismissToast() {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  clearTimeout(t._timeout);
+  t.classList.remove('show');
+}
+
+// A toast belongs to the screen it was shown on: when the screen changes
+// (the menu, a menu page, the quote screen, the dashboard or a sheet opens
+// or closes), an older toast goes, so it never sits over the next screen's
+// buttons. A toast shown by the same tap that changed the screen stays.
+function installToastScreenWatch() {
+  // The toast sits inside the report app's markup, so it was hidden with
+  // the app (on the quote screen, for one). It belongs to the page.
+  const toast = document.getElementById('toast');
+  if (toast && toast.parentElement !== document.body) document.body.appendChild(toast);
+  const ids = ['app', 'mainMenu', 'quoteScreen', 'sidebarPanel', 'dashboardOverlay'];
+  const targets = ids.map(id => document.getElementById(id))
+    .concat([...document.querySelectorAll('.page-sheet-overlay, .menu-page, .saved-panel')])
+    .filter(Boolean);
+  const obs = new MutationObserver(() => {
+    const t = document.getElementById('toast');
+    if (t && t.classList.contains('show') && Date.now() - (t._shownAt || 0) > 400) dismissToast();
+  });
+  targets.forEach(el => obs.observe(el, { attributes: true, attributeFilter: ['class', 'style'] }));
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installToastScreenWatch);
+else installToastScreenWatch();
 
 // ── COMPLETED JOBS ────────────────────────────────────────────────────────
 // Nothing locks until the whole job is done: the report is signed and sent,
