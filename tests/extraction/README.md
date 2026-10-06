@@ -9,6 +9,12 @@ Checks how well `SYSTEM_PROMPT` (js/app.js) turns an inspector's dictation into 
 | `transcripts/house-test-1.txt` | First real run on a house (2026-10-05): iOS dictation, one long note, no script. The tester wasn't an inspector, so the order is loose. |
 | `transcripts/house-test-2.txt` | Second run, read spot by spot from a say-this script and dictated in several recordings into one box. The address and client name are made up; everything else is exactly what the phone produced, mishearings included. |
 | `transcripts/house-test-2-whisper-wrapup.txt` | The experimental Whisper transcription of test 2's last recording only (the wrap-up). No answer key yet. |
+| `transcripts/slab-barrier.txt` | Written case (2026-10-06): annual inspection, slab-on-ground brick veneer, an existing chemical barrier read off the durable notice in the meter box, a garden bed bridging the slab edge and weep holes. Nothing found. |
+| `transcripts/skirting-active.txt` | Written case: pre-purchase, live termites in a bedroom skirting board with damage into the bottom plate, referred to a builder, genus named but not the species, roof void partly hidden by insulation. |
+| `transcripts/subfloor-followup.txt` | Written case: a short second note about the subfloor only. Its key is mostly absence checks, because the app merges notes and anything this note doesn't say must come back empty. |
+| `transcripts/borers-rot.txt` | Written case: weatherboard on stumps, old Lyctus holes in the floorboards, rot in a fascia under a failed gutter, no termites, no treatment. |
+| `transcripts/rambling-nest.txt` | Written case: a rambling note with three self-corrections (wall type, side of the house, a reading) and a "possible nest" in a stump. |
+| `multi-note.playwright.js` | Drives the app in Chromium with canned Worker answers: two notes into one report, then a note that waits and a newer one dictated meanwhile. Reports whether facts survive, the order notes land in, obstruction ticks and the PDF download. |
 | `gold/<case>.json` | Answer key: a list of checks (format below). Built from what the inspector said and meant, then checked by two independent reviewers. |
 | `score.mjs` | `node tests/extraction/score.mjs gold/<case>.json <answer.json> [more answers]`. Prints failures, a weighted score, and the pass rate of each check across runs. |
 | `eval-workflow.js` | Claude Code workflow: Sonnet subagents stand in for the app's model, answer each case N times, then `score.mjs` marks them. |
@@ -36,8 +42,13 @@ The workflow's subagents run on the session's `sonnet` model inside an agent har
 
 Never let the answering model see `gold/` or this README; the workflow's prompt forbids it.
 
+The written cases were drafted from a brief and every check was then read against the transcript by hand; their transcripts use invented names and streets. The five keys follow the rules the 2026-10-06 prompt rewrite settled (`docs/handover/extraction-notes.md`): `hinderedAreas` names restricted areas only, a NONE finding only when the whole property is clear, "possible nest" keeps `nestLocated` empty, no method word in `treatmentType` the inspector didn't say, `riskLevel` only from a whole-house note.
+
+Browser check (not a scorer): `multi-note.playwright.js`, see the header of that file for the command. Run it after changing `populateFields`, `processTranscript`, `processPendingNotes` or `applyObstructionExtraction`.
+
 Notes on the runners:
-- `eval-workflow.js` scores only the two house tests unless you pass `cases: [...]` with every case id you want.
+- `eval-workflow.js` scores only the two house tests unless you pass `cases: [...]` with every case id you want. All seven: `house-test-1`, `house-test-2`, `slab-barrier`, `skirting-active`, `subfloor-followup`, `borers-rot`, `rambling-nest`.
+- To score an older prompt on new cases (a baseline), check that commit out in a separate `git worktree`, copy the new transcripts and keys into it, and point `args.repo` at the worktree.
 - Both runners read `SYSTEM_PROMPT` as plain text from `js/app.js`. Keep it a template literal with no `${}`; `run-api.mjs` refuses one that has it, and the workflow's agents would read the raw `${…}`.
 - An answer that isn't valid JSON counts as failing every check for that run, because the app can't use it either.
 - `BASELINE.md` holds the scores of the prompt as it was when the bench was added. Add a row there for every prompt change you measure.

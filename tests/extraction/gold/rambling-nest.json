@@ -1,0 +1,557 @@
+{
+  "id": "rambling-nest",
+  "transcript": "transcripts/rambling-nest.txt",
+  "about": "Annual inspection dictated loosely with three self-corrections: brick veneer then double brick, eastern then western side, and a laundry reading of 22 then 32 percent. Tests final-value extraction with no trace of the first answer, a 'possible nest' that must stay in text and never set nestLocated, an unidentified species, a stump finding that is not a high-risk area, and four invented mishearings.",
+  "checks": [
+    {
+      "id": "walls-double-brick",
+      "kind": "mentions",
+      "path": "wallConstruction",
+      "all": [
+        [
+          "double brick",
+          "double-brick",
+          "cavity brick",
+          "solid brick"
+        ]
+      ],
+      "none": [
+        "veneer",
+        "timber frame",
+        "weatherboard"
+      ],
+      "weight": 3,
+      "why": "'brick veneer no hang on it's double brick'"
+    },
+    {
+      "id": "no-veneer-anywhere",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "veneer"
+      ],
+      "weight": 3,
+      "why": "the corrected-away value must not appear anywhere"
+    },
+    {
+      "id": "floor-suspended-timber",
+      "kind": "mentions",
+      "path": "floorType",
+      "all": [
+        [
+          "suspend"
+        ],
+        [
+          "timber"
+        ]
+      ],
+      "none": [
+        "slab on ground",
+        "slab-on-ground",
+        "concrete slab"
+      ],
+      "weight": 3,
+      "why": "'suspended timber floor'"
+    },
+    {
+      "id": "roof-tiled",
+      "kind": "mentions",
+      "path": "roofType",
+      "all": [
+        [
+          "tile"
+        ]
+      ],
+      "none": [
+        "terracotta",
+        "concrete",
+        "colorbond",
+        "metal",
+        "iron"
+      ],
+      "weight": 2,
+      "why": "'tiled roof'; tile material not said"
+    },
+    {
+      "id": "client-name",
+      "kind": "mentions",
+      "path": "clientName",
+      "all": [
+        [
+          "marcus"
+        ],
+        [
+          "webb"
+        ]
+      ],
+      "weight": 1,
+      "why": "said 'Marcus Webb' (extra)"
+    },
+    {
+      "id": "address",
+      "kind": "mentions",
+      "path": "propertyStreetAddress",
+      "all": [
+        [
+          "11",
+          "eleven"
+        ],
+        [
+          "lilly",
+          "lily"
+        ],
+        [
+          "pilly"
+        ]
+      ],
+      "weight": 1,
+      "why": "said '11 Lilly Pilly Lane' (extra)"
+    },
+    {
+      "id": "inspection-type",
+      "kind": "equals",
+      "path": "inspectionType",
+      "values": [
+        "Annual — Existing Building"
+      ],
+      "weight": 2,
+      "why": "'the annual inspection'"
+    },
+    {
+      "id": "finding-active-stump",
+      "kind": "findingMatch",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "ACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "stump"
+            ],
+            [
+              "west"
+            ]
+          ],
+          "none": [
+            "eastern",
+            "east side"
+          ]
+        }
+      ],
+      "weight": 3,
+      "why": "'eastern side no sorry the western side... old tree stomp'"
+    },
+    {
+      "id": "finding-damage-nest-hedged",
+      "kind": "every",
+      "path": "findings",
+      "checks": [
+        {
+          "kind": "mentions",
+          "path": "damageDescription",
+          "all": [
+            [
+              "nest"
+            ],
+            [
+              "possib",
+              "suspect",
+              "potential",
+              "may",
+              "might",
+              "likely"
+            ]
+          ]
+        }
+      ],
+      "weight": 3,
+      "why": "'could be a nest in there possible nest'"
+    },
+    {
+      "id": "finding-nest-not-located",
+      "kind": "every",
+      "path": "findings",
+      "checks": [
+        {
+          "kind": "absent",
+          "path": "nestLocated"
+        }
+      ],
+      "weight": 3,
+      "why": "only a possible nest was said"
+    },
+    {
+      "id": "finding-species-not-named",
+      "kind": "every",
+      "path": "findings",
+      "checks": [
+        {
+          "kind": "mentions",
+          "path": "species",
+          "none": [
+            "coptotermes",
+            "schedorhinotermes",
+            "nasutitermes",
+            "heterotermes",
+            "microcerotermes",
+            "cryptotermes",
+            "mastotermes",
+            "porotermes",
+            "acinaciformis",
+            "frenchi",
+            "intermedius",
+            "exitiosus",
+            "walkeri",
+            "ferox",
+            "copter"
+          ],
+          "nullOk": true
+        }
+      ],
+      "weight": 3,
+      "why": "'couldn't tell you the species'"
+    },
+    {
+      "id": "finding-no-structural",
+      "kind": "every",
+      "path": "findings",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "structuralConcern",
+          "values": [
+            null,
+            "NO"
+          ]
+        }
+      ],
+      "weight": 3,
+      "why": "no builder referral was said"
+    },
+    {
+      "id": "findings-count-one",
+      "kind": "count",
+      "path": "findings",
+      "min": 1,
+      "max": 1,
+      "weight": 2,
+      "why": "one finding only: the stump"
+    },
+    {
+      "id": "area-interior",
+      "kind": "equals",
+      "path": "areaStatus.interior",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'inside the interior all rooms inspected'"
+    },
+    {
+      "id": "area-roofvoid",
+      "kind": "equals",
+      "path": "areaStatus.roofvoid",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'roof void... all clear'"
+    },
+    {
+      "id": "area-subfloor",
+      "kind": "equals",
+      "path": "areaStatus.subfloor",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'the subfloor was fine dry nothing in there'"
+    },
+    {
+      "id": "no-partial-or-not",
+      "kind": "mentions",
+      "path": "areaStatus",
+      "none": [
+        "partial",
+        "not"
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "everything said was fully inspected"
+    },
+    {
+      "id": "no-hindered-areas",
+      "kind": "absent",
+      "path": "hinderedAreas",
+      "weight": 3,
+      "why": "nothing restricted"
+    },
+    {
+      "id": "high-risk-not-stump",
+      "kind": "mentions",
+      "path": "highRiskAreas",
+      "none": [
+        "stump"
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "the stump is a finding, never a high risk area"
+    },
+    {
+      "id": "moisture-yes",
+      "kind": "equals",
+      "path": "moistureReadings",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "'32% so that's elevated'"
+    },
+    {
+      "id": "meter-laundry-32",
+      "kind": "mentions",
+      "path": "moistureMeterReadings",
+      "all": [
+        [
+          "laundry"
+        ],
+        [
+          "32"
+        ]
+      ],
+      "weight": 3,
+      "why": "'22 no sorry 32%'"
+    },
+    {
+      "id": "meter-no-22",
+      "kind": "mentions",
+      "path": "moistureMeterReadings",
+      "none": [
+        "22"
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "the corrected-away reading must not appear"
+    },
+    {
+      "id": "leaks-yes",
+      "kind": "equals",
+      "path": "waterLeaks",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "'a leaking washing machine tap'"
+    },
+    {
+      "id": "leak-location-laundry",
+      "kind": "mentions",
+      "path": "leakLocation",
+      "all": [
+        [
+          "laundry",
+          "tap"
+        ]
+      ],
+      "weight": 2,
+      "why": "'a leak at the tap in the laundry'"
+    },
+    {
+      "id": "weep-holes-clear",
+      "kind": "equals",
+      "path": "weepHoles",
+      "values": [
+        "CLEAR"
+      ],
+      "weight": 2,
+      "why": "'all the weep holes are clear'"
+    },
+    {
+      "id": "timber-soil-yes",
+      "kind": "equals",
+      "path": "timberSoil",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "'garden sleepers against the house timber in contact with the soil'"
+    },
+    {
+      "id": "no-existing-system",
+      "kind": "absent",
+      "path": "existingSystem",
+      "weight": 3,
+      "why": "'no system installed'"
+    },
+    {
+      "id": "treatment-yes",
+      "kind": "equals",
+      "path": "treatmentRecommended",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "'treat the termites in the stump colony'"
+    },
+    {
+      "id": "treatment-type-stump",
+      "kind": "mentions",
+      "path": "treatmentType",
+      "all": [
+        [
+          "stump",
+          "colony"
+        ]
+      ],
+      "weight": 2,
+      "why": "treat the stump colony, method to be worked out with the owner"
+    },
+    {
+      "id": "treatment-type-no-product",
+      "kind": "mentions",
+      "path": "treatmentType",
+      "none": [
+        "barrier",
+        "bait",
+        "chemical",
+        "reticulation",
+        "termidor"
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "no method or product was chosen"
+    },
+    {
+      "id": "frequency-6-months",
+      "kind": "mentions",
+      "path": "inspectionFrequency",
+      "all": [
+        [
+          "6 month",
+          "six month"
+        ]
+      ],
+      "weight": 3,
+      "why": "'next inspection in 6 months'"
+    },
+    {
+      "id": "risk-high",
+      "kind": "equals",
+      "path": "riskLevel",
+      "values": [
+        "HIGH"
+      ],
+      "weight": 3,
+      "why": "'overall the risk is high'"
+    },
+    {
+      "id": "findings-no-east",
+      "kind": "mentions",
+      "path": "findings",
+      "none": [
+        "eastern",
+        "east side",
+        "the east"
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "corrected from eastern to western; the first answer must not survive in any finding"
+    },
+    {
+      "id": "no-nest-claimed",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "nest found",
+        "nest was found",
+        "nest located",
+        "nest was located",
+        "nest confirmed",
+        "confirmed nest",
+        "nest sighted",
+        "found a nest",
+        "found the nest",
+        "located a nest",
+        "located the nest"
+      ],
+      "weight": 3,
+      "why": "only a possible nest was said"
+    },
+    {
+      "id": "no-species",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "coptotermes",
+        "schedorhinotermes",
+        "nasutitermes",
+        "heterotermes",
+        "microcerotermes",
+        "cryptotermes",
+        "mastotermes",
+        "porotermes",
+        "acinaciformis",
+        "frenchi",
+        "intermedius",
+        "exitiosus",
+        "walkeri",
+        "ferox",
+        "copter"
+      ],
+      "weight": 3,
+      "why": "species was not identified"
+    },
+    {
+      "id": "no-severity",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "minor",
+        "moderate",
+        "severe",
+        "extensive",
+        "significant",
+        "extreme",
+        "major",
+        "heavy"
+      ],
+      "weight": 3,
+      "why": "no severity wording was said"
+    },
+    {
+      "id": "no-structural",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "structural",
+        "compromised"
+      ],
+      "weight": 3,
+      "why": "no structural opinion"
+    },
+    {
+      "id": "no-mishearings",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "stomp",
+        "sleep as",
+        "weep hills",
+        "laundrey"
+      ],
+      "weight": 2,
+      "why": "dictation slips are corrected, not copied"
+    },
+    {
+      "id": "no-first-answers",
+      "kind": "manual",
+      "description": "Neither the first answers (brick veneer, eastern side, 22 percent) nor a blend of old and new appears in any field."
+    },
+    {
+      "id": "nest-hedge-kept",
+      "kind": "manual",
+      "description": "The hedge (\"possible nest\") stays in damageDescription and is not softened or hardened."
+    }
+  ]
+}

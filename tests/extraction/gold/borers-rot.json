@@ -1,0 +1,542 @@
+{
+  "id": "borers-rot",
+  "transcript": "transcripts/borers-rot.txt",
+  "about": "Annual inspection of a weatherboard house on stumps with old Lyctus exit holes, fascia rot under a failed gutter joint, and no termites. Tests keeping borers and decay out of findings[], INACTIVE borer wording ('no fresh frass' must not become ACTIVE), a leak that is a gutter not a termite source, no treatment, no system or slab fields on a stump house, and five invented mishearings.",
+  "checks": [
+    {
+      "id": "walls-weatherboard",
+      "kind": "mentions",
+      "path": "wallConstruction",
+      "all": [
+        [
+          "weatherboard",
+          "weather board"
+        ]
+      ],
+      "none": [
+        "brick",
+        "fibro"
+      ],
+      "weight": 3,
+      "why": "'weather bored house'"
+    },
+    {
+      "id": "floor-stumps",
+      "kind": "mentions",
+      "path": "floorType",
+      "all": [
+        [
+          "stump",
+          "elevated",
+          "suspended",
+          "timber"
+        ]
+      ],
+      "none": [
+        "slab",
+        "concrete"
+      ],
+      "weight": 3,
+      "why": "'up on stamps' (stumps)"
+    },
+    {
+      "id": "roof-corrugated-iron",
+      "kind": "mentions",
+      "path": "roofType",
+      "all": [
+        [
+          "corrugated",
+          "iron",
+          "metal",
+          "steel",
+          "zincalume"
+        ]
+      ],
+      "none": [
+        "tile",
+        "terracotta"
+      ],
+      "weight": 2,
+      "why": "'corrugated iron roof'"
+    },
+    {
+      "id": "era",
+      "kind": "equals",
+      "path": "constructionEra",
+      "values": [
+        "1945-1965"
+      ],
+      "weight": 2,
+      "why": "'built around the 1950s'"
+    },
+    {
+      "id": "client-name",
+      "kind": "mentions",
+      "path": "clientName",
+      "all": [
+        [
+          "daniel"
+        ],
+        [
+          "okafor"
+        ]
+      ],
+      "weight": 1,
+      "why": "said 'Daniel Okafor' (extra)"
+    },
+    {
+      "id": "address",
+      "kind": "mentions",
+      "path": "propertyStreetAddress",
+      "all": [
+        [
+          "22",
+          "twenty"
+        ],
+        [
+          "mulga"
+        ]
+      ],
+      "weight": 1,
+      "why": "said '22 Mulga Close' (extra)"
+    },
+    {
+      "id": "inspection-type",
+      "kind": "equals",
+      "path": "inspectionType",
+      "values": [
+        "Annual — Existing Building"
+      ],
+      "weight": 2,
+      "why": "'annual inspection'"
+    },
+    {
+      "id": "borers-inactive",
+      "kind": "equals",
+      "path": "borerActivity",
+      "values": [
+        "INACTIVE"
+      ],
+      "weight": 3,
+      "why": "'holes are dark no fresh grass (frass)... inactive'"
+    },
+    {
+      "id": "borer-type",
+      "kind": "mentions",
+      "path": "borerDetails",
+      "all": [
+        [
+          "lyctus",
+          "powderpost"
+        ]
+      ],
+      "weight": 2,
+      "why": "'old lick tus the powderpost borer'"
+    },
+    {
+      "id": "borer-where",
+      "kind": "mentions",
+      "path": "borerDetails",
+      "all": [
+        [
+          "floorboard",
+          "floor board"
+        ]
+      ],
+      "weight": 2,
+      "why": "'underside of the floor boards in the front two rooms'"
+    },
+    {
+      "id": "borer-details-clean",
+      "kind": "mentions",
+      "path": "borerDetails",
+      "none": [
+        "minor",
+        "moderate",
+        "severe",
+        "extensive",
+        "significant",
+        "extreme",
+        "major",
+        "heavy",
+        "bright",
+        "live beetle",
+        "fresh exit",
+        "recent"
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "old dark holes only; 'no fresh frass' wording is tolerated, severity is not"
+    },
+    {
+      "id": "decay-yes",
+      "kind": "equals",
+      "path": "decayFound",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "'soft and spongy rot there'"
+    },
+    {
+      "id": "decay-details",
+      "kind": "mentions",
+      "path": "decayDetails",
+      "all": [
+        [
+          "fascia"
+        ],
+        [
+          "west"
+        ]
+      ],
+      "none": [
+        "minor",
+        "moderate",
+        "severe",
+        "extensive",
+        "significant",
+        "extreme",
+        "major",
+        "heavy"
+      ],
+      "weight": 3,
+      "why": "fascia board on the western side under the gutter"
+    },
+    {
+      "id": "leaks-yes",
+      "kind": "equals",
+      "path": "waterLeaks",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "'that's a water leak yes the gutter'"
+    },
+    {
+      "id": "leak-location-gutter",
+      "kind": "mentions",
+      "path": "leakLocation",
+      "all": [
+        [
+          "gutter"
+        ]
+      ],
+      "weight": 2,
+      "why": "'the gutter on the western side'"
+    },
+    {
+      "id": "moisture-yes",
+      "kind": "equals",
+      "path": "moistureReadings",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "'the fascia is damp moisture reading 35%'"
+    },
+    {
+      "id": "meter-fascia-35",
+      "kind": "mentions",
+      "path": "moistureMeterReadings",
+      "all": [
+        [
+          "fascia"
+        ],
+        [
+          "35"
+        ]
+      ],
+      "weight": 2,
+      "why": "fascia 35%"
+    },
+    {
+      "id": "findings-count",
+      "kind": "count",
+      "path": "findings",
+      "min": 0,
+      "max": 1,
+      "weight": 2,
+      "why": "no termites anywhere, at most one NONE card"
+    },
+    {
+      "id": "findings-all-none",
+      "kind": "every",
+      "path": "findings",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "NONE"
+          ]
+        },
+        {
+          "kind": "absent",
+          "path": "species"
+        },
+        {
+          "kind": "absent",
+          "path": "damageDescription"
+        },
+        {
+          "kind": "absent",
+          "path": "activityLocation"
+        },
+        {
+          "kind": "absent",
+          "path": "nestLocated"
+        },
+        {
+          "kind": "absent",
+          "path": "structuralConcern"
+        }
+      ],
+      "weight": 3,
+      "why": "'no termite activity' everywhere; borer and rot never go in findings[]"
+    },
+    {
+      "id": "treatment-not-recommended",
+      "kind": "equals",
+      "path": "treatmentRecommended",
+      "values": [
+        "NO"
+      ],
+      "weight": 3,
+      "why": "'no treatment needed for termites'"
+    },
+    {
+      "id": "treatment-type-no-product",
+      "kind": "mentions",
+      "path": "treatmentType",
+      "none": [
+        "barrier",
+        "bait",
+        "chemical"
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "no termite treatment; builder and plumber repairs are not termite treatment"
+    },
+    {
+      "id": "timber-soil-no",
+      "kind": "equals",
+      "path": "timberSoil",
+      "values": [
+        "NO",
+        null
+      ],
+      "weight": 2,
+      "why": "'no timber lying on the soil'; stumps in ground are normal"
+    },
+    {
+      "id": "no-slab-edge",
+      "kind": "absent",
+      "path": "slabEdge",
+      "weight": 2,
+      "why": "no slab"
+    },
+    {
+      "id": "no-weep-holes",
+      "kind": "absent",
+      "path": "weepHoles",
+      "weight": 2,
+      "why": "weatherboard has none"
+    },
+    {
+      "id": "no-existing-system",
+      "kind": "absent",
+      "path": "existingSystem",
+      "weight": 3,
+      "why": "'no termite system installed'"
+    },
+    {
+      "id": "area-interior",
+      "kind": "equals",
+      "path": "areaStatus.interior",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'interior inspected all the rooms'"
+    },
+    {
+      "id": "area-exterior",
+      "kind": "equals",
+      "path": "areaStatus.exterior",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'exterior inspected all the way around'"
+    },
+    {
+      "id": "area-roofvoid",
+      "kind": "equals",
+      "path": "areaStatus.roofvoid",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'inspected it fully'"
+    },
+    {
+      "id": "area-subfloor",
+      "kind": "equals",
+      "path": "areaStatus.subfloor",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "'inspected the whole subfloor fully'"
+    },
+    {
+      "id": "no-partial-or-not",
+      "kind": "mentions",
+      "path": "areaStatus",
+      "none": [
+        "partial",
+        "not"
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "everything said was fully inspected"
+    },
+    {
+      "id": "no-hindered-areas",
+      "kind": "absent",
+      "path": "hinderedAreas",
+      "weight": 3,
+      "why": "nothing restricted"
+    },
+    {
+      "id": "no-high-risk-areas",
+      "kind": "absent",
+      "path": "highRiskAreas",
+      "weight": 3,
+      "why": "nothing inaccessible"
+    },
+    {
+      "id": "risk-low-or-medium",
+      "kind": "equals",
+      "path": "riskLevel",
+      "values": [
+        "LOW",
+        "MEDIUM",
+        null
+      ],
+      "weight": 3,
+      "why": "he did not state a risk, so empty is right too; nothing found, so HIGH would be invented"
+    },
+    {
+      "id": "risk-stated",
+      "kind": "equals",
+      "path": "riskLevel",
+      "values": [
+        "LOW",
+        "MEDIUM"
+      ],
+      "weight": 1,
+      "why": "a whole-house note gives enough to rate it; leaving it empty is a minor deduction"
+    },
+    {
+      "id": "frequency-12-months",
+      "kind": "mentions",
+      "path": "inspectionFrequency",
+      "all": [
+        [
+          "12 month",
+          "twelve month",
+          "annual",
+          "yearly",
+          "every year"
+        ]
+      ],
+      "weight": 2,
+      "why": "'re inspect in 12 months'"
+    },
+    {
+      "id": "no-species",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "coptotermes",
+        "schedorhinotermes",
+        "nasutitermes",
+        "heterotermes",
+        "microcerotermes",
+        "cryptotermes",
+        "mastotermes",
+        "porotermes",
+        "acinaciformis",
+        "frenchi",
+        "intermedius",
+        "exitiosus",
+        "walkeri",
+        "ferox",
+        "copter"
+      ],
+      "weight": 3,
+      "why": "no species named, no termites"
+    },
+    {
+      "id": "no-found-termites",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "active termites",
+        "live termites"
+      ],
+      "weight": 3,
+      "why": "no termites were found"
+    },
+    {
+      "id": "no-severity",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "minor",
+        "moderate",
+        "severe",
+        "extensive",
+        "significant",
+        "extreme",
+        "major",
+        "heavy"
+      ],
+      "weight": 3,
+      "why": "no severity wording was said"
+    },
+    {
+      "id": "no-structural",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "structural",
+        "compromised",
+        "structurally"
+      ],
+      "weight": 3,
+      "why": "fascia repair is not a structural verdict"
+    },
+    {
+      "id": "no-mishearings",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "lick tus",
+        "grass",
+        "fashion",
+        "weather bored",
+        "stamps"
+      ],
+      "weight": 3,
+      "why": "dictation slips are corrected, not copied"
+    },
+    {
+      "id": "no-termite-claims",
+      "kind": "manual",
+      "description": "No field states or implies termite activity or evidence of termites anywhere; a NONE finding saying nothing found is fine."
+    },
+    {
+      "id": "repair-not-structural",
+      "kind": "manual",
+      "description": "The builder or plumber repair is not turned into structuralConcern or a structural opinion."
+    }
+  ]
+}
