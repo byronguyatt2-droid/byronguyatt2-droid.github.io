@@ -621,9 +621,31 @@ function hasRestrictedAreas() {
   return !!v && !v.startsWith('NIL') && !v.includes('N/A');
 }
 
+// 'YES', 'NO', or null when the question hasn't been answered yet. An
+// unanswered question is never printed as NO.
+function restrictionsAnswer() {
+  if (!(reportData.hinderedAreas || '').trim()) return null;
+  return hasRestrictedAreas() ? 'YES' : 'NO';
+}
+
 function restoreResState() {
-  if (!reportData.hinderedAreas) return;
-  setRestrictedAccess(hasRestrictedAreas());
+  const answer = restrictionsAnswer();
+  if (!answer) {
+    ['resYesBtn', 'resNoBtn'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.remove('active'); });
+    const detail = document.getElementById('resDetailWrap');
+    if (detail) detail.style.display = 'none';
+    return;
+  }
+  setRestrictedAccess(answer === 'YES');
+}
+
+// Findings with termite activity or evidence where "Refer to a builder or
+// engineer?" has no answer. A blank is never read as "no referral".
+function findingsMissingReferral() {
+  return (reportData.findings || [])
+    .map((f, i) => ({ f, n: i + 1 }))
+    .filter(({ f }) => f && (f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE') && f.structuralConcern !== 'YES' && f.structuralConcern !== 'NO')
+    .map(({ n }) => n);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -7566,6 +7588,7 @@ function reportSummary() {
   const live = fs.filter(f => f.termiteActivity === 'ACTIVE');
   const evidence = fs.filter(f => f.termiteActivity === 'INACTIVE');
   const structural = fs.some(f => f.structuralConcern === 'YES');
+  const unanswered = findingsMissingReferral();
   const conducive = [];
   if (reportData.waterLeaks === 'YES') conducive.push(`water leak${reportData.leakLocation ? ` (${reportData.leakLocation})` : ''}`);
   else if (reportData.moistureReadings === 'YES') conducive.push('elevated moisture');
@@ -7592,7 +7615,9 @@ function reportSummary() {
       { ACTIVE: 'bad', INACTIVE: 'warn', NONE: 'good' }[reportData.borerActivity] || 'none', reportData.borerDetails || ''],
     ['Wood decay (rot)', { YES: 'FOUND', NO: 'NONE SEEN' }[reportData.decayFound] || NR,
       { YES: 'warn', NO: 'good' }[reportData.decayFound] || 'none', reportData.decayDetails || ''],
-    ['Builder referral', structural ? 'BUILDER TO ASSESS' : fs.length ? 'NONE FLAGGED' : NR, structural ? 'bad' : fs.length ? 'good' : 'none', ''],
+    ['Builder referral', structural ? 'BUILDER TO ASSESS' : unanswered.length ? 'NOT ANSWERED' : fs.length ? 'NONE FLAGGED' : NR,
+      structural ? 'bad' : unanswered.length ? 'warn' : fs.length ? 'good' : 'none',
+      !structural && unanswered.length ? `Finding${unanswered.length === 1 ? '' : 's'} ${unanswered.join(', ')}: not answered` : ''],
     ['Conducive conditions', conducive.length ? `${conducive.length} FOUND` : 'NONE RECORDED', conducive.length ? 'warn' : 'none', conducive.join('; ')],
     ['Risk of termite attack', reportData.riskLevel || NR, { HIGH: 'bad', MEDIUM: 'warn', LOW: 'good' }[reportData.riskLevel] || 'none',
       reportData.riskLevel && basis.length ? `Based on ${basis.join(', ')}` : ''],
@@ -7623,6 +7648,8 @@ function reportPrepItems() {
   if (!document.getElementById('jobAddress').value.trim()) items.push('The job has no property address');
   const unmarked = Object.keys(OBS_ZONES).filter(z => !areaStatusOf(z)).length;
   if (unmarked) items.push(`${unmarked} area${unmarked === 1 ? ' has' : 's have'} no inspection status`);
+  if (!restrictionsAnswer()) items.push('Section 3: "restricted access?" isn\'t answered');
+  findingsMissingReferral().forEach(n => items.push(`Finding ${n}: "refer to a builder or engineer?" isn't answered`));
   const pending = (reportData.pendingNotes || []).length;
   if (pending) items.push(`${pending} voice note${pending === 1 ? ' is' : 's are'} still waiting to be filled in`);
   if (!reportData.inspectorSignature) items.push('The inspector hasn\'t signed');
@@ -8827,14 +8854,15 @@ async function _buildAndDownloadPDF() {
   startPart('Restrictions');
   sectionTitle('RESTRICTIONS');
   resetRowShade();
-  const noRestrictions = !hasRestriction;
+  const resAnswer = restrictionsAnswer();
+  const noRestrictions = resAnswer !== 'YES';
   if (y + 14 > 278) newPage();
   doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, 12, 'F');
   doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, 12, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
   doc.text('WERE THERE CONDITIONS THAT RESTRICTED BUT DID NOT PREVENT INSPECTION?', M+4, y+5);
-  const resAns = noRestrictions ? 'NO' : 'YES';
-  const resCol = noRestrictions ? C.safe : C.warn;
+  const resAns = resAnswer || 'NOT RECORDED';
+  const resCol = resAnswer === 'YES' ? C.warn : resAnswer === 'NO' ? C.safe : C.inkMuted;
   doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...resCol);
   doc.text(resAns, W-M-4, y+8, { align:'right' });
   y += 14;
