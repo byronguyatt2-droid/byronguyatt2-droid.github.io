@@ -1738,6 +1738,22 @@
   </div>
 </div>
 
+<!-- AFTER EXTRACT: what was filled and what's still blank -->
+<div class="page-sheet-overlay" id="extractSummaryOverlay" onclick="if(event.target===this)closeExtractSummary()">
+  <div class="page-sheet extract-summary-sheet" role="dialog" aria-modal="true" aria-labelledby="extractSummaryTitle">
+    <div class="page-sheet-header">
+      <span class="page-sheet-title" id="extractSummaryTitle">From your note</span>
+      <button class="voice-popover-close" onclick="closeExtractSummary()" aria-label="Close"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+    </div>
+    <div class="page-sheet-body">
+      <div class="extract-summary-filled" id="extractSummaryFilled"></div>
+      <div class="extract-summary-label" id="extractSummaryBlankLabel">Left blank</div>
+      <div class="extract-summary-list" id="extractSummaryBlanks"></div>
+      <button class="extract-btn" onclick="closeExtractSummary()">Done</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 </div><!-- /body -->
