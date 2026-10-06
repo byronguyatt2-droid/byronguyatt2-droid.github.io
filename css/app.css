@@ -3,6 +3,9 @@
 :root {
   --bg:        #D6E4EF;
   --surface:   #FFFFFF;
+  /* Room the floating mic button needs at the foot of a scroll area:
+     its 58px button, 20px from the bottom, plus a gap. */
+  --mic-clearance: calc(96px + env(safe-area-inset-bottom, 0px));
   --surface2:  #F5F7FA;
   --surface3:  #EDF0F4;
   --accent:    #0D9488;
@@ -1501,6 +1504,15 @@ header {
   pointer-events: none;
 }
 
+/* The mic is for the report. It is hidden on the menu and its lists, the
+   quote screen, the dashboard and the sheets, where it would only cover
+   buttons. */
+body:has(#quoteScreen.open) #micDock,
+body:has(#sidebarPanel.open) #micDock,
+body:has(#dashboardOverlay.open) #micDock,
+body:has(.page-sheet-overlay.open) #micDock,
+body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
+
 .mic-dock.drawer-is-open {
   opacity: 0;
   pointer-events: none;
@@ -1950,7 +1962,7 @@ header {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 16px 16px;
-  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--mic-clearance) + 16px);
   display: block;
   background: #C8D8E8;
 }
@@ -3188,8 +3200,9 @@ body.report-locked #micDock { opacity: 0.4; }
 /* Toast */
 .toast {
   position: fixed;
-  bottom: 44px;
-  right: 22px;
+  /* Above the mic button, so it never covers it or the buttons beside it. */
+  bottom: calc(var(--mic-clearance) + 8px);
+  right: 16px;
   background: linear-gradient(160deg, #2e3239 0%, var(--surface3) 60%);
   color: var(--text);
   padding: 11px 18px;
@@ -3207,7 +3220,7 @@ body.report-locked #micDock { opacity: 0.4; }
   display: flex;
   align-items: center;
   gap: 9px;
-  max-width: 320px;
+  max-width: min(320px, calc(100vw - 32px));
 }
 
 .toast.show { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
@@ -3459,7 +3472,8 @@ body.report-locked #micDock { opacity: 0.4; }
   align-items: flex-start;
   gap: 10px;
   padding: 10px 12px;
-  background: rgba(var(--accent-rgb), 0.05);
+  /* Solid, so the description reads against the popover's dark gradient. */
+  background: var(--surface);
   border: 1px solid rgba(var(--accent-rgb), 0.15);
   border-radius: 10px;
   margin-bottom: 2px;
@@ -3480,8 +3494,8 @@ body.report-locked #micDock { opacity: 0.4; }
   margin-bottom: 3px;
 }
 .hf-toggle-desc {
-  font-size: 10.5px;
-  color: var(--text3);
+  font-size: 11px;
+  color: var(--text2);
   line-height: 1.5;
 }
 .hf-toggle-desc strong { color: var(--accent2); }
