@@ -477,16 +477,45 @@ function migrateLegacyObstructions() {
   });
 }
 
+// Other words inspectors use for a reason label, so dictation ticks the
+// right button without the exact label. Matched as whole words inside a
+// phrase about that area.
+const OBS_REASON_SYNONYMS = {
+  'Stored Articles': ['stored items', 'stored goods', 'stored belongings', 'stored articles', 'storage', 'boxes', 'personal items'],
+  'Stored articles': ['stored items', 'stored goods', 'stored belongings', 'stored articles', 'storage', 'boxes'],
+  'Furniture': ['furniture', 'furnishings', 'wardrobe', 'bed', 'couch', 'lounge suite'],
+  'Insulation': ['insulation', 'batts'],
+  'Vegetation': ['vegetation', 'shrubs', 'shrubbery', 'overgrown', 'plants', 'garden growth'],
+  'Low Clearance': ['low clearance', 'clearance too low', 'not enough clearance', 'tight clearance'],
+  'Low clearance in roof void': ['low clearance in the roof', 'low clearance in roof void', 'low pitch'],
+  'Low clearance to the outside edges of roof void': ['low clearance to the outer edges', 'low clearance at the outer edges', 'low clearance to the edges', 'low clearance at the edges', 'low clearance at the eaves', 'low clearance to the eaves', 'low clearance at the outer sides', 'low clearance to the outer sides'],
+  'Ducting': ['ducting', 'ducts'],
+  'Air conditioning ducting': ['ducting', 'ducts', 'air con'],
+  'Air Conditioner Ducting': ['ducting', 'ducts', 'air con'],
+  'Plumbing': ['plumbing', 'pipes', 'pipework'],
+  'Sarking': ['sarking', 'foil'],
+  'Height Restrictions': ['height restriction', 'too high', 'height'],
+  'Skillion Roof Design (no void)': ['skillion', 'no roof void', 'no void'],
+  'Item blocking access to manhole': ['manhole blocked', 'blocking the manhole', 'blocking access to manhole', 'manhole'],
+  'Water Tanks': ['water tank', 'rainwater tank', 'tank'],
+  'Back Fill': ['backfill', 'back fill', 'soil built up', 'soil against'],
+  'Abutting Timbers': ['abutting timber', 'timbers against', 'timber against'],
+  'No access to subfloor': ['no access to subfloor', 'no access to the subfloor', 'no subfloor access', 'could not access the subfloor', 'couldn\'t get into the subfloor', 'subfloor not accessible', 'subfloor not entered', 'hatch too small', 'no subfloor hatch'],
+};
+
 // Called from populateFields() after a voice/AI extraction. The AI returns
 // areaStatus for any area the technician mentioned, plus obstructions /
-// restrictedAccess as free text. Statuses the AI gives are applied as-is.
-// The free text is then used two ways: (1) only when the AI gave no
-// statuses at all, an area named in it is marked partly inspected; (2) for
-// areas marked partly / not inspected, an obstruction reason is ticked when
-// a phrase about that area contains all of that reason's words (so "stored
-// articles in subfloor" ticks the subfloor's Stored Articles, but a lone
-// "stored" doesn't tick every reason that mentions storage). Every button stays a normal
-// toggle the technician can correct.
+// restrictedAccess as free text. Statuses the AI gives are applied as-is;
+// an area that comes back fully inspected (or N/A) also loses the reasons
+// an earlier note ticked, because they no longer apply. The free text is
+// then used two ways: (1) only when the AI gave no statuses at all, an
+// area named in it is marked partly inspected; (2) for areas marked partly
+// / not inspected, an obstruction reason is ticked when a phrase about that
+// area contains the reason's label, one of its synonyms, or (as a last
+// resort) every significant word of the label. A label that starts with
+// "no" ("No access to subfloor") needs that "no" in the phrase too, so a
+// subfloor the inspector was in is never reported as not accessed. Every
+// button stays a normal toggle the technician can correct.
 function applyObstructionExtraction(data) {
   const VALID = new Set(AREA_STATUSES.map(([v]) => v));
   let changed = false;
@@ -495,20 +524,26 @@ function applyObstructionExtraction(data) {
     if (!OBS_ZONES[z] || !VALID.has(st)) return;
     if (!reportData.areaStatus) reportData.areaStatus = {};
     reportData.areaStatus[z] = st;
+    if (!['PARTIAL', 'NOT'].includes(st) && reportData.areaReasons) delete reportData.areaReasons[z];
     changed = true;
   });
 
   const combinedText = [data.obstructions, data.restrictedAccess].map(t => (t || '').trim()).filter(Boolean).join('. ');
-  if (combinedText && !/^\s*(nil|none|no obstructions|n\/a)\b/i.test(combinedText)) {
-    const sigWords = t => t.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4 && w !== 'the');
+  if (combinedText && !/^\s*(nil|none|no obstructions|no restrictions|n\/a|nothing)\b/i.test(combinedText)) {
+    const words = t => t.toLowerCase().split(/[^a-z/]+/).filter(Boolean);
+    // The words that identify a reason label: anything 4+ letters, plus a
+    // leading "no"/"not" when the label has one.
+    const sigWords = t => words(t).filter(w => (w.length >= 4 && w !== 'the') || w === 'no' || w === 'not');
+    const hasWord = (phrase, w) => new RegExp('(^|[^a-z])' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z]|$)').test(phrase);
+    const hasPhrase = (phrase, p) => hasWord(phrase, p.toLowerCase().replace(/\s+/g, ' '));
     const names = zoneId => [sigWords(OBS_ZONES[zoneId].label), ...(AREA_ALIASES[zoneId] || []).map(a => a.split(' '))];
-    const namesZone = (phrase, zoneId) => names(zoneId).some(words => words.every(w => phrase.includes(w)));
+    const namesZone = (phrase, zoneId) => names(zoneId).some(ws => ws.every(w => hasWord(phrase, w)));
     // Split into short phrases and give each one to the area it names, or
     // to the last area named earlier in the same sentence.
     const phrasesByZone = {}; const unassigned = [];
-    combinedText.toLowerCase().split(/[.;]/).forEach(sentence => {
+    combinedText.toLowerCase().replace(/\s+/g, ' ').split(/[.;]/).forEach(sentence => {
       let current = [];
-      sentence.split(',').map(x => x.trim()).filter(Boolean).forEach(phrase => {
+      sentence.split(/,|:/).map(x => x.trim()).filter(Boolean).forEach(phrase => {
         const named = Object.keys(OBS_ZONES).filter(z => namesZone(phrase, z));
         if (named.length) current = named;
         if (!current.length) { unassigned.push(phrase); return; }
@@ -516,6 +551,16 @@ function applyObstructionExtraction(data) {
       });
     });
     let matchedAny = false;
+
+    // The reasons one phrase ticks: its exact labels and synonyms when it
+    // has any, otherwise whichever labels have every significant word in
+    // it (so "Low clearance in roof void" isn't also ticked by a phrase
+    // that names the outside-edges label).
+    const itemsFor = (items, phrase) => {
+      const exact = items.filter(item => hasPhrase(phrase, item) || (OBS_REASON_SYNONYMS[item] || []).some(s => hasPhrase(phrase, s)));
+      if (exact.length) return exact;
+      return items.filter(item => { const w = sigWords(item); return w.length > 0 && w.every(v => hasWord(phrase, v)); });
+    };
 
     Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
       const own = phrasesByZone[zoneId] || [];
@@ -528,7 +573,8 @@ function applyObstructionExtraction(data) {
       // Text that names no area can only be about this one when it's the
       // only area not fully inspected.
       const scope = own.length ? own : (areasNotFullyInspected().length === 1 ? unassigned : []);
-      zone.items.filter(item => { const w = sigWords(item); return w.length && scope.some(x => w.every(v => x.includes(v))); }).forEach(item => {
+      const ticked = new Set(); scope.forEach(x => itemsFor(zone.items, x).forEach(item => ticked.add(item)));
+      zone.items.filter(item => ticked.has(item)).forEach(item => {
         if (!reportData.areaReasons) reportData.areaReasons = {};
         const list = reportData.areaReasons[zoneId] || (reportData.areaReasons[zoneId] = []);
         if (!list.includes(item)) { list.push(item); matchedAny = true; }
@@ -568,10 +614,16 @@ function setRestrictedAccess(hasRestrictions) {
   updateProgress(); flushDraftSave();
 }
 
+// The Restrictions answer: YES only when restricted areas were recorded.
+// Tapping No stores the 'NIL — …' text above, and older reports hold 'N/A'.
+function hasRestrictedAreas() {
+  const v = (reportData.hinderedAreas || '').trim();
+  return !!v && !v.startsWith('NIL') && !v.includes('N/A');
+}
+
 function restoreResState() {
   if (!reportData.hinderedAreas) return;
-  const isNo = reportData.hinderedAreas.startsWith('NIL');
-  setRestrictedAccess(!isNo);
+  setRestrictedAccess(hasRestrictedAreas());
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1092,117 +1144,102 @@ const SECTIONS = {
   signoff:         { fields:['inspectorLicence','inspectorSignature','agreement'], total:3 }
 };
 
-const SYSTEM_PROMPT = `You are a data extraction AI for SAYON, an Australian termite inspection app compliant with AS 3660.2-2017.
-Extract structured data from a pest control technician's spoken inspection notes. Return ONLY a valid JSON object.
+const SYSTEM_PROMPT = `You extract report fields for SAYON, an app that Australian timber pest inspectors dictate into. The user message is ONE dictated note from a timber pest inspection (AS 4349.3 / AS 3660.2). An inspector usually records several notes on one job, one per area, and the app merges them: so extract ONLY what THIS note states, and leave every other field null. A field left null stays as it was; a wrong value replaces a right one. Return ONLY a valid JSON object, no markdown and no commentary.
 
-Known NSW termite species: Coptotermes acinaciformis, Coptotermes frenchi, Schedorhinotermes intermedius, Nasutitermes walkeri, Nasutitermes exitiosus, Microcerotermes spp., Heterotermes ferox, Cryptotermes brevis.
+THE ONE RULE: a field holds only what the inspector said or plainly meant. Never guess, infer from typical houses, or complete a pattern. When a value is not in the note, it is null. When the note is ambiguous, prefer null over a guess for YES/NO and dropdown fields, and keep the inspector's own words for text fields.
 
-Known treatment products and systems:
-- Non-repellent chemical barriers: Termidor (Fipronil), Altriset (Chlorantraniliprole), Phantom, Premise
-- Repellent chemical barriers: Bifenthrin, Biflex, Maxxthor, Talstar
-- Baiting / monitoring systems: Exterra, Sentricon, Trelona
-- Existing physical/chemical management systems: HomeGuard Blue (reported with linear metres of perimeter + pipe penetration collars)
+FIELDS (every one null unless the note gives it):
+{"propertyStreetAddress":string,"propertySuburb":string,"propertyState":"NSW"|"VIC"|"QLD"|"WA"|"SA"|"TAS"|"ACT"|"NT","propertyPostcode":string,"clientName":string,"inspectionType":"Annual — Existing Building"|"Pre-Purchase — Timber Pest"|"Pre-Purchase — Combined Building & Pest"|"New Construction — Completion"|"Treatment Follow-Up"|"Re-inspection"|"Insurance / Legal",
+"structureType":string,"height":string,"wallConstruction":string,"roofType":string,"floorType":string,"facadeDirection":string,"constructionEra":"Pre-1920s"|"1920s-1940s"|"1945-1965"|"1965-1985"|"1985-2003"|"Post-2003","occupancyStatus":string,"weatherConditions":string,
+"existingSystem":string,"existingSystemOther":string,"durableNoticePresent":"YES"|"NO","hardLandscaping":"YES"|"NO","zone25mmVisible":"YES"|"NO","softLandscaping":"YES"|"NO","zone75mmVisible":"YES"|"NO","antCapSoldered":"YES"|"NO"|"N/A",
+"areaStatus":{"interior"|"exterior"|"subfloor"|"roofvoid"|"outbuildings"|"site"|"fences"|"retainingwalls"|"landscapingtimbers":"INSPECTED"|"PARTIAL"|"NOT"|"NA"},"obstructions":string,"restrictedAccess":string,"highRiskAreas":string,"hinderedAreas":string,"hinderedAreasDetail":string,
+"findings":[{"termiteActivity":"ACTIVE"|"INACTIVE"|"NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES"|"NO","structuralConcern":"YES"|"NO"}],
+"borerActivity":"ACTIVE"|"INACTIVE"|"NONE","borerDetails":string,"decayFound":"YES"|"NO","decayDetails":string,
+"moistureReadings":"YES"|"NO","waterLeaks":"YES"|"NO","leakLocation":string,"moistureMeterReadings":[{"location":string,"reading":string}],"timberSoil":"YES"|"NO","slabEdge":"CLEAR"|"OBSTRUCTED","weepHoles":"CLEAR"|"BRIDGED",
+"riskLevel":"LOW"|"MEDIUM"|"HIGH","treatmentRecommended":"YES"|"NO","treatmentType":string,"inspectionFrequency":string}
 
-Construction era materials (for constructionEra field):
-- "Pre-1920s": timber stumps, weatherboard, corrugated iron, no slab
-- "1920s-1940s": early brick, fibro introduced, timber stumps
-- "1945-1965": fibro widespread (asbestos cement), brick veneer emerging — HIGH asbestos likelihood
-- "1965-1985": brick veneer dominant, concrete slab standard, fibro in extensions — HIGH asbestos likelihood
-- "1985-2003": asbestos declining, concrete slab standard, Colorbond introduced — MODERATE asbestos likelihood
-- "Post-2003": asbestos banned, lightweight cladding, engineered timber — NONE
+DROPDOWN FIELDS: the app shows these as pick-lists. Return the list value EXACTLY as written below when the inspector's words fit one; when they describe something the list cannot express, return their words instead (never a list value that adds a fact they did not state).
+- structureType: "Detached house" | "Semi-detached" | "Terrace / townhouse" | "Duplex" | "Unit / apartment" | "Granny flat" | "Commercial building". "House" or "home" with nothing more is "Detached house".
+- height: "Single storey" | "Double storey" | "Split level" | "Three storey+".
+- wallConstruction: "Brick veneer" | "Double brick" | "Weatherboard" | "Fibro / cement sheet" | "Rendered masonry" | "Lightweight cladding" | "Mixed construction". Brick veneer and double brick are different builds: the phrase "double brick veneer" is a slip, so use whichever the inspector restates or settles on later, and never combine the two.
+- floorType: "Concrete slab on ground" | "Timber suspended floor" | "Elevated timber (stumps)" | "Combination slab / timber". "Not a slab" plus joists, bearers or a subfloor means "Timber suspended floor"; stumps means "Elevated timber (stumps)".
+- roofType: "Colorbond metal" | "Tiled — concrete" | "Tiled — terracotta" | "Corrugated iron" | "Flat membrane" | "Mixed". A tiled roof whose tile material is not named is written as the inspector said it, e.g. "Tiled roof, timber framed": never pick concrete or terracotta for them. Roof framing (timber or steel) has no field of its own, so it may be appended here.
+- facadeDirection: "North" | "North-east" | "East" | "South-east" | "South" | "South-west" | "West" | "North-west" (the direction the front of the building faces).
+- occupancyStatus: "Occupied — residential" | "Owner occupied" | "Tenanted" | "Vacant" | "Under renovation" | "Commercial / industrial". "Occupied" or "furnished" alone is "Occupied — residential".
+- weatherConditions: "Fine and dry" | "Overcast" | "Light rain" | "Heavy rain" | "Humid" | "Windy".
+- constructionEra: only from a stated age, decade or year ("built in the 70s" is "1965-1985", "around 1998" is "1985-2003", "2005" is "Post-2003") or from an era-specific material the inspector names (fibro sheeting, asbestos). Never date a house from its wall, floor or roof type: the era prints an asbestos warning in the report, so a guessed era is a false fact.
+- existingSystem (the TYPE of termite management system found): "Physical Barrier" | "Chemical Reticulation System" | "Termite Baiting System" | "Combination System — Physical + Chemical" | "System Present — Type Unidentified". A chemical soil treatment or chemical barrier with no reticulation pipes mentioned is written as "Chemical soil barrier". Only when a system is actually present; when the inspector says there is no system, no barrier or nothing installed, leave it null (never "No", "None", "Nil").
+- existingSystemOther: the brand, product or chemical the system is recorded as (HomeGuard Blue, Kordon, Termimesh, Exterra, Sentricon, Termidor, Altriset ...), plus the install year if read from the notice. Only when the inspector names it.
+- inspectionType: "Annual — Existing Building" for an annual, routine, regular or yearly inspection of the client's own home; "Pre-Purchase — Timber Pest" for pre-purchase, pre-sale or a client buying the property ("pre-purchased" is the same); "Pre-Purchase — Combined Building & Pest" only when they say building and pest; "Treatment Follow-Up", "Re-inspection", "New Construction — Completion" and "Insurance / Legal" only when said in those words. Otherwise null.
+- inspectionFrequency: write the NEXT interval first as a number of months, then any later pattern, e.g. "3 months, then every 12 months" or "12 months". Never put a later interval before the first one.
 
-Direct decade references map the same way even without material descriptions, e.g. "built in the 70s", "early 2000s", "looks like a 90s build", "probably 1950s era" — map the stated or implied decade to the matching era range above.
+AREAS INSPECTED (areaStatus): one key per area the note actually covers; leave out areas the note does not mention, including when a later note may cover them.
+- Keys: interior (inside the house), exterior (outside walls and perimeter), subfloor (under the floor), roofvoid (roof void, roof space, ceiling cavity, manhole), outbuildings (sheds and garages, whether attached or not), site (yard, grounds, gardens), fences, retainingwalls, landscapingtimbers (sleepers, garden edging timbers).
+- "INSPECTED": inspected with no limit stated. An area the inspector walked and described with no limitation (the perimeter, the yard, a fence line) counts as INSPECTED even without the word "inspected". "PARTIAL": inspected, but something kept part of it from view or reach (stored items, furniture, insulation, low clearance, a section not entered). "NOT": not inspected at all (no access, locked, unsafe, hatch too small). "NA": the area does not exist at this property ("slab on ground" means subfloor is NA; "no roof void" or a skillion roof means roofvoid is NA; "no sheds" means outbuildings is NA).
+- An area named only in a recommendation, a conducive condition or a finding ("pull the soil back from the garage", "soil against the fence") gets no status unless the inspector says they looked at it.
+- "Everything was accessible" or "full access everywhere" sets every area mentioned in the note to INSPECTED; it never adds areas the note does not mention.
+- A later note re-covering an area ("got into the back of the subfloor now, all clear") simply states that area's new status.
 
-Fields (null if not mentioned):
-{"propertyStreetAddress":string,"propertySuburb":string,"propertyState":"NSW" or "VIC" or "QLD" or "WA" or "SA" or "TAS" or "ACT" or "NT","propertyPostcode":string,"clientName":string,"inspectionType":"Pre-Purchase — Timber Pest" or "Annual — Existing Building" or "Treatment Follow-Up" or "Re-inspection" or null,"structureType":string,"wallConstruction":string,"floorType":string,"roofType":string,"height":string,"facadeDirection":string,"occupancyStatus":string,"weatherConditions":string,"constructionEra":"Pre-1920s" or "1920s-1940s" or "1945-1965" or "1965-1985" or "1985-2003" or "Post-2003","hinderedAreas":string(readily accessible areas inspected),"areaStatus":{"interior"|"exterior"|"subfloor"|"roofvoid"|"outbuildings"|"site"|"fences"|"retainingwalls"|"landscapingtimbers": "INSPECTED" or "PARTIAL" or "NOT" or "NA"},"obstructions":string(areas not inspected),"restrictedAccess":string(physical obstructions preventing inspection),"hinderedAreasDetail":string(restrictions limiting inspection),"highRiskAreas":string(areas that could NOT be accessed or inspected and should be prioritised for a follow-up inspection once access becomes available — this is never a location where termite activity was actually found, inspected, and already captured in findings[]),"findings":[{"termiteActivity":"ACTIVE" or "INACTIVE" or "NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES" or "NO","structuralConcern":"YES" or "NO"}],"waterLeaks":"YES" or "NO","leakLocation":string,"moistureReadings":"YES" or "NO","moistureMeterReadings":[{"location":string,"reading":string}],"timberSoil":"YES" or "NO","slabEdge":"CLEAR" or "OBSTRUCTED","weepHoles":"CLEAR" or "BRIDGED","existingSystem":string,"durableNoticePresent":"YES" or "NO","hardLandscaping":"YES" or "NO","zone25mmVisible":"YES" or "NO","softLandscaping":"YES" or "NO","zone75mmVisible":"YES" or "NO","antCapSoldered":"YES" or "NO" or "N/A","treatmentRecommended":"YES" or "NO","treatmentType":string,"inspectionFrequency":string,"riskLevel":"LOW" or "MEDIUM" or "HIGH","borerActivity":"ACTIVE" or "INACTIVE" or "NONE","borerDetails":string,"decayFound":"YES" or "NO","decayDetails":string}
+OBSTRUCTIONS AND RESTRICTIONS: four fields, each with one meaning.
+- obstructions: which areas were not fully inspected and roughly where, e.g. "Subfloor: back section behind stored items. Roof void: outer edges and corners". Only PARTIAL or NOT areas appear here. Null when nothing was in the way.
+- restrictedAccess: WHY, as "Area: reason" pairs separated by ". ", using the app's reason labels where one fits, because the app ticks them from these exact words:
+  Interior: Furniture | Flooring | Fixtures | Items/belongings stored against wall | Items/belongings stored to cupboards | Limited access to skirting boards | Locked room and storage to garage
+  Exterior: Vegetation | Stored Articles | Air Conditioner Ducting | Storage to garage walls | Water Tanks
+  Subfloor: Low Clearance | Stored Articles | Ducting | Plumbing | No access to subfloor | Insulation
+  Roof void: Insulation | Sarking | Air conditioning ducting | Stored articles | Low clearance to the outside edges of roof void | Low clearance in roof void | Item blocking access to manhole | Height Restrictions | Skillion Roof Design (no void)
+  Outbuildings / Site / Fences: Vegetation | Stored Articles.  Retaining walls / Landscaping timbers: Back Fill | Abutting Timbers | Vegetation | Stored Articles
+  Stored items, boxes, goods or belongings are "Stored Articles". Use "No access to subfloor" ONLY when the subfloor was not entered at all; a subfloor the inspector was in but could not fully reach gets "Stored Articles" or "Low Clearance", never any phrase with the word "access". When no label fits, write the reason in a few plain words after the area name. Null when nothing was in the way.
+- hinderedAreas: areas where the inspection was RESTRICTED but not prevented, as the report's "Areas where inspection was restricted" row. Name only the limited areas and the limit ("Roof void: outer edges and corners not reached. Bedrooms: walls behind furniture"). It is NOT a list of what was inspected, and it never names an area that was fully inspected. Null when the note states no restriction, and also null when the note simply does not raise the subject.
+- hinderedAreasDetail: the nature of the restrictions in hinderedAreas ("low clearance; furniture against walls"). Null when hinderedAreas is null.
+- highRiskAreas: places the inspector could NOT inspect and would want checked once access exists ("back section of the subfloor behind the stored items", "roof void outer edges"). An unreached area stays here even when evidence was seen at its edge. It is never a place where activity WAS found and inspected (that is a finding), never a clear area, and never an area the note does not mention.
 
-Rules:
-- Return ONLY the JSON. No other text.
-- inspectionType: "Pre-Purchase — Timber Pest" when the technician says pre-purchase, pre-sale, or that the client is buying the property. "Annual — Existing Building" for an annual, routine or regular inspection of the client's own home. Null if the purpose isn't said.
-- findings is always an array. If there is only one finding, return an array with one object. If the technician describes two or more distinct termite findings at different locations (e.g. active under the rear steps AND inactive near the front piers), return each as a separate object in the findings array. A new finding is signalled by a clear location change, a different species, or an explicit contrast ("also", "separately", "another area", "and over near the..."). Never merge two locationally distinct findings into one entry.
-- Format species properly e.g. "Coptotermes acinaciformis"
-- Format treatment products properly e.g. "Termidor (Fipronil)", "HomeGuard Blue — 66 linear metres perimeter"
-- If treatment mentioned without specific product, use "Chemical Barrier Treatment"
-- Recognize conducive condition language: bark chip, timber in soil, garden bed against structure, high moisture, blocked weep holes, landscaping timbers, backfill soil
-- Only set constructionEra if the technician gives enough information to infer it (construction type, age mentioned, or specific materials like fibro)
-- existingSystem captures any termite management system already installed and identified via durable notice (e.g. HomeGuard Blue, Kordon, Termimesh). If the technician says there is no existing system, no barrier, or nothing installed, leave existingSystem as null — do NOT write "No", "None", "Nil", "N/A" or similar into this field. Only fill it with an actual system name or description.
-- leakLocation: only relevant when waterLeaks is "YES". Capture WHERE the leak or moisture source is — this is not limited to ground level/slab. Listen for leaks anywhere in the structure: roof, ceiling, wall cavity, bathroom/wet area plumbing, hot water system, gutters, as well as subfloor or perimeter sources. This matters because subterranean termites can establish above-ground secondary colonies near a roof or wall-cavity leak with zero soil contact — a ground-level-only leak check would miss this. Leave null if waterLeaks is "YES" but no location was mentioned.
-- moistureMeterReadings: one entry per moisture meter reading the technician states, with where it was taken and the value as said (e.g. {"location":"base of shower wall, main bathroom","reading":"28%"}). Leave null if no readings are stated. A reading on its own doesn't make moistureReadings "YES"; only one the technician calls high or elevated does.
-- moistureReadings and waterLeaks normally move together — a leak is a moisture source. Whenever waterLeaks is "YES", or the technician otherwise describes damp/wet timber, elevated moisture meter readings, or dampness of any kind, set moistureReadings to "YES" as well. Only leave moistureReadings "NO" or null despite a leak being mentioned if the technician explicitly distinguishes the two (e.g. confirms a leaking tap exists but the surrounding timber tested dry on the meter).
-- highRiskAreas is strictly about areas the technician could NOT access or inspect, that are worth prioritising once access is available (e.g. a locked shed, an obstructed subfloor section, dense vegetation blocking a fence line). It must NEVER duplicate a location already captured in findings[].activityLocation — a room or area where termite activity was actually found and reported is a finding, not a "high risk area". Leave highRiskAreas null unless the technician clearly describes somewhere they couldn't get to.
+TERMITE FINDINGS (findings is always an array; it holds termites only):
+- One entry per distinct place where live termites or termite evidence was found. A new entry when the location, the status or the species changes ("and over near the...", "separately", "also"). Never merge two places into one entry, and never put a finding's details in another finding.
+- termiteActivity: "ACTIVE" only when live termites were seen ("live termites", "active termites", "workers moving", "live ones in the tree"). "INACTIVE" when workings, mud leads, mudding, damage, galleries or exit holes were found but no live termites ("old workings", "nothing alive", "past activity", "doesn't seem active now"). When species, damage or a location is described without a clear live sighting, it is INACTIVE, never ACTIVE. "NONE": use ONLY when the note states that the whole property was clear of termites and evidence and reports nothing anywhere; then species, damageDescription, activityLocation, nestLocated and structuralConcern are all null. A clear remark about one area ("no termite activity in the roof void", "nothing in the subfloor") never creates a NONE entry: when the note has real findings elsewhere, record only those, and when it has no findings and is about one area, return an empty array.
+- activityLocation: where, in the inspector's terms: the element and the room or side ("skirting board, bedroom three, downstairs"; "rear bearer and joist above it, under the back room"; "gum tree in the backyard, about 15 m from the house"). Distances from the house and "not touching any building" belong here.
+- damageDescription: only what was seen (mud packing, hollow when tapped, galleries, timbers eaten out, frass, exit holes, bubbling paint), the element and the place, and the inspector's own hedges ("possible nest in the tree", "possibly past activity"). "No damage visible" is a fact: keep it. NEVER a severity or extent word (minor, moderate, severe, extensive, significant, extreme, major, heavy, bad): drop the word and keep the observation, even when the inspector says it. Never an activity grade ("high activity"). Never the inspector's opinion on whether the structure is or is not compromised, sound, safe or affected: drop it in every wording. Never a risk statement.
+- species: ONLY a genus or species the inspector names, formatted as "Coptotermes acinaciformis", "Nasutitermes exitiosus", or at genus level "Coptotermes spp." when they name a genus without the species or are unsure of the species ("looks like Coptotermes"). When they say they could not identify it (dictation turns "couldn't be identified" into "can be identified"; read the sense), use exactly "Species not identified — further investigation required", on the finding it was said about. When species is never raised, null. A garbled Latin-sounding word ("copter terms", "copper termites") in a species slot is the nearest genus from: Coptotermes, Schedorhinotermes, Nasutitermes, Heterotermes, Microcerotermes, Cryptotermes, Mastotermes, Porotermes. Never name a species from damage, location or habit.
+- nestLocated: "YES" only when the inspector states a nest was found or located. "Possible nest", "could be a nest", "might be nesting in there" is NOT a located nest: leave nestLocated null and keep the hedge in damageDescription. "NO" only when they say no nest was found. Otherwise null (the report prints any value as a checked answer).
+- structuralConcern means "refer to a builder or engineer", not "the structure is compromised". "YES" when the inspector recommends a builder, carpenter or engineer look at the damage or the framing, or says the damage may be into structural timbers, even if they add that they don't think it's structural. "NO" when they say no referral is needed, when they state there is no damage, or when the finding is not in or on any building (a tree, stump, fence post or log in the yard). Otherwise null.
 
-AREA STATUS (AS 4349.3 requires every area's inspection status):
-- areaStatus holds ONLY the areas the technician actually mentions. Keys: interior, exterior, subfloor, roofvoid (roof void / roof space / ceiling cavity), outbuildings (sheds, garages detached from the house), site (yard, grounds), fences, retainingwalls, landscapingtimbers.
-- "INSPECTED": they inspected it with no limitation ("roof void was fine, full access"). "PARTIAL": inspected but partly obstructed ("subfloor partly blocked by stored goods"). "NOT": couldn't access or inspect it at all ("no access to the roof void", "shed was locked"). "NA": the area doesn't exist at this property ("slab on ground, no subfloor", "skillion roof, no roof void", "no outbuildings").
-- If they say everything was fully accessible, set every area they don't say is absent to "INSPECTED". Otherwise leave out areas not mentioned; never guess.
+BORERS AND WOOD DECAY (never in findings):
+- borerActivity: "ACTIVE" only for fresh frass, fresh or bright exit holes, or live beetles. "INACTIVE" for old or dark exit holes, old borer damage, or borer evidence with nothing fresh. "NONE" when the inspector says no borers were found. Null when borers are not raised.
+- borerDetails: the borer named (Anobium, Lyctus or powderpost, Queensland pine beetle, European house borer), where, and what was seen, with no severity words.
+- decayFound: "YES" for rot, fungal decay, soft, spongy or crumbling timber. "NO" when they say no rot or decay. Null when not raised.
+- decayDetails: where the decay is and what was seen, with no severity words.
 
-BORERS AND WOOD DECAY (the other AS 4349.3 timber pests — never put these in findings[], which is termites only):
-- borerActivity: borers of seasoned timber (e.g. furniture beetle / Anobium, Queensland pine beetle, powderpost / Lyctus, European house borer). "ACTIVE" only if the technician describes fresh frass, fresh/bright exit holes or live beetles. "INACTIVE" for old or dark exit holes, old borer damage, or borer evidence with nothing fresh. "NONE" if they say no borers or no borer activity. Leave null if borers aren't mentioned.
-- borerDetails: the borer type if stated, where it was found and what was seen (e.g. "Anobium exit holes and old frass — subfloor bearers and floor joists, rear bedroom"). Same rule as damageDescription: no severity adjectives.
-- decayFound: "YES" if the technician describes wood rot, fungal decay, soft/crumbling/spongy timber or fungal growth on timber. "NO" if they say no rot or no decay. Leave null if not mentioned.
-- decayDetails: where the decay is and what was seen (e.g. "soft, crumbling timber — base of rear deck posts and lower weatherboards, western side"). No severity adjectives.
+MOISTURE AND CONDUCIVE CONDITIONS:
+- moistureMeterReadings: one row per reading taken, location and the value as said ("28%"). A reading taken with no value stated keeps the row with reading null; never invent a number or a placeholder. Readings called normal or dry are still rows.
+- moistureReadings: "YES" when any reading or timber is called high, elevated, damp or wet, or a leak is found. "NO" when the inspector checks and reports no moisture, dry, or readings normal. Null when moisture is not raised. A reading on its own, not called high, does not make it YES.
+- waterLeaks: "YES" when a leak or water source is found (tap, pipe, gutter, downpipe, roof, shower, hot water system). "NO" when the inspector checked for leaks and found none, even when a reading was elevated. Elevated moisture with its source not found is moistureReadings YES and waterLeaks NO. Null when leaks are not raised.
+- leakLocation: where the leak or water is getting in, anywhere in the building (roof, gutter, wall, wet area, hot water system, subfloor). Null unless waterLeaks is YES.
+- timberSoil: "YES" for timber in contact with soil (timber lying on the subfloor soil, sleepers or landscaping timbers against the house, fence timber with soil built up, stumps buried). "NO" when they say none or that it has been removed. Null when not raised.
+- slabEdge: "CLEAR" when the slab edge is visible around the building; "OBSTRUCTED" when soil, a garden bed, paving, render or cladding covers or bridges it anywhere. Null when there is no slab or it was not raised.
+- weepHoles: "CLEAR" or "BRIDGED" (blocked, covered, below soil or paving, anywhere). Null when not raised or the building has none (weatherboard).
 
-EXISTING SYSTEM VERIFICATION (only relevant when existingSystem is identified):
-- durableNoticePresent: "YES" if the technician confirms seeing the durable notice/sticker in the meter box (or mentions identifying the system via the notice — this implies it's present). "NO" if they specifically mention it's missing, damaged, or not found. Leave null if not mentioned.
-- hardLandscaping / softLandscaping: whether hard surfaces (paths, pavers, driveways) or soft landscaping (garden beds, lawns) are adjacent to the perimeter — purely descriptive, not a pass/fail.
-- zone25mmVisible: only relevant if hardLandscaping is YES — whether the 25mm inspection zone/gap is visible and maintained against hard surfaces.
-- zone75mmVisible: only relevant if softLandscaping is YES — whether the 75mm inspection zone is visible and maintained against soft landscaping/soil.
-- antCapSoldered: whether ant cap or strip shield joins are soldered (a gap here means termites could pass through undetected). Use "N/A" if the technician indicates the system doesn't use ant caps/strip shielding, or leave null if not mentioned at all.
+EXISTING SYSTEM AND VERIFICATION:
+- durableNoticePresent: "YES" when a durable notice, sticker or plate was seen or read out (in the meter box or elsewhere). "NO" when they looked and found none. Null when not raised. This field stands on its own: fill it even when no system was found.
+- hardLandscaping / softLandscaping: whether paving, paths or driveways (hard) or garden beds, soil and lawn (soft) sit against the perimeter. Descriptive, YES or NO as said, independent of any system.
+- zone25mmVisible (against hard landscaping) and zone75mmVisible (against soft landscaping): whether the inspection zone or the slab edge is visible there. Soil or a garden bed built up over the slab edge is zone75mmVisible NO. Fill only when the inspector describes the edge against that surface.
+- antCapSoldered: "YES" or "NO" only when the inspector speaks about the joins or soldering of ant caps or strip shields. "Ant caps on all the piers" says nothing about soldering: null. "N/A" when they say there are no ant caps or shields.
 
-CRITICAL — termiteActivity is a three-state field, not binary, and reflects real industry terminology:
-- "ACTIVE": live termites were actually sighted by the technician (e.g. "live termites present", "found live workers", "termites moving in the gallery")
-- "INACTIVE": evidence of termite workings, damage, mudding, or exit holes was found, but NO live termite was actually sighted (e.g. "old workings, nothing alive", "mud tubes present but no live termites seen", "evidence of past activity, doesn't look current"). This is a real and common finding — don't force it into ACTIVE or NONE just because something was found.
-- "NONE": no termites and no evidence of termites or their workings at all.
-- If species, damage description, or activity location are mentioned but the technician does NOT confirm a live sighting, default to "INACTIVE" rather than "ACTIVE" — never assume live presence just because damage or workings exist. Only set "ACTIVE" when live presence is explicitly or very clearly stated.
-- If termiteActivity is "NONE", leave species/damageDescription/activityLocation/nestLocated/structuralConcern as null.
-- species is only ever a species or genus the technician actually names. If they talk about identification without naming one ("species couldn't be identified", which dictation often turns into "species can be identified"), set species to "Species not identified — further investigation required". Never pick a species they didn't say.
+RECOMMENDATIONS AND RISK:
+- treatmentRecommended: "YES" when any termite treatment, colony treatment or system install is recommended, including "will need some type of treatment". "NO" when they say no treatment is needed. Builder, plumber or maintenance work (fix a tap, replace a fascia, pull back a garden bed) is not a termite treatment and does not make it YES.
+- treatmentType: WHAT was recommended, in the inspector's terms: the target first, then the method only if they named one, e.g. "Treat the active termites in the backyard tree; install a termite management system (chemical barrier or baiting system)", "Direct treatment of the active termites in the skirting, plus a Termidor chemical barrier", "Treat the colony in the stump; method to be confirmed with the owner". Never add a method word the inspector did not say (chemical, barrier, soil treatment, bait, baiting, physical, reticulation, top-up, system, or any product name): each of those becomes a priced line in the client's quote. Never put a negative here ("no treatment needed for the subfloor"): leave that out. Null when treatmentRecommended is NO or when no treatment is discussed.
+- riskLevel: the overall risk of termite attack to the property. Use the inspector's own statement when given ("overall risk is high"). Otherwise infer it ONLY from a note that sums up the property (a whole-house note or a wrap-up); a note about one area or one finding leaves it null. Judge property factors, never the species. HIGH needs termites: live termites on the property with no termite management system, activity in the building, a nest found or likely, a builder referral, or activity together with conducive conditions (timber-soil contact, a leak, high moisture, bridged slab edge or weep holes). MEDIUM for inactive evidence only, or for conducive conditions (a leak, damp timber, rot, timber on soil, a bridged slab edge) with no termites found. LOW for no termites, no evidence and little that is conducive. With no termites and no evidence anywhere, the answer is never HIGH, whatever else was found.
 
-CRITICAL — damageDescription must NEVER contain a severity opinion:
-- damageDescription captures ONLY what is objectively observable: the affected timber/element (e.g. "skirting board", "wall plate", "tree stump"), the specific location (e.g. "bedroom four, hallway", "rear section of property"), and visible characteristics (hollow sounding, mud tubes, bubbling paint, frass, exit holes, gallery patterns). This mirrors real AS 4349.3 report language such as "top wall plate timbers — bedroom four, lounge room, hallway."
-- NEVER write or infer the words "minor", "moderate", "severe", "extensive", "significant", "extreme", or any other severity/extent-grading adjective into damageDescription, even if the technician uses one of these words themselves while speaking. If a technician says "it's pretty severe" or "just minor damage", DROP the severity adjective entirely and extract only the factual description that accompanies it (what, where). Do not paraphrase their severity opinion into different wording — omit it.
-- Timber pest inspectors are not qualified to assess structural damage severity, and asserting it creates legal and insurance liability exposure if a severity opinion later contradicts an actual structural finding. This is a hard architectural rule, not a style preference.
-- structuralConcern means "refer this damage to a builder or engineer". It is NOT the inspector's opinion that the structure is compromised: timber pest inspectors don't conclude that, they refer it to someone qualified. Set to "YES" when the technician recommends a builder, carpenter or engineer check the damage or the framing behind it, OR suggests the damage could be structural (e.g. "should be checked by a builder", "get an engineer to look at it", "could be into the load-bearing timbers"). This holds even if the technician also says they don't think it's structural: a recommended builder check is still a referral. Set "NO" only if they say no referral is needed. If unclear or not mentioned, leave as null rather than guessing "NO".
+HOW TO READ DICTATION:
+- Restatements: when a fact is said twice, the later statement wins ("brick veneer ... no hang on, double brick" is double brick; "22, no 32 percent" is 32%). Never record both.
+- Negations carry the fact: "no", "not", "none", "nil", "clear of", "couldn't", "didn't", "isn't". Keep them ("no damage visible", "not touching the house") and never drop one; a dropped "not" is the worst error you can make.
+- Hedges are facts about certainty: keep them in text fields ("possible nest", "potential past activity"), and for YES/NO fields do not turn a hedge into a YES.
+- Filler and false starts ("okay so", "um", "right", "well", "like I said", a repeated word) are dropped. "Wall" or "Well" at the start of a phrase is usually filler, not a wall.
+- A sentence that names an element after a finding ("the location of that activity I'd say subfloor joists and bearers") is that finding's location.
+- Never copy raw dictation into a field. Never put the whole note into one field. Write fields as a report reads: brief, factual, in the inspector's terms.
+- Mishearings: iPhone dictation turns trade words into everyday ones. When a literal reading makes no sense for a timber pest inspection, use the sensible reading silently. Patterns seen: "Joyce and bears" / "joys and bearers" = joists and bearers; "barer" / "Easter barra" = bearer; "sub for" / "some flow" / "some floor" / "sub saw" = subfloor; "weep poles" / "wee poles" = weep holes; "skirting balls" = skirting boards; "borrowers" / "bores" / "balls" (in a pest list) = borers; "called roof" = tiled roof; "water strains" = water stains; "batting system" = baiting system; "Tims" = timbers; "live termite scene" = live termites seen; "repairs" / "pairs" with caps = piers with ant caps; "strawberry" along a boundary = shrubbery; "insulation" before "termite management system" = installation; "access moisture" = excess moisture; "construction error" = construction era; "customers once" = customer's wants; "out of corners" = outer corners; "shed fence" = shared fence; "bats" in a roof = batts.
+- Brand names in the wrong slot are ordinary words: "active Termimesh in the tree" is active termites; "Exterra perimeter" is the exterior perimeter; "Sentricon" or "Termidor" in a sentence about the outside wall is probably "centre", "exterior" or "termite". A brand is real ONLY when the inspector says it is installed, is on the durable notice, or is what they recommend. Then it goes in existingSystemOther or treatmentType, nowhere else.
+- A Latin-sounding mangle in a species slot is a genus (see species). "Termite door" or "terminator" in a treatment slot is Termidor; "cold on" / "quote on" before "physical barrier" is Kordon.
 
-Handling real-world speech:
-- SELF-CORRECTIONS: technicians often correct themselves mid-sentence ("brick veneer, no wait, actually it's weatherboard", "eastern side — sorry, western side"). Always use the FINAL corrected value, never the originally stated one, and never combine both into a single string.
-- IMPLICIT FINDINGS: if species, damage description, or activity location are mentioned, that means termiteActivity should be "ACTIVE" or "INACTIVE" (see the three-state rule above for which one) — set it even if the technician never explicitly says "active" or "inactive". Conversely, if the technician says no termites, no activity, or nothing found, set termiteActivity to "NONE". Similarly, if a nest, mound, or nest workings are described anywhere in the transcript, set nestLocated to "YES" even if the technician doesn't use the phrase "nest located".
-- UNCERTAINTY: technicians often hedge ("might be", "hard to tell", "looks like", "possibly"). Still extract their best-guess value for that field — don't leave it null just because they expressed uncertainty. Capture the hedge in the relevant notes-style detail only if a dedicated free-text field exists; otherwise just use their stated best guess.
-- MIXED-TOPIC SPEECH: a single utterance may contain information for multiple sections at once (e.g. a findings description followed immediately by a conducive condition). Extract every relevant field regardless of which "section" it would visually belong to — do not stop extracting after the first topic.
-- FILLER AND FALSE STARTS: ignore filler words ("um", "yeah", "so", "right", "like I said") and abandoned false starts ("we're at the— so the property is...") — extract only the substantive content that follows.
-- NEGATIONS: pay close attention to "no", "not", "none", "clear of" — these flip YES/NO fields and risk levels. "No conducive conditions identified" should not be misread as a positive finding for any of the YES/NO conducive fields.
-
-VOICE-DICTATION HOMOPHONE ERRORS:
-Transcripts come from on-device voice dictation, not a human typist, and dictation engines frequently mishear pest-inspection jargon as a similar-sounding everyday word. When a literal reading of a word or phrase doesn't make sense in a pest-inspection context, silently correct it to the sensible reading rather than transcribing the mishearing — do not flag the correction or ask for clarification, just use the judgement an experienced inspector would use proofreading a colleague's dictation. Known patterns to watch for (this list is a starting point, not exhaustive — apply the same reasoning to any word that clearly doesn't fit context):
-- "shed fence" → usually "shared fence" (a shared boundary fence line, not a garden shed)
-- "strawberry" (e.g. "dense strawberry along the boundary") → usually "shrubbery"
-- "insulation" immediately before "termite management system" or "barrier" → usually "installation"
-- "bats" near roof void/manhole/ceiling → usually "batts" (roof/ceiling insulation batts), not the animal
-- "access moisture" / "causing access moisture" → usually "excess moisture"
-- "weep poles" / "wee poles" → usually "weep holes"
-- a garbled, vaguely Latin-sounding word (e.g. "copter terms") → likely a mangled genus name; match it to the closest species in the known-species list above (e.g. "Coptotermes")
-- "construction error" → usually "construction era"
-- a stray duplicated word or fragment immediately before the real word (e.g. "enact inactive", "separate separately") → drop the fragment, use the real word that follows
-- "eastern bearer" (a structural timber member) → commonly mangled to "Easter Barra" / "Easter bearer" / similar — a bearer is a structural timber term, not a reference to the Easter holiday
-- "Joyce and bears" / "joys and bearers" (subfloor or framing context) → "joists and bearers"; "barer" (e.g. "rear barer") → "bearer"
-- "sub for" / "some flow" (e.g. "sub for vents", "some flow entered from the side door") → "subfloor"
-- "repairs" or "pairs" where piers belong (e.g. "brick repairs with caps on all of them") → "piers", and "caps" on piers → "ant caps"
-- "skirting balls" → "skirting boards"
-- "borrowers", "bores" or "balls" in a list of timber pests (e.g. "no balls, no wood decay", "no borrowers or decay") → "borers"
-- "called roof" → "tiled roof"; "water strains" → "water stains"
-- "live termite scene" → "live termites seen"; "Tims" (e.g. "Tims around the base of the tree") → "timbers"
-- "batting system" → "baiting system"
-- a brand name sitting where an ordinary word belongs → the ordinary word, e.g. "active Termimesh found in the tree" means active termites, and "Exterra perimeter of the house" means the exterior perimeter. Only treat a brand name as real when it names an installed system, a product used, or a durable notice
-- a phonetically plausible but contextually nonsensical phrase (e.g. "cold on", "quote on", "code on", "called on") immediately before "physical termite barrier" → almost always "Kordon", a termite barrier brand name
-- PROPER NOUNS AND BRAND NAMES generally: dictation engines have no training data for niche industry brand names (Kordon, Termimesh, HomeGuard Blue, etc.) and will substitute the nearest common English words instead. When a product/brand-shaped slot in the sentence (e.g. "there's a ___ installed", "existing system is ___") is filled with ordinary words that don't fit grammatically or semantically, treat it as a mangled brand name and match it to the closest entry in the known products/systems list above rather than transcribing the literal (nonsensical) words.
-Apply this reasoning generally: prioritise the pest-inspection-domain-sensible reading of a word over a literal transcription whenever the literal reading is nonsensical or clearly out of place in context.
-
-riskLevel inference: technicians rarely state "overall risk is HIGH" directly — infer it from what was found, unless an explicit overall risk statement is given (which always takes precedence). riskLevel reflects relative property-level risk of attack (a legitimate, subjective, comparative rating under AS 4349.3/AEPMA guidance), NOT a damage severity judgement — these are different things:
-- HIGH: termiteActivity is "ACTIVE" AND (structuralConcern is "YES" OR a nest located OR multiple significant conducive conditions together, e.g. timber-soil contact AND water leak AND high moisture)
-- MEDIUM: termiteActivity is "ACTIVE" with no builder/engineer referral, OR termiteActivity is "INACTIVE", OR one or two conducive conditions present with termiteActivity "NONE"
-- LOW: termiteActivity is "NONE" and no, or only very minor, conducive conditions
-- Never base riskLevel on the termite species: every species can cause severe damage, so species is recorded for identification and treatment only.
-- Only set riskLevel if there's enough information across the whole transcript to make this judgement — otherwise leave null.
-- propertyStreetAddress/propertySuburb/propertyState/propertyPostcode/clientName: only fill these if the technician actually states the property address and/or client name out loud (this is common at the start of a recording, e.g. "inspection at 42 Smith Street, Chatswood, client John Mitchell"). Never guess, infer, or invent an address or client name from context. propertyState must be one of the 8 official Australian abbreviations shown above — convert a spoken state name (e.g. "New South Wales") to its abbreviation. Leave every one of these null if not clearly stated.`;
+ADDRESS AND CLIENT: fill propertyStreetAddress, propertySuburb, propertyState, propertyPostcode and clientName only from words actually spoken ("inspection at 14 Wattle Court, client Priya Nair"). A street name that is also a suburb is still the street. Never infer a suburb, state or postcode, and never take a name from anywhere else in the note. Spoken state names become their abbreviation.`;
 
 // System prompt for the "scan compliance plate" photo feature — a separate,
 // narrow prompt (not the giant voice SYSTEM_PROMPT above) for reading a
@@ -2775,7 +2812,26 @@ async function requestExtraction(text) {
   }
 
   const out = data.content.map(i => i.text || '').join('');
-  return JSON.parse(out.replace(/```json|```/g, '').trim());
+  let parsed;
+  try {
+    parsed = JSON.parse(out.replace(/```json|```/g, '').trim());
+  } catch (e) {
+    // The model answered with something that isn't JSON. Retrying the same
+    // note would most likely do the same, so this is marked as the note's
+    // own problem rather than a connection one.
+    throw Object.assign(new Error('the answer was not valid JSON'), { badAnswer: true });
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw Object.assign(new Error('the answer was not a JSON object'), { badAnswer: true });
+  }
+  return parsed;
+}
+
+// A problem that belongs to one note (too long, an unreadable answer) and
+// would repeat on every retry, as opposed to the signal, the sign-in or the
+// plan, which affect every note and clear up on their own.
+function isNoteSpecificProblem(err) {
+  return !!(err && (err.tooLong || err.badAnswer || err.status === 413));
 }
 
 // What the inspector reads when the AI can't fill in a note. The note is
@@ -2785,8 +2841,10 @@ function extractionProblem(err) {
     case 401: return 'Your sign-in has expired. Close SAYON, open it again and sign in';
     case 402: return 'Your SAYON plan has ended. Subscribe in Menu › Billing';
     case 429: return 'This month\'s AI notes are used up. Upgrade in Menu › Billing';
+    case 413: return 'A note is too long for the AI in one go. Delete it and say it again in shorter parts';
   }
   if (err && err.tooLong) return 'A note is too long for the AI in one go. Delete it and say it again in shorter parts';
+  if (err && err.badAnswer) return 'The AI\'s answer couldn\'t be read. Delete the note and say it again, or type it';
   const reason = ((err && err.message) ? String(err.message) : 'unknown error').slice(0, 140);
   return `The AI couldn't read it (${reason})`;
 }
@@ -2797,29 +2855,47 @@ async function processTranscript() {
   document.getElementById('extractBtn').disabled = true;
 
   try {
-    populateFields(await requestExtraction(currentTranscript));
-    pendingNotesProblem = null;
-    setAI('ready', 'Data extracted');
-    showToast('Fields populated', 'success');
-    processPendingNotes(); // signal is back, so fill in anything still waiting
+    // Notes fill the report in the order they were dictated. If earlier
+    // notes are still waiting (no signal in the subfloor, say), this one
+    // joins the queue behind them and the queue is run, so an older note
+    // can never land on top of a newer one and overwrite it.
+    if (getPendingNotes().length && navigator.onLine) {
+      if (!queuePendingNote(currentTranscript)) {
+        setAI('ready', 'AI ready');
+        document.getElementById('extractBtn').disabled = false;
+        return;
+      }
+      await processPendingNotes(true);
+    } else {
+      await populateFields(await requestExtraction(currentTranscript));
+      pendingNotesProblem = null;
+      setAI('ready', 'Data extracted');
+      showToast('Fields populated', 'success');
+    }
   } catch (err) {
     // A note too long to answer in one go would fail the same way every
     // time, so it stays in the box to be split up.
-    if (err.tooLong) {
+    if (err.tooLong || err.status === 413) {
       setAI('ready', 'AI ready');
       document.getElementById('extractBtn').disabled = false;
       showToast('That note is too long for the AI in one go. Split it into shorter notes and extract each one', 'error');
       return;
     }
     // Nothing is guessed from the note: it waits with any others until the
-    // AI can read it.
-    pendingNotesProblem = err.noSignal ? null : extractionProblem(err);
+    // AI can read it. A problem of the note's own (an unreadable answer) is
+    // written on the note, so the queue skips it instead of stopping.
+    pendingNotesProblem = (err.noSignal || isNoteSpecificProblem(err)) ? null : extractionProblem(err);
     if (!queuePendingNote(currentTranscript)) {
       setAI('ready', 'AI ready');
       document.getElementById('extractBtn').disabled = false;
       return;
     }
-    if (err.noSignal) {
+    if (isNoteSpecificProblem(err)) {
+      const note = getPendingNotes()[getPendingNotes().length - 1];
+      if (note) { note.problem = extractionProblem(err); saveDraft(); renderPendingNotes(); }
+      setAI('ready', 'Note saved');
+      showToast(`${extractionProblem(err)}. Your note is saved under Waiting notes.`, 'error');
+    } else if (err.noSignal) {
       setAI('ready', 'Saved until there\'s signal');
       showToast('No signal — note saved. It will fill in the report when you\'re back online.', 'info');
     } else {
@@ -2893,9 +2969,13 @@ function renderPendingNotes() {
   btn.textContent = pendingNotesRunning ? 'Filling in…' : 'Fill in now';
   document.getElementById('pendingNotesList').innerHTML = notes.map(note => {
     const time = new Date(note.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+    // A note with its own problem (too long, unreadable answer) is skipped
+    // by the queue and shows why, so the inspector can delete and redo it
+    // while the notes behind it still fill in.
+    const problem = note.problem ? `<span class="pending-note-text" style="color:var(--risk)">${escapeHtml(note.problem)}</span>` : '';
     return `<div class="pending-note">
       <span class="pending-note-time">${time}</span>
-      <span class="pending-note-text">${escapeHtml(note.text)}</span>
+      <span class="pending-note-text">${escapeHtml(note.text)}</span>${problem}
       <button class="pending-note-remove" onclick="removePendingNote('${note.id}')" title="Delete note" aria-label="Delete note">✕</button>
     </div>`;
   }).join('');
@@ -2914,21 +2994,35 @@ async function processPendingNotes(manual) {
   pendingNotesRunning = true;
   renderPendingNotes();
   setAI('thinking', 'Filling in saved notes...');
-  let filled = 0, stillNoSignal = false;
+  let filled = 0, stillNoSignal = false, stuck = 0;
   try {
-    for (let note = getPendingNotes()[0]; note && reportData === target; note = getPendingNotes()[0]) {
+    // Oldest first. A note with a problem of its own (too long, an answer
+    // that isn't JSON) is marked and skipped so it can't block the notes
+    // behind it; a problem that would hit every note (no signal, sign-in,
+    // plan) stops the run.
+    const skip = new Set();
+    for (let note = getPendingNotes().find(n => !skip.has(n.id)); note && reportData === target; note = getPendingNotes().find(n => !skip.has(n.id))) {
       let extracted;
       try {
         extracted = await requestExtraction(note.text);
       } catch (err) {
         if (err.noSignal) { stillNoSignal = true; break; }
+        if (isNoteSpecificProblem(err)) {
+          note.problem = extractionProblem(err);
+          skip.add(note.id);
+          stuck++;
+          saveDraft();
+          continue;
+        }
         pendingNotesProblem = extractionProblem(err);
         if (manual) showToast(`${pendingNotesProblem}. Your notes are still saved.`, 'error');
         break;
       }
       pendingNotesProblem = null;
       if (reportData !== target) break;
-      populateFields(extracted);
+      // Wait for the staggered field writes, so the saves below hold them.
+      await populateFields(extracted);
+      if (reportData !== target) break;
       reportData.pendingNotes = getPendingNotes().filter(n => n.id !== note.id);
       filled++;
       saveDraft();
@@ -2946,6 +3040,7 @@ async function processPendingNotes(manual) {
   }
   if (filled) showToast(`${filled} saved note${filled !== 1 ? 's' : ''} filled in — check the report`, 'success');
   else if (stillNoSignal && manual) showToast('Still no signal — the notes will fill in when you\'re back online', 'info');
+  if (stuck && (manual || !filled)) showToast(`${stuck} note${stuck !== 1 ? 's' : ''} couldn't be read — see the reason under the note`, 'error');
 }
 
 // ── COMPLIANCE PLATE SCAN ───────────────────────────────────────────────
@@ -3213,10 +3308,32 @@ function renderField(el, key, val) {
   }
 }
 
+// Text fields that hold a list of places or observations. A later note
+// adds to them instead of replacing them, so "borer holes in the subfloor"
+// survives a second note about rot in a fascia.
+const APPEND_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'highRiskAreas', 'borerDetails', 'decayDetails', 'leakLocation']);
+// Free-text fields where "None", "Nil" or "N/A" means nothing to record.
+const NIL_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'highRiskAreas', 'borerDetails', 'decayDetails', 'leakLocation', 'treatmentType', 'existingSystemOther']);
+const isNilText = v => /^\s*(nil|none|no|n\/a|na|not applicable|nothing|not stated|not mentioned|unknown)\s*[.!]?\s*$/i.test(String(v));
+const hasRealFinding = list => list.some(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
+const findingHasData = f => !!(f.termiteActivity || f.species || f.damageDescription || f.activityLocation || f.nestLocated || f.structuralConcern);
+
+// Writes one extracted note into the report. Every value the note gives
+// replaces what was there (the inspector's later word wins), with these
+// exceptions so that one note can't wipe what another recorded:
+//   - findings are appended; a NONE card never sits beside a real finding
+//   - list-like text (restricted areas, high-risk areas, borer and decay
+//     details, leak locations) is added to, not replaced
+//   - a note that says "no moisture" without mentioning leaks leaves a
+//     recorded leak alone, and a leak always counts as moisture
+//   - the system type doesn't clear a brand a plate scan read unless the
+//     type itself changed
+// Resolves once the staggered field writes are done, so a caller can save.
 function populateFields(data) {
+  if (!data || typeof data !== 'object') return Promise.resolve();
   // Handle findings array from AI extraction
   if (data.findings && Array.isArray(data.findings) && data.findings.length > 0) {
-    const incoming = data.findings.map(f => ({
+    let incoming = data.findings.filter(f => f && typeof f === 'object').map(f => ({
       id: genFindingId(),
       termiteActivity: f.termiteActivity || null,
       species: f.species || null,
@@ -3224,28 +3341,28 @@ function populateFields(data) {
       activityLocation: f.activityLocation || null,
       nestLocated: f.nestLocated || null,
       structuralConcern: f.structuralConcern || null,
-    }));
+    })).filter(findingHasData);
 
     // A technician typically records in short bursts as they move through a
     // property (one recording per room/area), not one long monologue — each
     // recording is sent to extraction on its own with no memory of earlier
-    // ones. Previously this REPLACED reportData.findings wholesale, so a
-    // second dictation pass about a new area silently wiped out whatever was
-    // already captured from the first one. Now we append instead, unless the
-    // only "existing" finding is still the untouched blank placeholder.
+    // ones. So findings are appended, unless the only "existing" finding is
+    // still the untouched blank placeholder. A NONE card means "no termites
+    // anywhere": it is dropped when a real finding exists on either side,
+    // and a real finding replaces an earlier NONE card.
     const existing = getFindings();
-    const existingHasData = existing.some(f =>
-      f.termiteActivity || f.species || f.damageDescription || f.activityLocation || f.nestLocated || f.structuralConcern
-    );
+    const existingReal = existing.filter(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
+    if (hasRealFinding(incoming) || existingReal.length) incoming = incoming.filter(f => f.termiteActivity !== 'NONE');
+    const kept = hasRealFinding(incoming) ? existing.filter(f => f.termiteActivity !== 'NONE' && findingHasData(f)) : existing.filter(findingHasData);
 
-    if (existingHasData) {
-      const combined = [...existing, ...incoming];
+    if (incoming.length) {
+      const combined = [...kept, ...incoming];
       reportData.findings = combined.slice(0, MAX_FINDINGS);
       if (combined.length > MAX_FINDINGS) {
         showToast(`Only ${MAX_FINDINGS} findings can be tracked per report — some new ones weren't added. Review and merge manually if needed.`, 'info');
       }
-    } else {
-      reportData.findings = incoming;
+    } else if (kept.length !== existing.length) {
+      reportData.findings = kept;
     }
     renderFindingsUI();
   } else if (data.termiteActivity !== undefined) {
@@ -3272,8 +3389,13 @@ function populateFields(data) {
 
   // Moisture meter readings spoken by the technician are added as rows.
   if (Array.isArray(data.moistureMeterReadings)) {
+    const rows = getMoistureTable();
     data.moistureMeterReadings.forEach(r => {
-      if (r && (r.location || r.reading)) addMoistureReading(String(r.location || ''), String(r.reading || ''));
+      if (!r || !(r.location || r.reading)) return;
+      const location = String(r.location || ''), reading = String(r.reading || '');
+      // The same reading said twice (a note dictated again) isn't a new row.
+      if (rows.some(x => x.location.trim().toLowerCase() === location.trim().toLowerCase() && x.reading.trim() === reading.trim())) return;
+      addMoistureReading(location, reading);
     });
   }
 
@@ -3308,18 +3430,48 @@ function populateFields(data) {
     }
   }
 
-  // All non-findings fields
-  const skip = new Set(['inspectionType','findings','termiteActivity','species','damageDescription','activityLocation','nestLocated','structuralConcern','propertyStreetAddress','propertySuburb','propertyState','propertyPostcode','clientName','obstructions','restrictedAccess']);
-  const entries = Object.entries(data).filter(([key, val]) => !skip.has(key) && val !== null && val !== undefined && document.getElementById('f-' + key));
+  // Keep the recorded facts when the note is silent about them:
+  // - a leak is a moisture source, so a leak found means moisture YES;
+  // - "no moisture" from a note that doesn't mention leaks must not wipe a
+  //   leak an earlier note recorded (the moisture cascade clears leaks);
+  // - the system type only replaces a brand when the type itself changed.
+  const values = { ...data };
+  if (values.waterLeaks === 'YES' && values.moistureReadings !== 'YES') values.moistureReadings = 'YES';
+  if (values.moistureReadings === 'NO' && !values.waterLeaks && reportData.waterLeaks === 'YES') delete values.moistureReadings;
+  if (values.existingSystem !== undefined && values.existingSystem !== null && !hasIdentifiedSystem(String(values.existingSystem))) delete values.existingSystem;
+  NIL_TEXT_KEYS.forEach(k => { if (values[k] !== undefined && values[k] !== null && isNilText(values[k])) values[k] = k === 'hinderedAreas' ? '' : null; });
 
-  entries.forEach(([key, val], i) => {
+  // All non-findings fields, in an order where a field that reveals or
+  // clears another is written first (moisture before leaks before the leak
+  // location; system type before its brand).
+  const FIRST = ['moistureReadings', 'waterLeaks', 'leakLocation', 'existingSystem', 'existingSystemOther'];
+  const rank = k => { const i = FIRST.indexOf(k); return i < 0 ? FIRST.length : i; };
+  const skip = new Set(['inspectionType','findings','termiteActivity','species','damageDescription','activityLocation','nestLocated','structuralConcern','propertyStreetAddress','propertySuburb','propertyState','propertyPostcode','clientName','obstructions','restrictedAccess','areaStatus','moistureMeterReadings']);
+  const entries = Object.entries(values)
+    .filter(([key, val]) => !skip.has(key) && val !== null && val !== undefined && document.getElementById('f-' + key))
+    .sort((a, b) => rank(a[0]) - rank(b[0]));
+
+  entries.forEach(([key, rawVal], i) => {
     const el = document.getElementById('f-' + key);
     setTimeout(() => {
+      let val = typeof rawVal === 'string' ? rawVal.trim() : String(rawVal);
+      if (key === 'hinderedAreas') {
+        // The Restrictions question: a named restriction answers YES and
+        // shows the detail; an explicit "none" answers NO.
+        if (!val) { setRestrictedAccess(false); updateProgress(); return; }
+        setRestrictedAccess(true);
+      }
+      const prev = reportData[key];
+      if (APPEND_TEXT_KEYS.has(key) && typeof prev === 'string' && prev.trim() && !prev.startsWith('NIL')) {
+        const have = prev.toLowerCase();
+        if (have.includes(val.toLowerCase())) val = prev;
+        else if (!val.toLowerCase().includes(have)) val = prev.replace(/[.;,\s]+$/, '') + '; ' + val;
+      }
       reportData[key] = val;
       // FIX: apply the same cross-field cascade manual edits get (reveal/
       // hide dependent fields, clear fields that are no longer valid) - see
       // applyFieldCascade's comment for why this matters here specifically.
-      applyFieldCascade(key, String(val), el);
+      applyFieldCascade(key, val, el, prev);
       renderField(el, key, reportData[key]);
       updateProgress();
       checkAsbestosFlag();
@@ -3328,10 +3480,13 @@ function populateFields(data) {
     }, i * 70);
   });
 
-  setTimeout(() => {
-    autoReveal(data);
-    saveDraft();
-  }, entries.length * 70 + 50);
+  return new Promise(resolve => {
+    setTimeout(() => {
+      autoReveal(data);
+      saveDraft();
+      resolve();
+    }, entries.length * 70 + 50);
+  });
 }
 
 // ── MULTI-FINDING ENGINE ─────────────────────────────────────────────────
@@ -4130,14 +4285,19 @@ function startEdit(el, key, type) {
 // sign anything was wrong. Same gap for treatmentRecommended's auto-fill.
 // Pulled out into one shared function both paths call, so there's only one
 // place this logic can drift out of sync again.
-function applyFieldCascade(key, value, el) {
+// `prev` is the field's value before this write, when the caller knows it;
+// populateFields passes it so a note that repeats the same system type
+// doesn't throw away the brand a plate scan or an earlier note recorded.
+function applyFieldCascade(key, value, el, prev) {
   if (key === 'standard') setStandard(value.trim(), true);
 
   if (key === 'existingSystem') {
     // Clear specific name when type changes — it may no longer be valid
-    reportData.existingSystemOther = '';
-    const specificEl = document.getElementById('f-existingSystemOther');
-    if (specificEl) { specificEl.classList.remove('filled'); specificEl.textContent = '—'; }
+    if (prev === undefined || String(prev || '').trim() !== value.trim()) {
+      reportData.existingSystemOther = '';
+      const specificEl = document.getElementById('f-existingSystemOther');
+      if (specificEl) { specificEl.classList.remove('filled'); specificEl.textContent = '—'; }
+    }
     checkSystemVerify();
   }
 
@@ -4480,8 +4640,8 @@ function getAgreementTemplate() {
   return (custom && custom.trim()) ? custom : DEFAULT_AGREEMENT_TEXT;
 }
 
-function agreementInspectionType(standard) {
-  return /4349/.test(standard || '') ? 'pre-purchase timber pest' : 'timber pest';
+function agreementInspectionType() {
+  return isPrePurchaseJob() ? 'pre-purchase timber pest' : 'timber pest';
 }
 
 // Fills the template's {placeholders} for this job. Anything still
@@ -4525,7 +4685,7 @@ function agreementFormValues() {
       address: getFullAddress(),
       date: formatAgreementDate(inspectionDate),
       standard,
-      inspectionType: agreementInspectionType(standard),
+      inspectionType: agreementInspectionType(),
       fee: fee || 'As quoted.',
       notes: notes || 'None.',
     }),
@@ -5287,6 +5447,17 @@ const INSPECTION_TYPE_STANDARD = {
   'Pre-Purchase — Combined Building & Pest': 'AS 4349.3-2010',
   'Annual — Existing Building': 'AS 3660.2-2017',
 };
+// Whether this job is a pre-purchase inspection. The inspection type decides;
+// only a report with no type falls back to the standard it cites. The cover
+// label, the agreement wording and the "not for buying or selling" notice all
+// use this, so an insurance or legal job citing AS 4349.3 is never labelled
+// pre-purchase.
+function isPrePurchaseJob() {
+  const type = reportData.jobInspectionType || '';
+  if (type) return /pre-purchase/i.test(type);
+  return (reportData.standard || '') === 'AS 4349.3-2010';
+}
+
 function onInspectionTypeChange() {
   saveJobInfo();
   const std = INSPECTION_TYPE_STANDARD[document.getElementById('jobInspectionType').value];
@@ -8265,7 +8436,7 @@ async function _buildAndDownloadPDF() {
     structureType:'Structure Type', wallConstruction:'Wall Construction', floorType:'Floor Type', roofType:'Roof Type',
     height:'Height', facadeDirection:'Orientation', occupancyStatus:'Occupancy Status', weatherConditions:'Weather Conditions',
     constructionEra:'Year / Period of Construction', standard:'Applicable Standard',
-    hinderedAreas:'Readily Accessible Areas Inspected', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'Restrictions', highRiskAreas:'High Risk Areas',
+    hinderedAreas:'Areas Where Inspection Was Restricted', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'Nature of Restriction', highRiskAreas:'High Risk Areas',
     borerActivity:'Borers of Seasoned Timber', borerDetails:'Borer Type, Location & Evidence', decayFound:'Wood Decay Fungi (Rot)', decayDetails:'Wood Decay Location & Evidence',
     termiteActivity:'Termite Activity Status', species:'Species', damageDescription:'Damage Description', activityLocation:'Location of Activity', nestLocated:'Workings / Nest Located', structuralConcern:'Builder / Engineer Referral',
     waterLeaks:'Water Leaks', leakLocation:'Location of Moisture Ingress', moistureReadings:'Moisture Readings', timberSoil:'Timber-to-Soil Contact', slabEdge:'Slab Edge Concealed', weepHoles:'Weep Holes (Clear / Bridged)', existingSystem:'Existing System',
@@ -8339,7 +8510,8 @@ async function _buildAndDownloadPDF() {
 
   // ── TITLE BLOCK ───────────────────────────────────────────────────────────
   // Report type label
-  const reportTypeLabel = standard.startsWith('AS 4349') ? 'PRE-PURCHASE TIMBER PEST' : 'TIMBER PEST';
+  const prePurchase = isPrePurchaseJob();
+  const reportTypeLabel = prePurchase ? 'PRE-PURCHASE TIMBER PEST' : 'TIMBER PEST';
   doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
   doc.text(reportTypeLabel, M, 70);
 
@@ -8353,7 +8525,7 @@ async function _buildAndDownloadPDF() {
 
   // Standard reference
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
-  doc.text('Prepared in accordance with', M, 118);
+  doc.text('Prepared with reference to', M, 118);
   doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
   doc.text(standardLabel, M, 125);
 
@@ -8536,7 +8708,7 @@ async function _buildAndDownloadPDF() {
   if (inspType)   row('Inspection Type', inspType);
   if (orderId)    row('Order / Job ID', orderId);
   if (invoiceNo)  row('Invoice No.', invoiceNo);
-  if (fee)        row('Fee (inc. GST)', /^\s*\$?\s*[\d,]+(\.\d+)?\s*$/.test(fee) ? '$' + parseFeeToNumber(fee).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : fee);
+  if (fee)        row('Inspection Fee', /^\s*\$?\s*[\d,]+(\.\d+)?\s*$/.test(fee) ? '$' + parseFeeToNumber(fee).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : fee);
   startPart('Property Details');
 
   sectionTitle('PROPERTY DETAILS');
@@ -8550,12 +8722,11 @@ async function _buildAndDownloadPDF() {
     row('Existing Termite Management System', reportData.existingSystem);
     if (reportData.existingSystemOther) row('Specific System Name', reportData.existingSystemOther);
   }
-  if (reportData.constructionEra && (reportData.constructionEra === '1945-1965' || reportData.constructionEra === '1965-1985')) {
+  // Asbestos is outside a timber pest inspection, so this is a general note
+  // for buildings of the period, not a rating of this property.
+  if (['1920s-1940s', '1945-1965', '1965-1985', '1985-2003'].includes(reportData.constructionEra)) {
     gap(3);
-    disclaimer('Construction era indicates a HIGH likelihood of asbestos-containing materials (fibro/ACM sheeting). Noted as observation only — not disturbed. Recommend licensed asbestos assessor if suspected ACM identified.');
-  } else if (reportData.constructionEra && (reportData.constructionEra === '1920s-1940s' || reportData.constructionEra === '1985-2003')) {
-    gap(3);
-    disclaimer('Construction era indicates a MODERATE likelihood of asbestos-containing materials. Noted as observation only.');
+    disclaimer('Buildings from this period may contain asbestos-containing materials. This is not an asbestos inspection: nothing was tested or disturbed, and no opinion is given on whether asbestos is present. Have a licensed asbestos assessor check before any work that disturbs building materials.');
   }
   notesBlock('property');
   gap(4);
@@ -8573,7 +8744,7 @@ async function _buildAndDownloadPDF() {
   resetRowShade();
 
   const hasObstruction = areasNotFullyInspected().length > 0;
-  const hasRestriction = !!(reportData.hinderedAreas && !reportData.hinderedAreas.includes('N/A'));
+  const hasRestriction = hasRestrictedAreas();
   const hasActivity    = (reportData.findings || []).some(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
   const risk           = reportData.riskLevel || 'NOT ASSESSED';
 
@@ -8656,7 +8827,7 @@ async function _buildAndDownloadPDF() {
   startPart('Restrictions');
   sectionTitle('RESTRICTIONS');
   resetRowShade();
-  const noRestrictions = !reportData.hinderedAreas || reportData.hinderedAreas.includes('N/A');
+  const noRestrictions = !hasRestriction;
   if (y + 14 > 278) newPage();
   doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, 12, 'F');
   doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, 12, 'F');
@@ -8775,13 +8946,13 @@ async function _buildAndDownloadPDF() {
 
   findings.forEach((f, idx) => findingCard(f, idx));
 
-  // Borers and wood decay: the other timber pests AS 4349.3 requires.
-  // Always printed, so an unanswered field shows as a gap rather than
-  // silently implying "none found".
+  // Borers and wood decay: the other timber pests AS 4349.3 covers. Always
+  // printed, so an unanswered field reads "Not recorded" rather than
+  // silently implying "none found" (row() drops empty values).
   subhead('BORERS & WOOD DECAY');
-  row('Borers of Seasoned Timber', reportData.borerActivity);
+  row('Borers of Seasoned Timber', reportData.borerActivity || 'Not recorded');
   if (reportData.borerDetails) row('Borer Type, Location & Evidence', reportData.borerDetails);
-  row('Wood Decay Fungi (Rot)', reportData.decayFound);
+  row('Wood Decay Fungi (Rot)', reportData.decayFound || 'Not recorded');
   if (reportData.decayDetails) row('Wood Decay Location & Evidence', reportData.decayDetails);
   gap(4);
 
@@ -8921,10 +9092,10 @@ async function _buildAndDownloadPDF() {
     ['Reasonable Access', 'Access to areas of a building that are safe, accessible, and do not require any removal, dismantling, or disturbance of fixed or stored items. Access is via a standard 3.6m ladder from ground level. Subfloor access requires minimum 400mm clearance; roof void access requires minimum 450mm x 400mm opening.'],
     ['Readily Accessible Area', 'An area that can be inspected without moving furniture, stored goods, floor coverings, wall or ceiling linings, insulation, or personal possessions.'],
     ['Obstructions', 'Physical items or conditions that prevent a complete visual inspection of an accessible area, including but not limited to furniture, stored goods, floor coverings, insulation, and vegetation. The inspector is not required to move obstructions.'],
-    ['Restrictions', 'Physical, safety, or design constraints that prevent the inspector from entering an area under the applicable Australian Standard, including subfloor clearance below 400mm, access hatch dimensions below minimum standard, unsafe structures, asbestos risk, or height beyond safe ladder reach.'],
+    ['Restrictions', 'Conditions that limited the inspection of an area without preventing it altogether, such as low clearance, stored items, insulation, poor lighting, or parts beyond safe reach. The parts of the area that could not be seen are treated like obstructed areas: timber pest activity or damage may exist in them.'],
     ['Conducive Conditions', 'Conditions that may attract termites or provide conditions favourable to timber pest activity, including moisture, timber-to-soil contact, inadequate drainage, and conditions that compromise the integrity of an existing termite management system.'],
     ['Active Termites', 'Live termites sighted by the inspector during the inspection.'],
-    ['Inactive / Evidence Only', 'Evidence of past termite activity including workings, mudding, damaged timber, and galleries, where no live termites were sighted. This finding is equally significant as active termites and warrants immediate professional attention.'],
+    ['Inactive / Evidence Only', 'Evidence of termite activity, such as workings, mudding, damaged timber or galleries, where no live termites were seen at the time of inspection. It does not show when the activity happened or whether termites are still present in concealed areas, so it should be investigated further and the recommendations in this report followed.'],
   ];
 
   defs.forEach(([term, def]) => {
@@ -8945,7 +9116,7 @@ async function _buildAndDownloadPDF() {
   doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.accentDark);
   doc.text('IMPORTANT NOTICE', M+7, y+7);
   doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.ink);
-  const noticeLines = doc.splitTextToSize('This inspection fee covers the cost of the inspection and report only. Treatment of any timber pest activity or damage identified, and any remedial work required, is not included in this fee and is the responsibility of the property owner. Standard home and contents insurance policies do not cover termite damage. If you have concerns about your coverage, contact your insurer directly.', CW - 14);
+  const noticeLines = doc.splitTextToSize('This inspection fee covers the cost of the inspection and report only. Treatment of any timber pest activity or damage identified, and any remedial work required, is not included in this fee and is the responsibility of the property owner. Standard home and contents insurance policies generally do not cover termite damage. If you have concerns about your coverage, contact your insurer directly.', CW - 14);
   doc.text(noticeLines, M+7, y+13);
   y += 34;
 
@@ -8971,7 +9142,7 @@ async function _buildAndDownloadPDF() {
   }
 
   tcHeading('1. Purpose and Nature of This Inspection');
-  tcPara(`This report records the findings of a visual, non-invasive timber pest inspection carried out in accordance with ${standard}. The purpose is to identify observable evidence of timber pest activity, damage, and conditions conducive to pest attack within the accessible areas of the property at the time of inspection. This is not a structural inspection, a pest control treatment, a compliance audit, or a certificate of any kind, and it does not constitute a warranty or guarantee that the property is or will remain free of timber pests or associated damage.`);
+  tcPara(`This report records the findings of a visual, non-invasive timber pest inspection carried out with reference to ${standard}. The purpose is to identify observable evidence of timber pest activity, damage, and conditions conducive to pest attack within the accessible areas of the property at the time of inspection. This is not a structural inspection, a pest control treatment, a compliance audit, or a certificate of any kind, and it does not constitute a warranty or guarantee that the property is or will remain free of timber pests or associated damage.`);
 
   tcHeading('2. Scope of Inspection');
   tcPara('The inspection was confined to areas that were safely and reasonably accessible at the time of the inspection. Readily accessible areas are defined in AS 4349.3-2010 as those that can be inspected without moving furniture, lifting or removing floor coverings or wall linings, breaking apart building elements, exposing concealed spaces, or causing damage to the structure or its contents. The inspector did not move, displace, or remove any floor coverings, insulation, wall linings, ceiling materials, fixed cabinetry, furniture, stored items, or personal belongings. Subfloor and roof void areas were inspected only where safe and reasonable access was available and where minimum clearance dimensions prescribed in the relevant Standard were satisfied.');
@@ -8992,13 +9163,17 @@ async function _buildAndDownloadPDF() {
   tcPara('Standard home, contents, and building insurance policies in Australia do not generally cover loss or damage caused by termites, timber borers, or other timber pests. Timber pest damage is typically treated by Australian insurers as gradual deterioration rather than a sudden or accidental event and is excluded from most mainstream policies. The client is encouraged to obtain written confirmation from their insurer regarding the specific extent of their coverage before acting in reliance on this report.');
 
   tcHeading('8. Reliance on This Report — Client Use Only');
-  tcPara('This report has been prepared exclusively for the use of the client named on the cover page of this document. It must not be provided to, or relied upon by, any third party without the prior written consent of the inspecting company. Where this report has been sought in connection with a proposed property purchase, a formal Prior-to-Purchase Timber Pest Inspection prepared in accordance with AS 4349.3-2010 and obtained prior to exchange of contracts is strongly advised. The inspecting company and inspector accept no responsibility or liability to any party other than the named client for any loss, damage, or expense arising from reliance on the contents of this report.');
+  // The "get a pre-purchase inspection" advice only makes sense on a report
+  // that isn't one.
+  tcPara('This report has been prepared exclusively for the use of the client named on the cover page of this document. It must not be provided to, or relied upon by, any third party without the prior written consent of the inspecting company. '
+    + (prePurchase ? '' : 'Where this report has been sought in connection with a proposed property purchase, a formal Prior-to-Purchase Timber Pest Inspection prepared with reference to AS 4349.3-2010 and obtained prior to exchange of contracts is strongly advised. ')
+    + 'The inspecting company and inspector accept no responsibility or liability to any party other than the named client for any loss, damage, or expense arising from reliance on the contents of this report.');
 
   tcHeading('9. Recommended Re-inspection Frequency');
   tcPara("Annual timber pest inspections are the minimum recommended frequency under AS 3660.2-2017 in the absence of an installed termite management system. Where elevated risk factors are present — including proximity to bushland or trees, prior termite history at the property, high-moisture conditions in the subfloor or roof void, the presence of timber-to-soil contact, or susceptible construction materials — a six-monthly re-inspection interval is recommended. Where an existing termite management system is installed and verified, the re-inspection frequency specified by the system installer and manufacturer should be followed. Failure to maintain regular inspection intervals may affect the terms of any system warranty in place.");
 
   tcHeading('10. Applicable Standards and Legislation');
-  tcPara(`This inspection and report have been prepared in accordance with ${standard} and the AEPMA (Australian Environmental Pest Managers Association) Code of Practice for Timber Pest Inspections where applicable. Where the property is newly constructed or has been subject to recent building work, the termite management provisions of the National Construction Code (NCC) and AS 3660.1-2014 (Termite Management — New Building Work) may also apply. State and Territory legislation may impose requirements additional to those set out in this Standard. This report is not a safety inspection, does not constitute advice regarding compliance with any building code or regulation, and is not a certificate of compliance under any legislation.`);
+  tcPara(`This inspection and report have been prepared with reference to ${standard} and, where applicable, the AEPMA (Australian Environmental Pest Managers Association) Code of Practice for Timber Pest Inspections. Termite management recommendations refer to AS 3660.2-2017 (Termite Management — In and Around Existing Buildings and Structures). Where the property is newly constructed or has been subject to recent building work, the termite management provisions of the National Construction Code (NCC) and AS 3660.1-2014 (Termite Management — New Building Work) may also apply. State and Territory legislation may impose requirements additional to those set out in this Standard. This report is not a safety inspection, does not constitute advice regarding compliance with any building code or regulation, and is not a certificate of compliance under any legislation.`);
 
   gap(6);
   if (y + 12 > 278) newPage();
@@ -9017,8 +9192,8 @@ async function _buildAndDownloadPDF() {
   gap(2);
   disclaimer('This report relates to the condition of the property in respect of timber pest activity at the time of inspection, limited to those areas that were reasonably accessible. It is not a warranty, guarantee, or certificate of compliance with any law, insurance policy, or building standard, and does not guarantee the property is, or will remain, free of termites or other timber pests. Conditions affecting the property may change after the inspection date, and concealed or inaccessible areas may contain damage or activity that could not be identified.');
   gap(3);
-  if (!standard.startsWith('AS 4349')) {
-    disclaimer('This report is for the sole use of the client named above and is not intended for use by third parties. It is not suitable for use where the property is being bought or sold — a Prior-to-Purchase inspection complying with AS 4349.3 should be obtained for that purpose.');
+  if (!prePurchase) {
+    disclaimer('This report is for the sole use of the client named above and is not intended for use by third parties. It is not suitable for use where the property is being bought or sold — a Prior-to-Purchase inspection with reference to AS 4349.3-2010 should be obtained for that purpose.');
     gap(3);
   }
   disclaimer('The client acknowledges the contents of this report and that the inspection has limitations. This report does not conclusively determine that the property is free of termites.');
@@ -9130,7 +9305,7 @@ async function _buildAndDownloadPDF() {
   doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
   doc.text(`Generated by SAYON  ·  ${today}`, M+7, y+5);
   doc.setFont('helvetica','normal'); doc.setTextColor(...C.inkMuted);
-  doc.text(`Report ID: ${reportId}  ·  ${standard} Compliant`, M+7, y+9);
+  doc.text(`Report ID: ${reportId}  ·  Prepared with reference to ${standard}`, M+7, y+9);
   doc.text(`Content fingerprint: ${formatFingerprint(fingerprint)}  ·  changes to the report change this code`, M+7, y+13);
 
   if (agreement) {
@@ -9171,7 +9346,7 @@ async function _buildAndDownloadPDF() {
   if (shareBtn) shareBtn.style.display = 'flex';
 
   await deliverPdfBlob(pdfBlob, fname, {
-    title: 'SAYONion Report',
+    title: 'Timber Pest Inspection Report',
     text: `Timber Pest Inspection Report — ${getFullAddress() || 'Property'}`,
     readyToast: 'Report ready — choose where to save or send it',
   });
