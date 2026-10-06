@@ -4,7 +4,12 @@
  * The API keys are stored as Cloudflare secrets and never exposed to the
  * browser or public repo. See worker/README.md for setup and deploy steps.
  *
- * CHANGES FROM PREVIOUS VERSION (v8 -> v9):
+ * CHANGES FROM v9 -> v9.1:
+ * Lets Netlify preview copies of the app (https://*--sayon-preview.netlify.app)
+ * call the Worker and come back from Stripe, and checks each allowed origin
+ * exactly instead of by prefix.
+ *
+ * CHANGES FROM v8 -> v9 (also in this version):
  * Adds POST /send-email, so the app can email a report, quote, certificate
  * or invoice PDF to the client itself instead of going through the
  * phone's mail app. Sends through Resend (resend.com) with plain fetch.
@@ -96,15 +101,27 @@ const RESEND_API = 'https://api.resend.com/emails';
 const SUPABASE_URL = 'https://bmjgvogxutwyeklxxeao.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtamd2b2d4dXR3eWVrbHh4ZWFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0NTczMTEsImV4cCI6MjEwNTAzMzMxMX0.Ov8xGhDMuAbUcWy7zbCiS01D6QCrlhDYxza3Fzls83U';
 
-// Only allow requests that claim to come from your GitHub Pages site
+// Only allow requests that claim to come from the app itself. Each origin
+// must match exactly: a prefix check would also let in a look-alike such as
+// https://byronguyatt2-droid.github.io.example.com.
 const ALLOWED_ORIGINS = [
   'https://byronguyatt2-droid.github.io',
-  'http://localhost',          // Capacitor's default Android origin
   'capacitor://localhost',     // Capacitor's default iOS origin
-  'https://localhost',         // in case the iOS scheme is ever switched to the
-                                // newer Capacitor "server" scheme later
   'null',                      // for opening index.html directly as a file
 ];
+
+// Capacitor's Android origin (http://localhost), the newer iOS "server"
+// scheme (https://localhost), and local testing on any port.
+const LOCALHOST_ORIGIN = /^https?:\/\/localhost(:\d+)?$/;
+
+// Netlify preview copies of the app (one per pull request or branch), e.g.
+// https://deploy-preview-12--sayon-preview.netlify.app. Previews only: the
+// real site is still GitHub Pages.
+const PREVIEW_ORIGIN = /^https:\/\/([a-z0-9-]+--)?sayon-preview\.netlify\.app$/;
+
+function isAllowedOrigin(origin) {
+  return ALLOWED_ORIGINS.includes(origin) || LOCALHOST_ORIGIN.test(origin) || PREVIEW_ORIGIN.test(origin);
+}
 
 // Where Stripe sends people back to when the app's own return URL can't be
 // used (Stripe only accepts http(s) URLs, so a Capacitor or file:// origin
@@ -195,8 +212,7 @@ export default {
       return new Response('Method not allowed', { status: 405 });
     }
 
-    const allowed = origin === 'null' || ALLOWED_ORIGINS.some(o => origin.startsWith(o));
-    if (!allowed) {
+    if (!isAllowedOrigin(origin)) {
       return new Response('Forbidden', { status: 403 });
     }
 
@@ -550,7 +566,7 @@ async function createStripeCustomer(businessId, user, env) {
 function safeReturnUrl(candidate, marker) {
   try {
     const u = new URL(candidate);
-    if (u.origin === new URL(DEFAULT_APP_URL).origin || u.origin === 'http://localhost' || u.origin === 'https://localhost') {
+    if (u.origin === new URL(DEFAULT_APP_URL).origin || LOCALHOST_ORIGIN.test(u.origin) || PREVIEW_ORIGIN.test(u.origin)) {
       return u.toString();
     }
   } catch { /* fall through */ }
@@ -924,9 +940,8 @@ function jsonResponse(status, payload, origin) {
 }
 
 function corsHeaders(origin) {
-  const isAllowed = origin === 'null' || ALLOWED_ORIGINS.some(o => origin.startsWith(o));
   return {
-    'Access-Control-Allow-Origin': isAllowed ? origin : 'null',
+    'Access-Control-Allow-Origin': isAllowedOrigin(origin) ? origin : 'null',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
