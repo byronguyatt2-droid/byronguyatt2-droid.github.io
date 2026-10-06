@@ -936,67 +936,47 @@ function emailQuoteToClient() {
 }
 
 // ── SHARED PDF PARTS (quote and treatment certificate) ──────────────────────
-// The dark business band, the document title and the details card: client
-// details on the left, document details in a two-by-two grid on the right.
-// Returns the y position below the card. compact: a shorter band and title,
-// for one-page documents.
+// The letterhead, the document title and the details panel: client
+// details on the left, document details in a two-column grid on the right.
+// Returns the y position below the panel. compact: a smaller title, for
+// one-page documents.
 function drawPdfDocCover(doc, company, { kicker, title, date, left, right, compact }) {
   const C = PDF_COLORS;
   const W = 210, M = 15, CW = W - M * 2;
   left = left.filter(([, v]) => v);
   right = right.filter(([, v]) => v);
-  const bandH = compact ? 39 : 48;
-  doc.setFillColor(...C.coverDark); doc.rect(0, 0, W, bandH, 'F');
-  doc.setFillColor(...C.accent); doc.rect(0, 0, W, 3, 'F');
-  doc.setFillColor(...C.accent); doc.rect(0, 0, 4, bandH, 'F');
-  drawPdfCompanyMark(doc, company);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(240, 234, 224);
-  doc.text(company.name || 'SAYON', 40, 22);
-  const sub = [];
-  if (company.licence) sub.push(`Lic: ${company.licence}`);
-  if (company.phone) sub.push(company.phone);
-  if (company.abn) sub.push(`ABN: ${company.abn}`);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(160, 150, 138);
-  if (sub.length) doc.text(sub.join('   ·   '), 40, 29);
-  if (company.email) doc.text(company.email, 40, 34);
-  doc.setFontSize(8);
-  doc.text(date, W - 8, 22, { align: 'right' });
+  const top = drawPdfLetterhead(doc, company, { docLabel: title, date });
 
-  const t0 = compact ? -12 : 0;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
-  doc.text(kicker, M, 57 + t0);
-  doc.setFontSize(compact ? 20 : 24); doc.setTextColor(...C.ink);
-  doc.text(title, M, (compact ? 65.5 : 67) + t0);
-  doc.setFillColor(...C.accent); doc.rect(M, (compact ? 68.5 : 70) + t0, 32, 2, 'F');
+  const kickerY = top + (compact ? 9.5 : 12);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...C.accentDark);
+  pdfTracked(doc, kicker.toUpperCase(), M, kickerY, { cs: 0.6 });
+  const titleY = kickerY + (compact ? 8.5 : 10.5);
+  doc.setFontSize(compact ? 21 : 25); doc.setTextColor(...C.ink);
+  doc.text(title, M, titleY);
+  doc.setFillColor(...C.accent); doc.rect(M, titleY + 3.5, 18, 1.2, 'F');
 
-  const leftW = (CW - 16) * 0.48, rightX = M + 12 + leftW, cellW = (M + CW - 4 - rightX) / 2;
-  const cardY = compact ? 62 : 77;
-  const measure = (rows, w) => rows.map(([, v]) => 6 + doc.splitTextToSize(String(v), w - 3).length * 4.2);
-  doc.setFontSize(9);
-  const leftH = measure(left, leftW).reduce((a, b) => a + b, 0);
+  // Panel: a light tint with a hairline, no shadow, so it prints flat.
+  const gutter = 10, leftW = (CW - gutter - 12) * 0.46;
+  const rightX = M + 6 + leftW + gutter, cellW = (M + CW - 6 - rightX) / 2;
+  const cardY = titleY + 10;
+  const measure = (rows, w) => rows.map(([, v]) => 7.2 + doc.splitTextToSize(String(v), w - 3).length * 4.4);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+  const leftHs = measure(left, leftW);
   const rightHs = measure(right, cellW);
+  const leftH = leftHs.reduce((a, b) => a + b, 0);
   let rightH = 0;
   for (let i = 0; i < rightHs.length; i += 2) rightH += Math.max(rightHs[i], rightHs[i + 1] || 0);
-  const cardH = Math.max(leftH, rightH) + 8;
-  doc.setFillColor(235, 232, 228); doc.roundedRect(M + 1, cardY + 1, CW, cardH, 3, 3, 'F');
-  doc.setFillColor(...C.white); doc.roundedRect(M, cardY, CW, cardH, 3, 3, 'F');
-  doc.setDrawColor(...C.rule); doc.setLineWidth(0.5); doc.roundedRect(M, cardY, CW, cardH, 3, 3, 'D');
-  doc.setFillColor(...C.accent); doc.roundedRect(M, cardY, 4, cardH, 3, 3, 'F'); doc.rect(M + 2, cardY, 2, cardH, 'F');
-  const cell = (label, val, x, cy, w) => {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(6); doc.setTextColor(...C.inkMuted);
-    doc.text(label, x, cy);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-    doc.text(doc.splitTextToSize(String(val), w - 3), x, cy + 4.5);
-  };
-  let ly = cardY + 8;
-  left.forEach(([label, val]) => { cell(label, val, M + 8, ly, leftW); ly += measure([[label, val]], leftW)[0]; });
-  let ry = cardY + 8;
+  const cardH = Math.max(leftH, rightH) + 7;
+  doc.setFillColor(...C.rowAlt); doc.roundedRect(M, cardY, CW, cardH, 2.5, 2.5, 'F');
+  let ly = cardY + 7.5;
+  left.forEach(([label, val], i) => { drawPdfField(doc, label, val, M + 6, ly, leftW - 3); ly += leftHs[i]; });
+  let ry = cardY + 7.5;
   for (let i = 0; i < right.length; i += 2) {
-    cell(right[i][0], right[i][1], rightX, ry, cellW);
-    if (right[i + 1]) cell(right[i + 1][0], right[i + 1][1], rightX + cellW, ry, cellW);
+    drawPdfField(doc, right[i][0], right[i][1], rightX, ry, cellW - 3, 9);
+    if (right[i + 1]) drawPdfField(doc, right[i + 1][0], right[i + 1][1], rightX + cellW, ry, cellW - 3, 9);
     ry += Math.max(rightHs[i], rightHs[i + 1] || 0);
   }
-  return cardY + cardH + 6;
+  return cardY + cardH + 7;
 }
 
 // Same light running header as the inspection report. Returns the y where
@@ -1028,6 +1008,12 @@ function drawPdfNumberedTitle(doc, y, title, num) {
   return y + 15;
 }
 
+// A table's heading row: a pale teal band, so tables print light.
+function drawPdfTableHeadRule(doc, x, y, w) {
+  const C = PDF_COLORS;
+  doc.setFillColor(...C.accentLight); doc.rect(x, y, w, 8, 'F');
+}
+
 // The line items table: description and detail, qty, unit price, amount.
 // newPage() starts a fresh page and returns its top y. Returns the y below
 // the table.
@@ -1037,19 +1023,19 @@ function drawPdfLineItems(doc, y, allItems, { bottom, newPage }) {
   const X_QTY = M + CW - 66, X_PRICE = M + CW - 30, X_AMT = M + CW - 3;
   const DESC_W = X_QTY - M - 22;
   function tableHead() {
-    doc.setFillColor(...C.headerBg); doc.rect(M, y, CW, 8, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(235, 228, 218);
-    doc.text('DESCRIPTION', M + 4, y + 5.3);
-    doc.text('QTY', X_QTY, y + 5.3, { align: 'right' });
-    doc.text('UNIT PRICE', X_PRICE, y + 5.3, { align: 'right' });
-    doc.text('AMOUNT', X_AMT, y + 5.3, { align: 'right' });
+    drawPdfTableHeadRule(doc, M, y, CW);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.3); doc.setTextColor(...C.inkLight);
+    pdfTracked(doc, 'DESCRIPTION', M + 3, y + 5.3, { cs: 0.3 });
+    pdfTracked(doc, 'QTY', X_QTY, y + 5.3, { cs: 0.3, align: 'right' });
+    pdfTracked(doc, 'UNIT PRICE', X_PRICE, y + 5.3, { cs: 0.3, align: 'right' });
+    pdfTracked(doc, 'AMOUNT', X_AMT, y + 5.3, { cs: 0.3, align: 'right' });
     y += 8;
   }
   tableHead();
   const items = allItems.filter(it => (it.desc || '').trim() || lineTotal(it));
   if (!items.length) {
     doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(...C.inkMuted);
-    doc.text('No line items.', M + 4, y + 6); y += 10;
+    doc.text('No line items.', M + 3, y + 6); y += 10;
   }
   items.forEach((it, i) => {
     doc.setFontSize(9);
@@ -1059,13 +1045,12 @@ function drawPdfLineItems(doc, y, allItems, { bottom, newPage }) {
     const rowH = Math.max(9, descLines.length * 4.4 + detailLines.length * 3.6 + 5);
     if (y + rowH > bottom) { y = newPage(); tableHead(); }
     if (i % 2 === 1) { doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, rowH, 'F'); }
-    doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, rowH, 'F');
     doc.setDrawColor(...C.ruleLight); doc.setLineWidth(0.25); doc.line(M, y + rowH, M + CW, y + rowH);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-    doc.text(descLines, M + 4, y + 5.5);
+    doc.text(descLines, M + 3, y + 5.5);
     if (detailLines.length) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.inkLight);
-      doc.text(detailLines, M + 4, y + 5.5 + descLines.length * 4.4);
+      doc.text(detailLines, M + 3, y + 5.5 + descLines.length * 4.4);
     }
     const qty = parseFloat(it.qty);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
@@ -1094,8 +1079,8 @@ function drawPdfTotalsBox(doc, y, rows, [finalLabel, finalValue]) {
     doc.setTextColor(...C.ink); doc.text(formatAUD(val), bx + boxW - 4, ty, { align: 'right' });
     ty += 6.5;
   });
-  doc.setFillColor(...C.accent); doc.rect(bx, ty - 3, boxW, 10, 'F');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.white);
+  doc.setFillColor(...C.accentDark); doc.rect(bx, ty - 3, boxW, 10, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...C.white);
   doc.text(finalLabel, bx + 5, ty + 3.4);
   doc.text(formatAUD(finalValue), bx + boxW - 4, ty + 3.4, { align: 'right' });
 }
@@ -1129,7 +1114,7 @@ function buildQuotePDF(q) {
   function ensure(h) { if (y + h > BOTTOM) { doc.addPage(); pageTopBand(); } }
   function sectionTitle(title, num) { ensure(20); y = drawPdfNumberedTitle(doc, y, title, num); }
 
-  y = drawPdfDocCover(doc, company, { kicker: 'TIMBER PEST', title: 'TREATMENT QUOTE', date: today, left: [
+  y = drawPdfDocCover(doc, company, { kicker: 'Timber pest', title: 'Treatment Quote', date: today, left: [
     ['PREPARED FOR', q.client || 'Not specified'],
     ['PROPERTY ADDRESS', q.address || 'Not specified'],
     ['CONTACT', [q.clientPhone, q.clientEmail].map(v => (v || '').trim()).filter(Boolean).join('  ·  ')],
@@ -1192,38 +1177,32 @@ function buildQuotePDF(q) {
   }
 
   // ── ACCEPTANCE ── (kept together, and compact so most quotes fit one page)
-  ensure(36);
-  y += 2;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...C.ink);
-  doc.text('ACCEPTANCE', M, y + 3);
+  ensure(40);
+  y += 3;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...C.ink);
+  pdfTracked(doc, 'ACCEPTANCE', M, y + 3, { cs: 0.6 });
   doc.setFillColor(...C.accent); doc.rect(M, y + 5, CW, 0.5, 'F');
   y += 11;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
   doc.text(doc.splitTextToSize(`I accept this quote of ${formatAUD(totals.total)}${q.gst !== false ? ' (inc GST)' : ''} and authorise the work described above.`, CW), M, y);
-  y += 10;
-  doc.setTextColor(...C.ink); doc.setFontSize(9);
-  doc.setDrawColor(...C.rule); doc.setLineWidth(0.4);
-  const half = (CW - 10) / 2;
+  y += 19;
   // A current acceptance fills the block in; otherwise it's left blank to sign.
   const ans = quoteAnswerState(q);
   const accepted = ans && ans.status === 'accepted' && !ans.stale ? ans : null;
-  doc.text('Client name:', M, y); doc.line(M + 22, y + 1, M + half, y + 1);
-  doc.text('Date:', M + half + 10, y); doc.line(M + half + 20, y + 1, M + CW, y + 1);
-  if (accepted) {
-    doc.setFont('helvetica', 'bold');
-    doc.text(accepted.by, M + 24, y - 0.5);
-    doc.text(formatAnswerDate(accepted.date), M + half + 22, y - 0.5);
-    doc.setFont('helvetica', 'normal');
-  }
-  y += 11;
-  doc.text('Client signature:', M, y); doc.line(M + 29, y + 1, M + CW, y + 1);
-  if (accepted && accepted.signature) {
-    try { doc.addImage(accepted.signature, 'PNG', M + 32, y - 9, 30, 10.3); } catch (e) {}
-  } else if (accepted) {
-    doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
-    doc.text(`Accepted ${QUOTE_ANSWER_METHODS[accepted.method] || ''}`.trim(), M + 32, y - 0.5);
-  }
-  y += 6;
+  const colW = (CW - 16) / 3;
+  const valueOnLine = (text, x) => {
+    if (!text) return;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...C.ink);
+    doc.text(text, x + 1, y - 2);
+  };
+  valueOnLine(accepted && accepted.by, M);
+  drawPdfSignature(doc, { x: M, y, w: colW, caption: 'Client name' });
+  drawPdfSignature(doc, { x: M + colW + 8, y, w: colW, caption: 'Client signature',
+    image: accepted && accepted.signature,
+    note: accepted && !accepted.signature ? `Accepted ${QUOTE_ANSWER_METHODS[accepted.method] || ''}`.trim() : '' });
+  valueOnLine(accepted && formatAnswerDate(accepted.date), M + (colW + 8) * 2);
+  drawPdfSignature(doc, { x: M + (colW + 8) * 2, y, w: colW, caption: 'Date' });
+  y += 8;
 
   drawPdfDocFooters(doc, `Quote ${q.number || ''}${company.name ? `  ·  ${company.name}` : ''}`);
 

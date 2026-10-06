@@ -277,3 +277,13 @@ select.quote-input { cursor: pointer; }
 .treat-sketch-wrap .signature-placeholder { padding: 0 24px; text-align: center; }
 .treat-sketch-actions { display: flex; justify-content: space-between; gap: 8px; }
 .treat-sketch-actions label { cursor: pointer; }
+
+/* One theme: the quote screen sits on the sign-in backdrop (css/app.css),
+   with an ink top bar and white cards. */
+body:not(.dark-screen) .quote-topbar { background: var(--ink); border-bottom: none; }
+body:not(.dark-screen) .quote-topbar-title { color: var(--on-ink); }
+body:not(.dark-screen) .quote-back { color: #5EEAD4; }
+body:not(.dark-screen) .quote-save-state { color: var(--on-ink2); }
+body:not(.dark-screen) .quote-card { border-color: transparent; box-shadow: 0 14px 36px rgba(0,0,0,0.35); }
+body:not(.dark-screen) .quote-company-gaps { background: #FFF6E0; border-color: #F0C25A; color: #5C3D00; }
+body:not(.dark-screen) .quote-empty { color: var(--on-ink2); }
