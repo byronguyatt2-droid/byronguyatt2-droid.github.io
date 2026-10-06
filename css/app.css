@@ -1656,7 +1656,8 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
   border-radius: 8px;
   padding: 10px 12px;
   min-height: 72px;
-  max-height: 110px;
+  /* Grows with the note so it can be re-read, then scrolls. */
+  max-height: min(45vh, 360px);
   font-size: 11.5px;
   color: var(--text2);
   font-family: 'JetBrains Mono', monospace;
@@ -3858,3 +3859,18 @@ button:focus-visible,
 .doc-sent.sent strong { color: var(--green, #2a9448); }
 .doc-sent.stale strong { color: var(--yellow); }
 .doc-sent.unsent strong { color: var(--text3, var(--text2)); }
+
+/* After Extract: what was filled and what's still blank */
+.extract-summary-sheet { top: auto; bottom: 0; max-height: 80vh; border-radius: 16px 16px 0 0; }
+.extract-summary-filled { font-size: 15px; font-weight: 700; color: var(--text); }
+.extract-summary-label { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; }
+.extract-summary-list { display: flex; flex-direction: column; gap: 8px; }
+.extract-blank-btn {
+  display: flex; justify-content: space-between; align-items: center;
+  min-height: 44px; padding: 10px 14px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+}
+.extract-blank-btn span { color: var(--text2); font-size: 18px; }
+.extract-summary-done { font-size: 13px; color: var(--text2); }
+.extract-blank-flash { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }

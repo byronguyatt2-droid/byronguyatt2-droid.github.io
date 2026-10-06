@@ -2890,6 +2890,8 @@ async function processTranscript() {
   if (!currentTranscript.trim()) return;
   setAI('thinking', 'Extracting data...');
   document.getElementById('extractBtn').disabled = true;
+  const before = extractSnapshot();
+  let extracted = false;
 
   try {
     // Notes fill the report in the order they were dictated. If earlier
@@ -2902,9 +2904,12 @@ async function processTranscript() {
         document.getElementById('extractBtn').disabled = false;
         return;
       }
-      await processPendingNotes(true);
+      extractSummaryOwned = true;
+      try { await processPendingNotes(true); } finally { extractSummaryOwned = false; }
+      extracted = !getPendingNotes().length;
     } else {
       await populateFields(await requestExtraction(currentTranscript));
+      extracted = true;
       pendingNotesProblem = null;
       setAI('ready', 'Data extracted');
       showToast('Fields populated', 'success');
@@ -2951,6 +2956,7 @@ async function processTranscript() {
   if (warnElDone) warnElDone.classList.remove('show');
   dismissCleanupSuggestion();
   dismissServerTranscript();
+  if (extracted) showExtractSummary(before);
 }
 
 // ── WAITING NOTES ───────────────────────────────────────────────────────
@@ -3028,6 +3034,7 @@ async function processPendingNotes(manual) {
     return;
   }
   const target = reportData;
+  const before = extractSnapshot();
   pendingNotesRunning = true;
   renderPendingNotes();
   setAI('thinking', 'Filling in saved notes...');
@@ -3076,8 +3083,113 @@ async function processPendingNotes(manual) {
     saveCurrentReport(true);
   }
   if (filled) showToast(`${filled} saved note${filled !== 1 ? 's' : ''} filled in — check the report`, 'success');
+  // Fill in now shows what the notes filled; processTranscript() shows its
+  // own sheet when it ran the queue.
+  if (filled && manual && !extractSummaryOwned && reportData === target) showExtractSummary(before);
   else if (stillNoSignal && manual) showToast('Still no signal — the notes will fill in when you\'re back online', 'info');
   if (stuck && (manual || !filled)) showToast(`${stuck} note${stuck !== 1 ? 's' : ''} couldn't be read — see the reason under the note`, 'error');
+}
+
+// ── EXTRACT SUMMARY ─────────────────────────────────────────────────────
+// After Extract, one sheet says how many fields the note filled and which
+// of the fields that matter most are still blank, each a tap to that
+// field. "Not used from your note" isn't listed: the extraction answer is
+// field values, not which sentences they came from, so it can't be told
+// reliably which sentences were left out.
+let extractSummaryOwned = false; // processTranscript() is running the queue
+
+const JOB_SUMMARY_FIELDS = ['jobAddress', 'jobSuburb', 'jobState', 'jobPostcode', 'jobClient', 'jobInspectionType'];
+
+function extractSnapshot() {
+  const data = {};
+  Object.keys(reportData).forEach(k => { if (k !== 'findings' && k !== 'pendingNotes') data[k] = JSON.stringify(reportData[k]); });
+  const findings = {};
+  (reportData.findings || []).forEach(f => { if (f && f.id) findings[f.id] = { ...f }; });
+  const job = {};
+  JOB_SUMMARY_FIELDS.forEach(id => { const el = document.getElementById(id); job[id] = el ? el.value : ''; });
+  return { data, findings, job };
+}
+
+const isBlankValue = v => v === undefined || v === null || v === '' || (typeof v === 'string' && !v.trim());
+
+function countExtractFilled(before) {
+  let n = 0;
+  Object.keys(reportData).forEach(k => {
+    if (k === 'findings' || k === 'pendingNotes' || isBlankValue(reportData[k])) return;
+    if (JSON.stringify(reportData[k]) !== before.data[k]) n++;
+  });
+  (reportData.findings || []).forEach(f => {
+    if (!f) return;
+    const old = before.findings[f.id] || {};
+    ['termiteActivity', 'species', 'damageDescription', 'activityLocation', 'nestLocated', 'structuralConcern']
+      .forEach(k => { if (!isBlankValue(f[k]) && f[k] !== old[k]) n++; });
+  });
+  JOB_SUMMARY_FIELDS.forEach(id => { const el = document.getElementById(id); if (el && el.value.trim() && el.value !== before.job[id]) n++; });
+  return n;
+}
+
+// The fields an inspector most often has to come back for, when blank.
+function extractBlanks() {
+  const blanks = [];
+  const blank = k => isBlankValue(reportData[k]);
+  if (blank('structureType')) blanks.push({ label: 'structure type', target: 'f-structureType' });
+  if (blank('height')) blanks.push({ label: 'height', target: 'f-height' });
+  if (blank('existingSystem')) blanks.push({ label: 'termite management system', target: 'f-existingSystem' });
+  if (!restrictionsAnswer()) blanks.push({ label: 'restrictions', target: 'resYesNo' });
+  const missing = findingsMissingReferral();
+  if (missing.length) {
+    const f = reportData.findings[missing[0] - 1];
+    blanks.push({ label: `builder referral (finding${missing.length > 1 ? 's' : ''} ${missing.join(', ')})`, target: 'finding-card-' + f.id, referral: true });
+  }
+  if (blank('slabEdge')) blanks.push({ label: 'slab edge', target: 'f-slabEdge' });
+  if (blank('riskLevel')) blanks.push({ label: 'risk level', target: 'f-riskLevel' });
+  return blanks;
+}
+
+let extractSummaryBlanks = [];
+
+function showExtractSummary(before) {
+  const overlay = document.getElementById('extractSummaryOverlay');
+  if (!overlay) return;
+  const n = countExtractFilled(before);
+  extractSummaryBlanks = extractBlanks();
+  document.getElementById('extractSummaryFilled').textContent = n
+    ? `Filled ${n} field${n !== 1 ? 's' : ''} from your note.`
+    : 'Nothing new was filled from your note.';
+  document.getElementById('extractSummaryBlankLabel').style.display = extractSummaryBlanks.length ? '' : 'none';
+  document.getElementById('extractSummaryBlanks').innerHTML = extractSummaryBlanks.length
+    ? extractSummaryBlanks.map((b, i) => `<button class="extract-blank-btn" onclick="goToExtractBlank(${i})">${escapeHtml(b.label)}<span aria-hidden="true">›</span></button>`).join('')
+    : '<div class="extract-summary-done">None of the key fields are blank.</div>';
+  overlay.classList.add('open');
+}
+
+function closeExtractSummary() {
+  const overlay = document.getElementById('extractSummaryOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+function goToExtractBlank(i) {
+  const b = extractSummaryBlanks[i];
+  closeExtractSummary();
+  if (!b) return;
+  const popover = document.getElementById('voicePopover');
+  if (popover && popover.classList.contains('open')) toggleVoicePopover();
+  let el = document.getElementById(b.target);
+  if (!el) return;
+  const section = el.closest('.report-section');
+  if (section && section.id.startsWith('section-')) showSection(section.id.slice(8));
+  if (b.referral) {
+    // The "Refer to a Builder or Engineer?" field inside the finding card.
+    const label = [...el.querySelectorAll('.field-label')].find(l => /builder or engineer/i.test(l.textContent));
+    if (label && label.nextElementSibling) el = label.nextElementSibling;
+  }
+  setTimeout(() => {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!el.hasAttribute('tabindex') && !/^(BUTTON|INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) el.setAttribute('tabindex', '-1');
+    el.focus({ preventScroll: true });
+    el.classList.add('extract-blank-flash');
+    setTimeout(() => el.classList.remove('extract-blank-flash'), 1800);
+  }, 60);
 }
 
 // ── COMPLIANCE PLATE SCAN ───────────────────────────────────────────────
