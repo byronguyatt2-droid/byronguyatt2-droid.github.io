@@ -395,6 +395,19 @@
   </div>
 </div>
 
+<!-- DID THAT SEND? (when the app can't tell from the share sheet or email).
+     Outside #app so it also shows over the quote screen. -->
+<div class="page-sheet-overlay did-it-send-overlay" id="didItSendOverlay">
+  <div class="did-it-send" role="alertdialog" aria-modal="true" aria-labelledby="didItSendTitle" aria-describedby="didItSendText">
+    <div class="did-it-send-title" id="didItSendTitle">Did that send?</div>
+    <p class="did-it-send-text" id="didItSendText"></p>
+    <div class="did-it-send-btns">
+      <button class="extract-btn" onclick="answerDidItSend(true)">Yes, it's sent</button>
+      <button class="link-btn" onclick="answerDidItSend(false)">Not yet</button>
+    </div>
+  </div>
+</div>
+
 <div class="page-sheet-overlay" id="treatmentOverlay">
   <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="treatmentTitle">
     <div class="page-sheet-header">
@@ -1578,6 +1591,8 @@
 
     <div class="transcript-box" id="transcriptBox" contenteditable="true" onfocus="clearTranscriptPlaceholderIfNeeded(this)" oninput="onTranscriptEdited(this)">Tap the mic and start speaking, or tap here to type instead.</div>
 
+    <p class="voice-privacy-hint">Dictate your own notes. Don't record conversations with the client or others without their consent.</p>
+
     <div class="low-confidence-warning" id="lowConfidenceWarning">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <span>Some of that wasn't heard clearly — check the transcript before extracting</span>
@@ -1737,18 +1752,6 @@
       <textarea class="job-input send-review-body" id="sendReviewBody" rows="9" aria-label="Message"></textarea>
       <button class="extract-btn" id="sendReviewBtn" onclick="confirmSendReview()">Open email to send</button>
       <button class="link-btn send-review-cancel" onclick="closeSendReview()">Not yet</button>
-    </div>
-  </div>
-</div>
-
-<!-- DID THAT SEND? (when the app can't tell from the share sheet or email) -->
-<div class="page-sheet-overlay did-it-send-overlay" id="didItSendOverlay">
-  <div class="did-it-send" role="alertdialog" aria-modal="true" aria-labelledby="didItSendTitle" aria-describedby="didItSendText">
-    <div class="did-it-send-title" id="didItSendTitle">Did that send?</div>
-    <p class="did-it-send-text" id="didItSendText"></p>
-    <div class="did-it-send-btns">
-      <button class="extract-btn" onclick="answerDidItSend(true)">Yes, it's sent</button>
-      <button class="link-btn" onclick="answerDidItSend(false)">Not yet</button>
     </div>
   </div>
 </div>

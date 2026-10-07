@@ -3401,6 +3401,8 @@ body.ai-busy:has(#app[style*="flex"]) .ai-busy-bar { display: block; }
   100% { transform: translateX(290%); }
 }
 
+.voice-privacy-hint { font-size: 12px; color: var(--text3); line-height: 1.5; margin: 6px 2px 0; }
+
 .profile-menu-wrap { position: relative; }
 .profile-btn {
   width: 32px; height: 32px; border-radius: 50%;

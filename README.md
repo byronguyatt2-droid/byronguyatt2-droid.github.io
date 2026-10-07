@@ -29,4 +29,11 @@ To deploy, only after the owner has reviewed the diff and said "deploy":
 
 `live` should only ever move forward to a commit already on `main`; never commit to `live` directly.
 
+## Preview links (Netlify)
+
+Netlify builds a throwaway copy of every pull request and branch, for trying changes on a phone before saying "deploy". It never publishes the real site (see `netlify.toml`).
+
+- Pull request #N: https://deploy-preview-N--sayon-preview.netlify.app
+- Branch `claude/abc`: https://claude-abc--sayon-preview.netlify.app
+
 The Cloudflare Worker (`worker/`) and Stripe/Supabase settings are never deployed by merging. Each is changed by hand, only after an explicit "deploy".
