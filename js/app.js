@@ -7979,7 +7979,7 @@ function changedSections(before, after) {
 
 function ensureReportNumber() {
   if (!reportData.reportNumber) {
-    reportData.reportNumber = 'KV-' + todayIsoDate().replace(/-/g,'') + '-' + Math.floor(Math.random()*9000+1000);
+    reportData.reportNumber = 'SY-' + todayIsoDate().replace(/-/g,'') + '-' + Math.floor(Math.random()*9000+1000);
   }
   return reportData.reportNumber;
 }

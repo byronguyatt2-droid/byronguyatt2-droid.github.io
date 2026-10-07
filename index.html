@@ -311,11 +311,11 @@
           <div id="quoteSystemChoice" class="quote-system-choice" style="display:none"></div>
           <div id="quoteItems"></div>
           <button class="quote-add-btn" onclick="addQuoteItem()">+ Add line</button>
-          <div class="quote-hint">Prices are ex GST. Each line starts at the rate you last quoted for it, so per-metre and per-station rates carry over to your next quote.</div>
+          <div class="quote-hint">Prices are before GST. Each line starts at the rate you last quoted for it, so per-metre and per-station rates carry over to your next quote.</div>
         </div>
 
         <div class="quote-card quote-totals">
-          <div class="quote-total-row"><span>Subtotal (ex GST)</span><span id="qSubtotal">$0.00</span></div>
+          <div class="quote-total-row"><span id="qSubtotalLabel">Subtotal (ex GST)</span><span id="qSubtotal">$0.00</span></div>
           <div class="quote-total-row">
             <label class="quote-gst-toggle"><input type="checkbox" id="qGst" onchange="onQuoteFieldInput()"> Add GST (10%)</label>
             <span id="qGstAmt">$0.00</span>
