@@ -113,6 +113,18 @@ function rememberPaymentTerms(text) {
   storeQuotePriceMemory(mem);
 }
 
+// Whether the business adds GST. A business that isn't registered unticks
+// it once, and its later quotes start without GST.
+function defaultQuoteGst() {
+  return quotePriceMemory().__gst !== false;
+}
+function rememberQuoteGst(on) {
+  const mem = quotePriceMemory();
+  if ((mem.__gst !== false) === on) return;
+  mem.__gst = on;
+  storeQuotePriceMemory(mem);
+}
+
 function rememberQuotePrice(key, price) {
   if (!key || key === 'custom' || !isFinite(price)) return;
   const mem = quotePriceMemory();
@@ -381,7 +393,7 @@ function createQuoteFromSource(src) {
     inspector: src.inspector,
     inspectionDate: src.date || null,
     validDays: 30,
-    gst: true,
+    gst: defaultQuoteGst(),
     items: buildQuoteItemsFromReport(rd),
     systemChoice: newSystemChoice(rd),
     exclusions: buildQuoteExclusions(rd).join('\n'),
@@ -597,6 +609,7 @@ function quoteTotals(q) {
 
 function renderQuoteTotals() {
   const t = quoteTotals(quoteState);
+  document.getElementById('qSubtotalLabel').textContent = quoteState.gst !== false ? 'Subtotal (ex GST)' : 'Subtotal';
   document.getElementById('qSubtotal').textContent = formatAUD(t.subtotal);
   document.getElementById('qGstAmt').textContent = formatAUD(t.gst);
   document.getElementById('qTotal').textContent = formatAUD(t.total);
@@ -612,7 +625,10 @@ function onQuoteFieldInput() {
   q.address = document.getElementById('qAddress').value;
   q.number = document.getElementById('qNumber').value;
   q.validDays = parseInt(document.getElementById('qValidDays').value, 10) || '';
-  q.gst = document.getElementById('qGst').checked;
+  if (q.gst !== document.getElementById('qGst').checked) {
+    q.gst = document.getElementById('qGst').checked;
+    rememberQuoteGst(q.gst);
+  }
   q.exclusions = document.getElementById('qExclusions').value;
   q.paymentTerms = document.getElementById('qPaymentTerms').value;
   q.notes = document.getElementById('qNotes').value;
@@ -1129,7 +1145,7 @@ function buildQuotePDF(q) {
   // ── 1. SCOPE OF WORKS ──
   sectionTitle('SCOPE OF WORKS', 1);
   y = drawPdfLineItems(doc, y, q.items, { bottom: BOTTOM, newPage: () => { doc.addPage(); pageTopBand(); return y; } });
-  const totalRows = [['Subtotal (ex GST)', totals.subtotal]];
+  const totalRows = [[q.gst !== false ? 'Subtotal (ex GST)' : 'Subtotal', totals.subtotal]];
   if (q.gst !== false) totalRows.push(['GST (10%)', totals.gst]);
   const boxH = pdfTotalsBoxHeight(totalRows);
   ensure(boxH + 6);
