@@ -8416,7 +8416,10 @@ function openSendReview() {
   document.getElementById('sendReviewTo').innerHTML =
     `<div class="send-review-name">${esc(client || 'No client name')}</div>` +
     (email ? `<div class="send-review-email">${esc(email)}</div>`
-           : `<div class="send-review-warn">No client email. Add it in Job Details, or type it into your email app.</div>`);
+      : isReportLocked() ? `<div class="send-review-warn">No client email. Type it into your email app.</div>`
+      : `<div class="send-review-warn">No client email. Add it so SAYON can send it for you.</div>
+         <div class="send-review-add-email"><input class="job-input" id="sendReviewEmail" type="email" placeholder="client@email.com" autocomplete="off">
+         <button class="agreement-banner-btn" onclick="addSendReviewEmail()">Add</button></div>`);
 
   const attach = [`<div class="send-review-file"><div><div class="send-review-file-name">Inspection report</div>` +
     `<div class="send-review-file-meta">${esc(ensureReportNumber())} · version ${reportVersion()}</div></div>` +
@@ -8460,6 +8463,19 @@ function openSendReview() {
   document.getElementById('sendReviewOverlay').classList.add('open');
   const body = document.querySelector('#sendReviewOverlay .page-sheet-body');
   if (body) body.scrollTop = 0;
+}
+
+// Saves the email typed on the check sheet to the job, then redraws the
+// sheet so the send button sends to it.
+function addSendReviewEmail() {
+  const value = document.getElementById('sendReviewEmail').value.trim();
+  if (!/^[^\s@<>,;"()]+@[^\s@<>,;"()]+\.[^\s@<>,;"()]+$/.test(value)) {
+    showToast("That email address doesn't look right", 'error');
+    return;
+  }
+  document.getElementById('jobClientEmail').value = value;
+  saveJobInfo();
+  openSendReview();
 }
 
 // The fix buttons on the check sheet. Each changes the report, then the
