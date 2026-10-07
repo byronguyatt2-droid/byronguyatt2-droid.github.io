@@ -4137,4 +4137,6 @@ body:not(.dark-screen) #jobPanel:not(.menu-page-active) { border-color: transpar
 /* Banners on the backdrop need a solid face to stay readable. */
 body:not(.dark-screen) .agreement-banner { background: #FFF6E0; border-color: #F0C25A; color: #7A4F00; }
 body:not(.dark-screen) .agreement-banner.signed { background: #E6F6EC; border-color: #9AD3AE; color: #1E7A45; }
+body:not(.dark-screen) .issue-banner { background: #FFFFFF; border-color: transparent; box-shadow: 0 14px 36px rgba(0,0,0,0.35); }
+body:not(.dark-screen) .issue-banner.locked { background: #FFFFFF; border-color: #9AD3AE; }
 body:not(.dark-screen) .edit-banner { background: #FFF6E0; border-bottom-color: #F0C25A; color: #7A4F00; }
