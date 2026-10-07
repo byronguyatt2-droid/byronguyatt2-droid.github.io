@@ -2830,11 +2830,13 @@ async function requestExtraction(text) {
   try {
     const parsed = await callExtraction(text);
     track('note_filled', { seconds: seconds(), words: text.split(/\s+/).filter(Boolean).length });
+    saveTestNote(text, parsed, null, seconds());
     return parsed;
   } catch (err) {
     const reason = err.noSignal ? 'no_signal' : err.tooLong ? 'too_long' : err.badAnswer ? 'bad_answer'
       : err.status ? 'http_' + err.status : 'other';
     track('note_failed', { reason, seconds: seconds() });
+    saveTestNote(text, null, reason, seconds());
     if (!err.noSignal && ![401, 402, 429].includes(err.status)) reportError(new Error('Extraction failed: ' + reason), 'extraction');
     throw err;
   }
@@ -2909,6 +2911,44 @@ async function callExtraction(text) {
     throw Object.assign(new Error('the answer was not a JSON object'), { badAnswer: true });
   }
   return parsed;
+}
+
+// ── TEST MODE ─────────────────────────────────────────────────────────────
+// Owner-only switch in Data & backups. While it's on, every note sent to the
+// AI is saved to the owner's own Supabase table (supabase/test-notes.sql)
+// with what came back, so a batch of real recordings can be scored on
+// tests/extraction later. It never goes near Sentry or PostHog, and a failed
+// save is dropped silently: testing must never get in the way of the report.
+const TEST_MODE_KEY = 'korva_test_mode';
+
+function testModeOn() {
+  try { return localStorage.getItem(TEST_MODE_KEY) === '1' && isBusinessOwner(); } catch (e) { return false; }
+}
+
+function saveTestNote(transcript, extraction, problem, seconds) {
+  if (!testModeOn() || !navigator.onLine) return;
+  fetch(`${SUPABASE_URL}/rest/v1/test_notes`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Prefer': 'return=minimal' }),
+    body: JSON.stringify({ transcript: String(transcript).slice(0, 100000), extraction, problem, seconds }),
+  }).catch(() => {});
+}
+
+function toggleTestMode() {
+  try { localStorage.setItem(TEST_MODE_KEY, testModeOn() ? '0' : '1'); } catch (e) {}
+  restoreTestModeSetting();
+}
+
+// The row only shows for the business owner.
+function restoreTestModeSetting() {
+  const row = document.getElementById('testModeRow');
+  if (row) row.hidden = !isBusinessOwner();
+  const btn = document.getElementById('toggleTestMode');
+  if (btn) {
+    const on = testModeOn();
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+  }
 }
 
 // A problem that belongs to one note (too long, an unreadable answer) and
@@ -5613,6 +5653,7 @@ function showMenuPage(panelId) {
   // The plan can change in Stripe or with a different sign-in, so Billing
   // always shows it fresh.
   if (panelId === 'billingPanel') loadBillingStatus();
+  if (panelId === 'settingsPanel') restoreTestModeSetting();
   if (panel) track('screen_viewed', { screen: 'menu_' + panelId });
 }
 

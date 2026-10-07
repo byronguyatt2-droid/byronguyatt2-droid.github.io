@@ -1249,6 +1249,7 @@ header {
 }
 
 /* Settings panel */
+.settings-row[hidden] { display: none; }
 .settings-row {
   display: flex;
   align-items: center;
