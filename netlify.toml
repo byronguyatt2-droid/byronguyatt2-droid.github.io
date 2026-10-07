@@ -1,0 +1,26 @@
+# Netlify is for PREVIEWS ONLY. The real site is GitHub Pages, published
+# from the `live` branch. Netlify builds a throwaway copy of each pull request
+# and branch so changes can be tried on a phone before anyone says "deploy".
+#
+# Preview links:
+#   pull request #N  ->  https://deploy-preview-N--sayon-preview.netlify.app
+#   branch a/b-c     ->  https://a-b-c--sayon-preview.netlify.app
+#
+# The Netlify production branch is set to `netlify-preview-only`, which
+# nobody ships from, so main and live are never published here.
+
+[build]
+  publish = "."
+  # Static site: nothing to build.
+  command = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+# Let each preview pick up a new service worker straight away.
+[[headers]]
+  for = "/service-worker.js"
+  [headers.values]
+    Cache-Control = "no-cache"

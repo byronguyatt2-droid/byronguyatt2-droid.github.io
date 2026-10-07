@@ -52,6 +52,10 @@ begin
     return;
   end if;
 
+  -- The user's own reports go first: they point at the business, so the
+  -- business can't be deleted while they're still there.
+  delete from public.reports where user_id = uid;
+
   if biz_id is not null then
     -- Reports left behind by people already removed from the team stay
     -- theirs, just no longer linked to this business.
@@ -61,7 +65,6 @@ begin
     delete from public.businesses where id = biz_id;  -- jobs and subscriptions cascade
   end if;
 
-  delete from public.reports where user_id = uid;
   delete from public.team_members where user_id = uid;
   update public.invites set invited_by = null where invited_by = uid;
   update public.jobs set created_by = null where created_by = uid;

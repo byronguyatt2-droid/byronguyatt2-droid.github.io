@@ -1,0 +1,405 @@
+{
+  "id": "subfloor-followup",
+  "transcript": "transcripts/subfloor-followup.txt",
+  "about": "A short second note on the same job covering only the subfloor. The bench sends one note at a time, so almost every check is an absence check: nothing outside the subfloor may be filled in, no NONE finding may be created for one area, and no risk, treatment, borer, decay, leak, system or property facts may appear.",
+  "checks": [
+    {
+      "id": "area-subfloor",
+      "kind": "equals",
+      "path": "areaStatus.subfloor",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 3,
+      "why": "'the back section of the some floor is now inspected'"
+    },
+    {
+      "id": "no-area-interior",
+      "kind": "absent",
+      "path": "areaStatus.interior",
+      "weight": 3,
+      "why": "only the subfloor was mentioned"
+    },
+    {
+      "id": "no-area-exterior",
+      "kind": "absent",
+      "path": "areaStatus.exterior",
+      "weight": 3,
+      "why": "only the subfloor was mentioned"
+    },
+    {
+      "id": "no-area-roofvoid",
+      "kind": "absent",
+      "path": "areaStatus.roofvoid",
+      "weight": 3,
+      "why": "only the subfloor was mentioned"
+    },
+    {
+      "id": "no-area-outbuildings",
+      "kind": "absent",
+      "path": "areaStatus.outbuildings",
+      "weight": 2,
+      "why": "only the subfloor was mentioned"
+    },
+    {
+      "id": "no-area-site",
+      "kind": "absent",
+      "path": "areaStatus.site",
+      "weight": 2,
+      "why": "only the subfloor was mentioned"
+    },
+    {
+      "id": "no-area-fences",
+      "kind": "absent",
+      "path": "areaStatus.fences",
+      "weight": 2,
+      "why": "only the subfloor was mentioned"
+    },
+    {
+      "id": "no-area-retainingwalls",
+      "kind": "absent",
+      "path": "areaStatus.retainingwalls",
+      "weight": 2,
+      "why": "only the subfloor was mentioned"
+    },
+    {
+      "id": "no-area-landscapingtimbers",
+      "kind": "absent",
+      "path": "areaStatus.landscapingtimbers",
+      "weight": 2,
+      "why": "only the subfloor was mentioned"
+    },
+    {
+      "id": "findings-count-zero",
+      "kind": "count",
+      "path": "findings",
+      "min": 0,
+      "max": 0,
+      "weight": 3,
+      "why": "'no termite activity back there' is not a finding card"
+    },
+    {
+      "id": "no-hindered-areas",
+      "kind": "mentions",
+      "path": "hinderedAreas",
+      "all": [
+        [
+          "nil",
+          "none",
+          "n/a",
+          "no restriction",
+          "readily accessible",
+          "no limitation"
+        ]
+      ],
+      "nullOk": true,
+      "weight": 3,
+      "why": "no restrictions said"
+    },
+    {
+      "id": "no-hindered-detail",
+      "kind": "absent",
+      "path": "hinderedAreasDetail",
+      "weight": 2,
+      "why": "no restrictions said"
+    },
+    {
+      "id": "no-obstructions",
+      "kind": "mentions",
+      "path": "obstructions",
+      "all": [
+        [
+          "nil",
+          "none",
+          "n/a",
+          "no restriction",
+          "readily accessible",
+          "no limitation"
+        ]
+      ],
+      "nullOk": true,
+      "weight": 2,
+      "why": "nothing obstructed now"
+    },
+    {
+      "id": "no-restricted-access",
+      "kind": "mentions",
+      "path": "restrictedAccess",
+      "all": [
+        [
+          "nil",
+          "none",
+          "n/a",
+          "no restriction",
+          "readily accessible",
+          "no limitation"
+        ]
+      ],
+      "nullOk": true,
+      "weight": 2,
+      "why": "stored items were moved"
+    },
+    {
+      "id": "no-high-risk-areas",
+      "kind": "absent",
+      "path": "highRiskAreas",
+      "weight": 3,
+      "why": "nothing inaccessible"
+    },
+    {
+      "id": "risk-absent",
+      "kind": "absent",
+      "path": "riskLevel",
+      "weight": 3,
+      "why": "not said in this note"
+    },
+    {
+      "id": "treatment-absent",
+      "kind": "absent",
+      "path": "treatmentRecommended",
+      "weight": 3,
+      "why": "not said in this note"
+    },
+    {
+      "id": "treatment-type-absent",
+      "kind": "absent",
+      "path": "treatmentType",
+      "weight": 3,
+      "why": "not said in this note"
+    },
+    {
+      "id": "frequency-absent",
+      "kind": "absent",
+      "path": "inspectionFrequency",
+      "weight": 2,
+      "why": "not said in this note"
+    },
+    {
+      "id": "borers-absent",
+      "kind": "absent",
+      "path": "borerActivity",
+      "weight": 3,
+      "why": "not said in this note"
+    },
+    {
+      "id": "decay-absent",
+      "kind": "absent",
+      "path": "decayFound",
+      "weight": 3,
+      "why": "not said in this note"
+    },
+    {
+      "id": "leaks-absent",
+      "kind": "absent",
+      "path": "waterLeaks",
+      "weight": 3,
+      "why": "not said in this note"
+    },
+    {
+      "id": "leak-location-absent",
+      "kind": "absent",
+      "path": "leakLocation",
+      "weight": 3,
+      "why": "not said in this note"
+    },
+    {
+      "id": "timber-soil-absent",
+      "kind": "absent",
+      "path": "timberSoil",
+      "weight": 2,
+      "why": "not said in this note"
+    },
+    {
+      "id": "existing-system-absent",
+      "kind": "absent",
+      "path": "existingSystem",
+      "weight": 3,
+      "why": "not said in this note"
+    },
+    {
+      "id": "durable-notice-absent",
+      "kind": "absent",
+      "path": "durableNoticePresent",
+      "weight": 2,
+      "why": "not said in this note"
+    },
+    {
+      "id": "ant-cap-absent",
+      "kind": "absent",
+      "path": "antCapSoldered",
+      "weight": 2,
+      "why": "not said in this note"
+    },
+    {
+      "id": "moisture-readings-not-yes",
+      "kind": "equals",
+      "path": "moistureReadings",
+      "values": [
+        "NO",
+        null
+      ],
+      "weight": 2,
+      "why": "18% called normal, so not elevated"
+    },
+    {
+      "id": "moisture-readings-empty",
+      "kind": "absent",
+      "path": "moistureReadings",
+      "weight": 1,
+      "why": "empty preferred since nothing elevated was said"
+    },
+    {
+      "id": "meter-rear-bearer-18",
+      "kind": "mentions",
+      "path": "moistureMeterReadings",
+      "all": [
+        [
+          "bearer"
+        ],
+        [
+          "18"
+        ]
+      ],
+      "weight": 2,
+      "why": "'rear barer is 18%'"
+    },
+    {
+      "id": "meter-row-count",
+      "kind": "count",
+      "path": "moistureMeterReadings",
+      "min": 1,
+      "max": 1,
+      "weight": 2,
+      "why": "exactly one reading was given"
+    },
+    {
+      "id": "no-wall",
+      "kind": "absent",
+      "path": "wallConstruction",
+      "weight": 3,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-floor",
+      "kind": "absent",
+      "path": "floorType",
+      "weight": 3,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-era",
+      "kind": "absent",
+      "path": "constructionEra",
+      "weight": 3,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-roof",
+      "kind": "absent",
+      "path": "roofType",
+      "weight": 2,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-structure",
+      "kind": "absent",
+      "path": "structureType",
+      "weight": 2,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-height",
+      "kind": "absent",
+      "path": "height",
+      "weight": 2,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-occupancy",
+      "kind": "absent",
+      "path": "occupancyStatus",
+      "weight": 2,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-weather",
+      "kind": "absent",
+      "path": "weatherConditions",
+      "weight": 2,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-facade",
+      "kind": "absent",
+      "path": "facadeDirection",
+      "weight": 2,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-inspection-type",
+      "kind": "absent",
+      "path": "inspectionType",
+      "weight": 2,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-client",
+      "kind": "absent",
+      "path": "clientName",
+      "weight": 2,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-address",
+      "kind": "absent",
+      "path": "propertyStreetAddress",
+      "weight": 2,
+      "why": "this note says nothing about the property or the job"
+    },
+    {
+      "id": "no-species",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "coptotermes",
+        "schedorhinotermes",
+        "nasutitermes",
+        "heterotermes",
+        "microcerotermes",
+        "cryptotermes",
+        "mastotermes",
+        "porotermes",
+        "acinaciformis",
+        "frenchi",
+        "intermedius",
+        "exitiosus",
+        "walkeri",
+        "ferox",
+        "copter"
+      ],
+      "weight": 3,
+      "why": "no species named"
+    },
+    {
+      "id": "no-mishearings",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "some floor",
+        "barer",
+        "and caps",
+        "peers"
+      ],
+      "weight": 2,
+      "why": "dictation slips are corrected, not copied"
+    },
+    {
+      "id": "no-none-finding",
+      "kind": "manual",
+      "description": "No NONE finding is added for one area; the clean result belongs nowhere else than the subfloor status."
+    },
+    {
+      "id": "ant-caps-not-soldered",
+      "kind": "manual",
+      "description": "Ant caps being present on the piers is not turned into a soldered-joins answer or an existing system."
+    }
+  ]
+}
