@@ -85,3 +85,7 @@ Notes on the runners:
 ## Adding a case
 
 Write the transcript the way iOS dictation produces it: no punctuation, run-on, with the mishearings real dictation makes. Write the answer key from what the inspector meant, not from what any model answered. Keep keys honest about ambiguity: if two values are defensible, accept both.
+
+## Real recordings from test mode
+
+With Menu › Data & backups › Test mode on (owner only), every note the app sends to the AI lands in Supabase `public.test_notes` (`supabase/test-notes.sql`): the transcript exactly as sent, the AI's answer (`extraction`), or why it failed (`problem`), and how long it took. Pull a batch with the Supabase connector, for example `select created_at, transcript, extraction, problem, seconds from public.test_notes order by created_at`, save each transcript under `transcripts/` (change any real address or name first) and its answer under `out/`, then score as above. Delete the rows once they're on the bench.
