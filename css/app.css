@@ -1543,11 +1543,20 @@ input.job-input[type="time"]::-webkit-date-and-time-value { text-align: left; }
   flex-direction: column;
   gap: 10px;
   z-index: 175;
+  /* Never taller than the space above the mic, and scrolls on its own when
+     the note and its panels don't fit (phones with the browser bar showing). */
+  max-height: calc(100vh - 92px - 16px - env(safe-area-inset-top, 0px));
+  max-height: calc(100dvh - 92px - 16px - env(safe-area-inset-top, 0px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   opacity: 0;
   transform: translateX(-50%) translateY(24px) scale(0.9);
   pointer-events: none;
   transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+.voice-popover > * { flex-shrink: 0; }
 
 .voice-popover.open {
   opacity: 1;
@@ -4083,8 +4092,10 @@ body[data-voice="thinking"] .voice-hud { animation: hudPulse 0.6s ease-in-out in
 
 /* After Extract: what was filled and what's still blank */
 .extract-summary-sheet { top: auto; bottom: 0; max-height: 80vh; max-height: 80dvh; border-radius: 16px 16px 0 0; }
-/* Without min-height: 0 the body grows to fit a long list and can't scroll. */
-.extract-summary-sheet .page-sheet-body { min-height: 0; }
+/* The sheet scrolls as a whole. iPhone browsers wouldn't scroll the inner
+   body of a sheet that only has a max-height, so the list was cut off. */
+.extract-summary-sheet { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.extract-summary-sheet .page-sheet-body { flex: none; overflow: visible; }
 .extract-summary-filled { font-size: 15px; font-weight: 700; color: var(--text); }
 .extract-summary-label { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; }
 .extract-summary-list { display: flex; flex-direction: column; gap: 8px; }
