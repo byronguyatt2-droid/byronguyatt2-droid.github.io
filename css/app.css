@@ -4083,8 +4083,10 @@ body[data-voice="thinking"] .voice-hud { animation: hudPulse 0.6s ease-in-out in
 
 /* After Extract: what was filled and what's still blank */
 .extract-summary-sheet { top: auto; bottom: 0; max-height: 80vh; max-height: 80dvh; border-radius: 16px 16px 0 0; }
-/* Without min-height: 0 the body grows to fit a long list and can't scroll. */
-.extract-summary-sheet .page-sheet-body { min-height: 0; }
+/* The sheet scrolls as a whole. iPhone browsers wouldn't scroll the inner
+   body of a sheet that only has a max-height, so the list was cut off. */
+.extract-summary-sheet { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.extract-summary-sheet .page-sheet-body { flex: none; overflow: visible; }
 .extract-summary-filled { font-size: 15px; font-weight: 700; color: var(--text); }
 .extract-summary-label { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; }
 .extract-summary-list { display: flex; flex-direction: column; gap: 8px; }
