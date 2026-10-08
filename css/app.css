@@ -3294,6 +3294,8 @@ body.large-touch .findings-gate .choice-card { min-height: 88px; }
   border-bottom: 1px solid var(--border);
 }
 .dashboard-recent-item:last-child { border-bottom: none; }
+.dashboard-recent-btn { width: 100%; background: none; border: none; border-bottom: 1px solid var(--border); font: inherit; color: inherit; text-align: left; cursor: pointer; min-height: 52px; }
+.dashboard-recent-btn .dashboard-recent-completion { color: var(--accent, #2a9d8f); font-weight: 700; }
 .dashboard-recent-addr {
   font-size: 12.5px;
   font-weight: 700;
