@@ -7743,6 +7743,7 @@ function renderDashboard() {
   const totalRevenue = reports.reduce((sum, r) => sum + parseFeeToNumber(jobFeeOf(r.reportData)), 0);
 
   const sorted = [...reports].sort((a, b) => b.savedAt - a.savedAt).slice(0, 8);
+  const awaitingTreatment = jobsAwaitingTreatment(reports);
 
   const fmtDate = (ts) => new Date(ts).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
   const fmtMoney = (n) => n > 0 ? `$${n.toLocaleString('en-AU', { maximumFractionDigits: 0 })}` : '—';
@@ -7766,6 +7767,19 @@ function renderDashboard() {
         <div class="dashboard-stat-label">Recorded Fees</div>
       </div>
     </div>
+    ${awaitingTreatment.length ? `
+    <div class="dashboard-section-label">Waiting on treatment</div>
+    <div>
+      ${awaitingTreatment.map(({ r, answer }) => `
+        <button type="button" class="dashboard-recent-item dashboard-recent-btn" onclick="recordTreatmentFromDashboard('${r.id}')">
+          <div>
+            <div class="dashboard-recent-addr">${escapeHtml(r.address || 'No address')}</div>
+            <div class="dashboard-recent-meta">Client said yes ${escapeHtml(formatAnswerDate(answer.date))}${r.client ? ' · ' + escapeHtml(r.client) : ''}</div>
+          </div>
+          <div class="dashboard-recent-completion">Record it</div>
+        </button>
+      `).join('')}
+    </div>` : ''}
     <div class="dashboard-section-label">Recent Jobs</div>
     <div>
       ${sorted.map(r => `
@@ -7779,6 +7793,24 @@ function renderDashboard() {
       `).join('')}
     </div>
   `;
+}
+
+// Jobs whose client said yes to the quote but whose treatment isn't
+// recorded yet, oldest yes first, so nothing waits forgotten.
+function jobsAwaitingTreatment(reports) {
+  const quotes = getSavedQuotes();
+  return reports.map(r => {
+    const q = quotes[r.id] || r.quote;
+    const answer = q && quoteHasItems(q) && !q.treatment ? quoteAnswerState(q) : null;
+    return answer && answer.status === 'accepted' && !answer.stale ? { r, answer } : null;
+  }).filter(Boolean).sort((a, b) => String(a.answer.date).localeCompare(String(b.answer.date)));
+}
+
+function recordTreatmentFromDashboard(id) {
+  closeDashboard();
+  loadReport(id);
+  openQuote('app', id);
+  openTreatmentRecord();
 }
 
 const SAVED_EMPTY_HTML = `<div class="empty-state">

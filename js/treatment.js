@@ -154,7 +154,7 @@ function treatmentPestFromReport(rd, methods) {
 function renderTreatmentBlock(q) {
   const t = q.treatment;
   if (!t) {
-    return `<button class="quote-btn primary quote-step-btn" onclick="openTreatmentRecord()">Record the treatment</button>`;
+    return `<button class="quote-btn primary quote-step-btn" onclick="openTreatmentRecord()">Treatment done? Record it</button>`;
   }
   return `<div class="quote-step">
       <div><strong>Treatment done</strong> on ${escapeHtml(formatAnswerDate(t.date))}${t.technician ? ` by ${escapeHtml(t.technician)}` : ''}</div>
