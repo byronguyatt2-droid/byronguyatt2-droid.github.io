@@ -1543,11 +1543,20 @@ input.job-input[type="time"]::-webkit-date-and-time-value { text-align: left; }
   flex-direction: column;
   gap: 10px;
   z-index: 175;
+  /* Never taller than the space above the mic, and scrolls on its own when
+     the note and its panels don't fit (phones with the browser bar showing). */
+  max-height: calc(100vh - 92px - 16px - env(safe-area-inset-top, 0px));
+  max-height: calc(100dvh - 92px - 16px - env(safe-area-inset-top, 0px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   opacity: 0;
   transform: translateX(-50%) translateY(24px) scale(0.9);
   pointer-events: none;
   transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+.voice-popover > * { flex-shrink: 0; }
 
 .voice-popover.open {
   opacity: 1;
