@@ -1161,7 +1161,7 @@ const SECTIONS = {
   restrictions:    { fields:['hinderedAreas','hinderedAreasDetail'], total:2 },
   findings:        { fields:['findings','borerActivity','decayFound'], total:3 },
   conducive:       { fields:['waterLeaks','moistureReadings','leakLocation','timberSoil','slabEdge','weepHoles'], total:6 },
-  recommendations: { fields:['riskLevel','treatmentRecommended','treatmentType','inspectionFrequency'], total:4 },
+  recommendations: { fields:['riskLevel','treatmentRecommended','treatmentType','inspectionFrequency','invasiveInspection','invasiveInspectionDetails'], total:4 },
   photos:          { fields:['photos'], total:1 },
   signoff:         { fields:['inspectorLicence','inspectorSignature','agreement'], total:3 }
 };
@@ -1193,7 +1193,7 @@ FIELDS (every one null unless the note gives it):
 "findings":[{"termiteActivity":"ACTIVE"|"INACTIVE"|"NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES"|"NO","structuralConcern":"YES"|"NO"}],
 "borerActivity":"ACTIVE"|"INACTIVE"|"NONE","borerDetails":string,"decayFound":"YES"|"NO","decayDetails":string,
 "moistureReadings":"YES"|"NO","waterLeaks":"YES"|"NO","leakLocation":string,"moistureMeterReadings":[{"location":string,"reading":string}],"timberSoil":"YES"|"NO","slabEdge":"CLEAR"|"OBSTRUCTED","weepHoles":"CLEAR"|"BRIDGED",
-"riskLevel":"LOW"|"MEDIUM"|"HIGH","treatmentRecommended":"YES"|"NO","treatmentType":string,"inspectionFrequency":string}
+"riskLevel":"LOW"|"MEDIUM"|"HIGH","treatmentRecommended":"YES"|"NO","treatmentType":string,"inspectionFrequency":string,"invasiveInspection":"YES"|"NO","invasiveInspectionDetails":string}
 
 DROPDOWN FIELDS: the app shows these as pick-lists. Return the list value EXACTLY as written below when the inspector's words fit one; when they describe something the list cannot express, return their words instead (never a list value that adds a fact they did not state).
 - structureType: "Detached house" | "Semi-detached" | "Terrace / townhouse" | "Duplex" | "Unit / apartment" | "Granny flat" | "Commercial building". "House" or "home" with nothing more is "Detached house".
@@ -1208,7 +1208,8 @@ DROPDOWN FIELDS: the app shows these as pick-lists. Return the list value EXACTL
 - existingSystem (the TYPE of termite management system found): "Physical Barrier" | "Chemical Reticulation System" | "Termite Baiting System" | "Combination System — Physical + Chemical" | "System Present — Type Unidentified". A chemical soil treatment or chemical barrier with no reticulation pipes mentioned is written as "Chemical soil barrier". Only when a system is actually present; when the inspector says there is no system, no barrier or nothing installed, leave it null (never "No", "None", "Nil").
 - existingSystemOther: the brand, product or chemical the system is recorded as (HomeGuard Blue, Kordon, Termimesh, Exterra, Sentricon, Termidor, Altriset ...), plus the install year if read from the notice. Only when the inspector names it.
 - inspectionType: "Annual — Existing Building" for an annual, routine, regular or yearly inspection of the client's own home; "Pre-Purchase — Timber Pest" for pre-purchase, pre-sale or a client buying the property ("pre-purchased" is the same); "Pre-Purchase — Combined Building & Pest" only when they say building and pest; "Treatment Follow-Up", "Re-inspection", "New Construction — Completion" and "Insurance / Legal" only when said in those words. Otherwise null.
-- inspectionFrequency: write the NEXT interval first as a number of months, then any later pattern, e.g. "3 months, then every 12 months" or "12 months". Never put a later interval before the first one.
+- inspectionFrequency: write the NEXT interval first as a number of months, then any later pattern, e.g. "3 months, then every 12 months" or "12 months". Never put a later interval before the first one. It is only the routine re-inspection interval: a one-off invasive or follow-up inspection ("invasive inspection in two weeks") never goes here.
+- invasiveInspection: "YES" when the inspector recommends an invasive timber pest inspection, one where walls, linings or timbers may be cut, drilled or removed to see inside; "NO" only when they say one isn't needed. invasiveInspectionDetails: where, why and when, in their words, e.g. "Bathroom skirting boards and door frame, to trace live activity and the moisture source, within 2 weeks".
 
 AREAS INSPECTED (areaStatus): one key per area the note actually covers; leave out areas the note does not mention, including when a later note may cover them.
 - Keys: interior (inside the house), exterior (outside walls and perimeter), subfloor (under the floor), roofvoid (roof void, roof space, ceiling cavity, manhole), outbuildings (sheds and garages, whether attached or not), site (yard, grounds, gardens), fences, retainingwalls, landscapingtimbers (sleepers, garden edging timbers).
@@ -1233,6 +1234,7 @@ OBSTRUCTIONS AND RESTRICTIONS: four fields, each with one meaning.
 TERMITE FINDINGS (findings is always an array; it holds termites only):
 - One entry per distinct place where live termites or termite evidence was found. A new entry when the location, the status or the species changes ("and over near the...", "separately", "also"). Never merge two places into one entry, and never put a finding's details in another finding.
 - termiteActivity: "ACTIVE" only when live termites were seen ("live termites", "active termites", "workers moving", "live ones in the tree"). "INACTIVE" when workings, mud leads, mudding, damage, galleries or exit holes were found but no live termites ("old workings", "nothing alive", "past activity", "doesn't seem active now"). When species, damage or a location is described without a clear live sighting, it is INACTIVE, never ACTIVE. "NONE": use ONLY when the note states that the whole property was clear of termites and evidence and reports nothing anywhere; then species, damageDescription, activityLocation, nestLocated and structuralConcern are all null. A clear remark about one area ("no termite activity in the roof void", "nothing in the subfloor") never creates a NONE entry: when the note has real findings elsewhere, record only those, and when it has no findings and is about one area, return an empty array.
+- Suspected activity: when the inspector suspects termites somewhere but can't confirm them ("could be activity in the wall but I'm not sure", damp skirting they want opened up), it is still its own findings entry: termiteActivity null, activityLocation where, and damageDescription what they saw, starting "Suspected, not confirmed:". Never drop it, and never merge it into another finding.
 - activityLocation: where, in the inspector's terms: the element and the room or side ("skirting board, bedroom three, downstairs"; "rear bearer and joist above it, under the back room"; "gum tree in the backyard, about 15 m from the house"). Distances from the house and "not touching any building" belong here.
 - damageDescription: only what was seen (mud packing, hollow when tapped, galleries, timbers eaten out, frass, exit holes, bubbling paint), the element and the place, and the inspector's own hedges ("possible nest in the tree", "possibly past activity"). "No damage visible" is a fact: keep it. NEVER a severity or extent word (minor, moderate, severe, extensive, significant, extreme, major, heavy, bad): drop the word and keep the observation, even when the inspector says it. Never an activity grade ("high activity"). Never the inspector's opinion on whether the structure is or is not compromised, sound, safe or affected: drop it in every wording. Never a risk statement.
 - species: ONLY a genus or species the inspector names, formatted as "Coptotermes acinaciformis", "Nasutitermes exitiosus", or at genus level "Coptotermes spp." when they name a genus without the species or are unsure of the species ("looks like Coptotermes"). When they say they could not identify it (dictation turns "couldn't be identified" into "can be identified"; read the sense), use exactly "Species not identified — further investigation required", on the finding it was said about. When species is never raised, null. A garbled Latin-sounding word ("copter terms", "copper termites") in a species slot is the nearest genus from: Coptotermes, Schedorhinotermes, Nasutitermes, Heterotermes, Microcerotermes, Cryptotermes, Mastotermes, Porotermes. Never name a species from damage, location or habit.
@@ -1272,7 +1274,7 @@ HOW TO READ DICTATION:
 - Filler and false starts ("okay so", "um", "right", "well", "like I said", a repeated word) are dropped. "Wall" or "Well" at the start of a phrase is usually filler, not a wall.
 - A sentence that names an element after a finding ("the location of that activity I'd say subfloor joists and bearers") is that finding's location.
 - Never copy raw dictation into a field. Never put the whole note into one field. Write fields as a report reads: brief, factual, in the inspector's terms.
-- Mishearings: iPhone dictation turns trade words into everyday ones. When a literal reading makes no sense for a timber pest inspection, use the sensible reading silently. Patterns seen: "Joyce and bears" / "joys and bearers" = joists and bearers; "barer" / "Easter barra" = bearer; "sub for" / "some flow" / "some floor" / "sub saw" = subfloor; "weep poles" / "wee poles" = weep holes; "skirting balls" = skirting boards; "borrowers" / "bores" / "balls" (in a pest list) = borers; "called roof" = tiled roof; "water strains" = water stains; "batting system" = baiting system; "Tims" = timbers; "live termite scene" = live termites seen; "repairs" / "pairs" with caps = piers with ant caps; "strawberry" along a boundary = shrubbery; "insulation" before "termite management system" = installation; "access moisture" = excess moisture; "construction error" = construction era; "customers once" = customer's wants; "out of corners" = outer corners; "shed fence" = shared fence; "bats" in a roof = batts. Seen in the 12 Oct 2026 car test: "exterior wheels" / "wheels are clear" = weep holes (weeps); "peers" / "peas" = piers, and "in cut" / "and cut" / "a cat" right after piers = ant capped; "blood tubing" / "mud shooting" / "mud shavings" = mud tubing; "dribble notice" = durable notice; "roof oil" / "roof for" = roof void; "chemical Barry" = chemical barrier; "walls are taps" / "wars attacks sound" = walls tapped, sound; "trading a bridging" = creating a bridge.
+- Mishearings: iPhone dictation turns trade words into everyday ones. When a literal reading makes no sense for a timber pest inspection, use the sensible reading silently. Patterns seen: "Joyce and bears" / "joys and bearers" = joists and bearers; "barer" / "Easter barra" = bearer; "sub for" / "some flow" / "some floor" / "sub saw" = subfloor; "weep poles" / "wee poles" = weep holes; "skirting balls" = skirting boards; "borrowers" / "bores" / "balls" (in a pest list) = borers; "called roof" = tiled roof; "water strains" = water stains; "batting system" = baiting system; "Tims" = timbers; "live termite scene" = live termites seen; "repairs" / "pairs" with caps = piers with ant caps; "strawberry" along a boundary = shrubbery; "insulation" before "termite management system" = installation; "access moisture" = excess moisture; "construction error" = construction era; "customers once" = customer's wants; "out of corners" = outer corners; "shed fence" = shared fence; "bats" in a roof = batts. Seen in the 12 Oct 2026 car test: "exterior wheels" / "wheels are clear" = weep holes (weeps); "peers" / "peas" = piers, and "in cut" / "and cut" / "a cat" / "in capped" right after piers = ant capped; "blood tubing" / "mud shooting" / "mud shavings" = mud tubing; "dribble notice" = durable notice; "roof oil" / "roof for" = roof void; "chemical Barry" = chemical barrier; "walls are taps" / "wars attacks sound" = walls tapped, sound; "trading a bridging" = creating a bridge.
 - Brand names in the wrong slot are ordinary words: "active Termimesh in the tree" is active termites; "Exterra perimeter" is the exterior perimeter; "Sentricon" or "Termidor" in a sentence about the outside wall is probably "centre", "exterior" or "termite". A brand is real ONLY when the inspector says it is installed, is on the durable notice, or is what they recommend. Then it goes in existingSystemOther or treatmentType, nowhere else.
 - A Latin-sounding mangle in a species slot is a genus (see species). "Termite door" or "terminator" in a treatment slot is Termidor; "cold on" / "quote on" before "physical barrier" is Kordon.
 
@@ -1820,6 +1822,12 @@ function correctKnownMishearings(text) {
   text = text.replace(/\broof for\b(?=\s+now\b)/gi, 'roof void');
   text = text.replace(/\bchemical barry\b/gi, 'chemical barrier');
   text = text.replace(/\bwheels\b(?=\s+(?:are|were)\s+(?:all\s+)?clear\b)/gi, 'weep holes');
+  // Second car test, same day: "ant capped" came back as "in capped", and
+  // "subfloor" as "sub for" before "now".
+  text = text.replace(/\b(?:in|and|an)\s+capped\b/gi, 'ant capped');
+  text = text.replace(/\bsub for\b(?=\s+now\b)/gi, 'subfloor');
+  text = text.replace(/\b(subfloor)\s+peers\b/gi, '$1 piers');
+  text = text.replace(/\bpeers\b(?=\s+in the subfloor\b)/gi, 'piers');
   // "strawberry" directly before "along the boundary" (or similar) only -
   // left narrower than the AI prompt's version since "strawberry" alone is
   // a real word that could legitimately come up (e.g. a garden bed).
@@ -8230,6 +8238,9 @@ function reportSummary() {
   if (reportData.borerActivity === 'ACTIVE') next.push('Treat the active borers and replace badly affected timbers.');
   if (reportData.decayFound === 'YES') next.push('Have a builder repair the decayed timbers, and fix the moisture that caused the decay.');
   if (conducive.length) next.push(`Fix the conditions that attract termites: ${conducive.join('; ')}.`);
+  if (reportData.invasiveInspection === 'YES') {
+    next.push(`Invasive timber pest inspection${reportData.invasiveInspectionDetails ? `: ${reportData.invasiveInspectionDetails}` : ''}. This needs a separate agreement.`);
+  }
   if (limitedZones.length) next.push(`Provide access to ${limitedZones.map(z => OBS_ZONES[z].label.replace(/^The /, '').toLowerCase()).join(', ')} for a follow-up inspection.`);
   next.push(`Next timber pest inspection: ${reportData.inspectionFrequency || 'within 12 months'}.`);
   return { tiles, limited, next, basis };
@@ -9252,6 +9263,7 @@ async function buildReportPdf() {
     waterLeaks:'Water Leaks', leakLocation:'Location of Moisture Ingress', moistureReadings:'Moisture Readings', timberSoil:'Timber-to-Soil Contact', slabEdge:'Slab Edge Concealed', weepHoles:'Weep Holes (Clear / Bridged)', existingSystem:'Existing System',
     durableNoticePresent:'Durable Notice Present', hardLandscaping:'Hard Landscaping Adjacent', zone25mmVisible:'25mm Inspection Zone Visible', softLandscaping:'Soft Landscaping Adjacent', zone75mmVisible:'75mm Inspection Zone Visible', antCapSoldered:'Ant Cap Joins Soldered',
     treatmentRecommended:'Treatment Recommended', treatmentType:'Treatment Type', inspectionFrequency:'Inspection Frequency', riskLevel:'Risk of Termite Attack',
+    invasiveInspection:'Invasive Inspection Recommended', invasiveInspectionDetails:'Invasive Inspection: Where, Why & When',
   };
 
   function notesBlock(sectionKey) {
@@ -9792,6 +9804,8 @@ async function buildReportPdf() {
   row('Treatment Recommended', reportData.treatmentRecommended);
   row('Treatment Type', reportData.treatmentType);
   row('Re-inspection Interval', reportData.inspectionFrequency);
+  if (reportData.invasiveInspection) row('Invasive Inspection Recommended', reportData.invasiveInspection);
+  if (reportData.invasiveInspectionDetails) row('Invasive Inspection: Where, Why & When', reportData.invasiveInspectionDetails);
   notesBlock('recommendations');
   renderSectionPhotosInPDF('recommendations', 'Recommendations');
   gap(4);
