@@ -14,7 +14,7 @@
 // with every index.html change from here on - it's what forces activate() to
 // drop the old cache and install() to pre-cache the new files, so a redeploy
 // takes effect on the very next load instead of needing an extra refresh.
-const CACHE_VERSION = 'korva-v77';
+const CACHE_VERSION = 'korva-v79';
 
 
 const APP_SHELL = [
@@ -52,13 +52,15 @@ self.addEventListener('install', (event) => {
       // app would load blank.
       const fresh = (url) => new Request(url, { cache: 'reload' });
       // Externals go in separately: addAll is all-or-nothing, so one CDN
-      // hiccup used to leave the app shell uncached too.
+      // hiccup used to leave the app shell uncached too. A failed app shell
+      // does fail the install, so the old version (and its offline copy)
+      // stays in charge instead of being deleted on activate.
       return Promise.all([
         cache.addAll(APP_SHELL.map(fresh)),
-        cache.addAll(EXTERNAL_ASSETS.map(fresh)),
-      ]).catch((err) => {
-        console.warn('Service worker: some assets failed to pre-cache', err);
-      });
+        cache.addAll(EXTERNAL_ASSETS.map(fresh)).catch((err) => {
+          console.warn('Service worker: external assets failed to pre-cache', err);
+        }),
+      ]);
     })
   );
   self.skipWaiting();
@@ -120,10 +122,13 @@ self.addEventListener('fetch', (event) => {
     fetch(request)
       .then((response) => {
         if (response.ok && request.url.startsWith(self.location.origin)) {
-          caches.open(CACHE_VERSION).then((cache) => cache.put(request, response.clone()));
+          // Cloned now: by the time the cache opens the page may have read the body.
+          const copy = response.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(request, copy));
         }
         return response;
       })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match('./index.html')))
+      .catch(() => caches.match(request).then((cached) =>
+        cached || (request.mode === 'navigate' ? caches.match('./index.html') : Response.error())))
   );
 });
