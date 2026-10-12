@@ -1,0 +1,253 @@
+{
+  "id": "car-test-full",
+  "transcript": "transcripts/car-test-full.txt",
+  "about": "Real car-test dictation (iPhone, road noise, 12 Oct 2026; name and address changed). Whole house with two live finds (roof void manhole, back fence), blocked corners, a bathroom leak with high readings on the hallway wall, and heavy mishearings: 'double brick veneer', 'roof oil', 'peas currently a cat', 'mud shavings', 'chemical Barry insulation'.",
+  "checks": [
+    {
+      "id": "address",
+      "kind": "mentions",
+      "path": "propertyStreetAddress",
+      "all": [
+        [
+          "12 example street",
+          "twelve example street"
+        ]
+      ],
+      "weight": 3,
+      "why": "said 'twelve Example Street'"
+    },
+    {
+      "id": "client-name",
+      "kind": "mentions",
+      "path": "clientName",
+      "all": [
+        [
+          "sam taylor"
+        ]
+      ],
+      "weight": 3,
+      "why": "said 'client name is Sam Taylor'"
+    },
+    {
+      "id": "inspection-type",
+      "kind": "equals",
+      "path": "inspectionType",
+      "values": [
+        "Pre-Purchase — Timber Pest"
+      ],
+      "weight": 2,
+      "why": "said 'pre-purchase'"
+    },
+    {
+      "id": "no-state",
+      "kind": "absent",
+      "path": "propertyState",
+      "weight": 2,
+      "why": "no state was said; do not default to NSW"
+    },
+    {
+      "id": "no-postcode",
+      "kind": "absent",
+      "path": "propertyPostcode",
+      "weight": 2,
+      "why": "no postcode was said"
+    },
+    {
+      "id": "durable-notice-no",
+      "kind": "equals",
+      "path": "durableNoticePresent",
+      "values": [
+        "NO"
+      ],
+      "weight": 3,
+      "why": "no durable notice sticker on the meter box"
+    },
+    {
+      "id": "no-existing-system",
+      "kind": "absent",
+      "path": "existingSystem",
+      "weight": 3,
+      "why": "said no termite management system is installed; none is written as null"
+    },
+    {
+      "id": "treatment-yes",
+      "kind": "equals",
+      "path": "treatmentRecommended",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "recommends installing a barrier"
+    },
+    {
+      "id": "area-subfloor",
+      "kind": "equals",
+      "path": "areaStatus.subfloor",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 3,
+      "why": "a corner of the subfloor was blocked by stored items"
+    },
+    {
+      "id": "area-roofvoid",
+      "kind": "equals",
+      "path": "areaStatus.roofvoid",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 3,
+      "why": "the north east of the roof void was blocked by stored items"
+    },
+    {
+      "id": "leaks-yes",
+      "kind": "equals",
+      "path": "waterLeaks",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "a water leak in the bathroom"
+    },
+    {
+      "id": "leak-in-bathroom",
+      "kind": "mentions",
+      "path": "leakLocation",
+      "all": [
+        [
+          "bathroom"
+        ]
+      ],
+      "weight": 3,
+      "why": "the leak is in the bathroom; the high reading elsewhere is not the leak",
+      "none": [
+        "hallway",
+        "hall way"
+      ]
+    },
+    {
+      "id": "moisture-yes",
+      "kind": "equals",
+      "path": "moistureReadings",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "high moisture readings"
+    },
+    {
+      "id": "soft-landscaping",
+      "kind": "equals",
+      "path": "softLandscaping",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "garden bed soil bridging the wall"
+    },
+    {
+      "id": "wall-slip-not-combined",
+      "kind": "absent",
+      "path": "wallConstruction",
+      "weight": 2,
+      "why": "said 'double brick veneer', never settled on one; leave blank rather than guess"
+    },
+    {
+      "id": "weep-holes-clear",
+      "kind": "equals",
+      "path": "weepHoles",
+      "values": [
+        "CLEAR",
+        "BRIDGED"
+      ],
+      "weight": 1,
+      "why": "weep holes clear, but stored timber pressed against the brick at one corner; either is defensible"
+    },
+    {
+      "id": "findings-count",
+      "kind": "count",
+      "path": "findings",
+      "min": 2,
+      "max": 2,
+      "weight": 2,
+      "why": "two live finds: roof void manhole and back fence"
+    },
+    {
+      "id": "finding-roof",
+      "kind": "findingMatch",
+      "weight": 3,
+      "why": "live termites and mud tubing at the roof void manhole",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "ACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "manhole"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "finding-fence",
+      "kind": "findingMatch",
+      "weight": 3,
+      "why": "live termites and mud tubing on the back fence",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "ACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "fence"
+            ]
+          ],
+          "none": [
+            "manhole",
+            "roof"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "treatment-chemical",
+      "kind": "mentions",
+      "path": "treatmentType",
+      "all": [
+        [
+          "chemical"
+        ],
+        [
+          "barrier"
+        ]
+      ],
+      "weight": 3,
+      "why": "recommends a chemical barrier ('chemical Barry insulation')"
+    },
+    {
+      "id": "no-insulation",
+      "kind": "forbidAnywhere",
+      "terms": [
+        "barry",
+        "insulation"
+      ],
+      "weight": 2,
+      "why": "'Barry insulation' is 'barrier installation'"
+    }
+  ]
+}
