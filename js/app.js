@@ -1249,7 +1249,7 @@ MOISTURE AND CONDUCIVE CONDITIONS:
 - moistureMeterReadings: one row per reading taken, location and the value as said ("28%"). A reading taken with no value stated keeps the row with reading null; never invent a number or a placeholder. Readings called normal or dry are still rows.
 - moistureReadings: "YES" when any reading or timber is called high, elevated, damp or wet, or a leak is found. "NO" when the inspector checks and reports no moisture, dry, or readings normal. Null when moisture is not raised. A reading on its own, not called high, does not make it YES.
 - waterLeaks: "YES" when a leak or water source is found (tap, pipe, gutter, downpipe, roof, shower, hot water system). "NO" when the inspector checked for leaks and found none, even when a reading was elevated. Elevated moisture with its source not found is moistureReadings YES and waterLeaks NO. Null when leaks are not raised.
-- leakLocation: where the leak or water is getting in, anywhere in the building (roof, gutter, wall, wet area, hot water system, subfloor). Null unless waterLeaks is YES.
+- leakLocation: where the leak or water is getting in, anywhere in the building (roof, gutter, wall, wet area, hot water system, subfloor). Null unless waterLeaks is YES. It is the leak itself, not where a moisture reading was taken: "a leak in the bathroom, high readings on the hallway wall outside" is leakLocation "Bathroom", with the hallway wall going in moistureMeterReadings.
 - timberSoil: "YES" for timber in contact with soil (timber lying on the subfloor soil, sleepers or landscaping timbers against the house, fence timber with soil built up, stumps buried). "NO" when they say none or that it has been removed. Null when not raised.
 - slabEdge: "CLEAR" when the slab edge is visible around the building; "OBSTRUCTED" when soil, a garden bed, paving, render or cladding covers or bridges it anywhere. Null when there is no slab or it was not raised.
 - weepHoles: "CLEAR" or "BRIDGED" (blocked, covered, below soil or paving, anywhere). Null when not raised or the building has none (weatherboard).
@@ -1272,7 +1272,7 @@ HOW TO READ DICTATION:
 - Filler and false starts ("okay so", "um", "right", "well", "like I said", a repeated word) are dropped. "Wall" or "Well" at the start of a phrase is usually filler, not a wall.
 - A sentence that names an element after a finding ("the location of that activity I'd say subfloor joists and bearers") is that finding's location.
 - Never copy raw dictation into a field. Never put the whole note into one field. Write fields as a report reads: brief, factual, in the inspector's terms.
-- Mishearings: iPhone dictation turns trade words into everyday ones. When a literal reading makes no sense for a timber pest inspection, use the sensible reading silently. Patterns seen: "Joyce and bears" / "joys and bearers" = joists and bearers; "barer" / "Easter barra" = bearer; "sub for" / "some flow" / "some floor" / "sub saw" = subfloor; "weep poles" / "wee poles" = weep holes; "skirting balls" = skirting boards; "borrowers" / "bores" / "balls" (in a pest list) = borers; "called roof" = tiled roof; "water strains" = water stains; "batting system" = baiting system; "Tims" = timbers; "live termite scene" = live termites seen; "repairs" / "pairs" with caps = piers with ant caps; "strawberry" along a boundary = shrubbery; "insulation" before "termite management system" = installation; "access moisture" = excess moisture; "construction error" = construction era; "customers once" = customer's wants; "out of corners" = outer corners; "shed fence" = shared fence; "bats" in a roof = batts.
+- Mishearings: iPhone dictation turns trade words into everyday ones. When a literal reading makes no sense for a timber pest inspection, use the sensible reading silently. Patterns seen: "Joyce and bears" / "joys and bearers" = joists and bearers; "barer" / "Easter barra" = bearer; "sub for" / "some flow" / "some floor" / "sub saw" = subfloor; "weep poles" / "wee poles" = weep holes; "skirting balls" = skirting boards; "borrowers" / "bores" / "balls" (in a pest list) = borers; "called roof" = tiled roof; "water strains" = water stains; "batting system" = baiting system; "Tims" = timbers; "live termite scene" = live termites seen; "repairs" / "pairs" with caps = piers with ant caps; "strawberry" along a boundary = shrubbery; "insulation" before "termite management system" = installation; "access moisture" = excess moisture; "construction error" = construction era; "customers once" = customer's wants; "out of corners" = outer corners; "shed fence" = shared fence; "bats" in a roof = batts. Seen in the 12 Oct 2026 car test: "exterior wheels" / "wheels are clear" = weep holes (weeps); "peers" / "peas" = piers, and "in cut" / "and cut" / "a cat" right after piers = ant capped; "blood tubing" / "mud shooting" / "mud shavings" = mud tubing; "dribble notice" = durable notice; "roof oil" / "roof for" = roof void; "chemical Barry" = chemical barrier; "walls are taps" / "wars attacks sound" = walls tapped, sound; "trading a bridging" = creating a bridge.
 - Brand names in the wrong slot are ordinary words: "active Termimesh in the tree" is active termites; "Exterra perimeter" is the exterior perimeter; "Sentricon" or "Termidor" in a sentence about the outside wall is probably "centre", "exterior" or "termite". A brand is real ONLY when the inspector says it is installed, is on the durable notice, or is what they recommend. Then it goes in existingSystemOther or treatmentType, nowhere else.
 - A Latin-sounding mangle in a species slot is a genus (see species). "Termite door" or "terminator" in a treatment slot is Termidor; "cold on" / "quote on" before "physical barrier" is Kordon.
 
@@ -1811,6 +1811,15 @@ function correctKnownMishearings(text) {
   text = text.replace(/\bbatting system\b/gi, 'baiting system');
   text = text.replace(/\bwater strains\b/gi, 'water stains');
   text = text.replace(/\bcalled roof\b/gi, 'tiled roof');
+  // Heard in the 12 Oct 2026 car test. None has a sensible literal reading
+  // in an inspection; "wheels" and "roof for" are fixed only in the phrase
+  // they were heard in.
+  text = text.replace(/\b(?:blood tubing|mud shooting)\b/gi, 'mud tubing');
+  text = text.replace(/\bdribble notice\b/gi, 'durable notice');
+  text = text.replace(/\broof oil\b/gi, 'roof void');
+  text = text.replace(/\broof for\b(?=\s+now\b)/gi, 'roof void');
+  text = text.replace(/\bchemical barry\b/gi, 'chemical barrier');
+  text = text.replace(/\bwheels\b(?=\s+(?:are|were)\s+(?:all\s+)?clear\b)/gi, 'weep holes');
   // "strawberry" directly before "along the boundary" (or similar) only -
   // left narrower than the AI prompt's version since "strawberry" alone is
   // a real word that could legitimately come up (e.g. a garden bed).
@@ -5994,17 +6003,33 @@ function getAuthToken() {
 // had the app in the background sleeps through the 5-minute token refresh
 // below, so the sign-in is checked first, and a call refused for an
 // expired sign-in is refreshed and sent once more.
+// Calls without their own signal give up after this long, so a weak signal
+// can't leave a button stuck on "Reading plate…" or "Sending…" for ever.
+const WORKER_DEFAULT_TIMEOUT_MS = 90000;
+
 async function workerFetch(path, init = {}) {
   await maybeRefreshAuthSession();
+  let timer = null;
+  let signal = init.signal;
+  if (!signal) {
+    const controller = new AbortController();
+    timer = setTimeout(() => controller.abort(), WORKER_DEFAULT_TIMEOUT_MS);
+    signal = controller.signal;
+  }
   const send = () => fetch(KORVA_WORKER_URL + path, {
     ...init,
+    signal,
     headers: { ...init.headers, 'Authorization': 'Bearer ' + getAuthToken() },
   });
-  let res = await send();
-  if (res.status === 401 && authSession?.refresh_token && await refreshSession(authSession.refresh_token)) {
-    res = await send();
+  try {
+    let res = await send();
+    if (res.status === 401 && authSession?.refresh_token && await refreshSession(authSession.refresh_token)) {
+      res = await send();
+    }
+    return res;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
-  return res;
 }
 
 function getAuthHeaders(extra = {}) {
@@ -6094,9 +6119,16 @@ function billingReturnUrl(marker) {
   return window.location.origin + window.location.pathname + '?billing=' + marker;
 }
 
+// One checkout at a time: two quick taps used to start two Stripe
+// customers for the same business.
+let checkoutInFlight = false;
+
 async function openCheckout(plan) {
   if (!authUser) { showToast('Sign in first', 'error'); return; }
+  if (checkoutInFlight) return;
+  checkoutInFlight = true;
   track('checkout_opened', { plan });
+  let status = 0;
   try {
     const res = await workerFetch('/stripe/create-checkout-session', {
       method: 'POST',
@@ -6107,14 +6139,21 @@ async function openCheckout(plan) {
         cancelUrl: billingReturnUrl('cancelled'),
       }),
     });
+    status = res.status;
     const rawBody = await res.text();
     let data;
     try { data = JSON.parse(rawBody); } catch { throw new Error(rawBody.slice(0, 200) || `HTTP ${res.status}`); }
     if (!res.ok || !data.url) throw new Error(data && data.message || rawBody || `HTTP ${res.status}`);
     window.location.href = data.url;
   } catch (e) {
-    showToast('Billing isn\'t fully set up yet — try again once Stripe is connected.', 'error');
-    console.warn('openCheckout failed (expected until Stripe is configured):', e.message);
+    showToast(status === 403
+      ? 'Only the business owner can change the plan.'
+      : 'Couldn\'t open checkout. Check your signal and try again.', 'error');
+    console.warn('openCheckout failed:', e.message);
+  } finally {
+    // Leaving for Stripe keeps the lock on, so a tap during the redirect
+    // does nothing.
+    setTimeout(() => { checkoutInFlight = false; }, 3000);
   }
 }
 
@@ -6247,7 +6286,12 @@ async function submitPasswordReset() {
   }
 }
 
+// True when the last refresh never reached Supabase (no signal), as opposed
+// to Supabase refusing the refresh token.
+let lastRefreshWasOffline = false;
+
 async function refreshSession(refreshToken) {
+  lastRefreshWasOffline = false;
   try {
     const data = await supabaseAuth('token?grant_type=refresh_token', { refresh_token: refreshToken });
     if (data.access_token) {
@@ -6255,7 +6299,7 @@ async function refreshSession(refreshToken) {
       saveSession(data);
       return true;
     }
-  } catch(e) {}
+  } catch(e) { lastRefreshWasOffline = true; }
   return false;
 }
 
@@ -6395,6 +6439,7 @@ async function forgotPassword() {
   const btn   = document.getElementById('fpBtn');
 
   errEl.textContent = '';
+  errEl.style.color = '';
   if (!email) { errEl.textContent = 'Enter your email address.'; return; }
 
   btn.disabled = true; btn.textContent = 'Sending…';
@@ -6403,11 +6448,17 @@ async function forgotPassword() {
     // from, so clicking it in the user's email returns them straight to the
     // in-app "set a new password" screen instead of a dead end.
     const redirectTo = encodeURIComponent(window.location.origin + window.location.pathname);
-    await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${redirectTo}`, {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${redirectTo}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
       body: JSON.stringify({ email }),
     });
+    if (!res.ok) {
+      errEl.textContent = res.status === 429
+        ? 'Too many reset requests. Wait a few minutes and try again.'
+        : 'Could not send the reset link. Please try again.';
+      return;
+    }
     errEl.style.color = 'var(--green)';
     errEl.textContent = 'Reset link sent — check your email.';
   } catch(e) {
@@ -6461,6 +6512,7 @@ async function endSessionOnDevice() {
   stopAuthAutoRefresh();
   clearSession();
   localStorage.removeItem('korva_last_user_id');
+  localStorage.removeItem(BUSINESS_CACHE_KEY);
   [reportsKey, quotesKey, DRAFT_KEY].forEach(k => localStorage.removeItem(k));
   try { await photoStoreRequest('readwrite', st => st.clear()); } catch (e) {}
   currentReportId = null;
@@ -6501,7 +6553,9 @@ async function deleteAccountRpc(dryRun) {
 
 async function deleteMyPhotos() {
   const prefix = authUser.id + '/';
-  for (;;) {
+  // Bounded: if a delete ever reports success but removes nothing, the
+  // same files would be listed again and this would never finish.
+  for (let round = 0; round < 50; round++) {
     const res = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${PHOTO_BUCKET}`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -6516,7 +6570,10 @@ async function deleteMyPhotos() {
       body: JSON.stringify({ prefixes: files }),
     });
     if (!del.ok) throw new Error('delete photos ' + del.status);
+    const removed = await del.json().catch(() => null);
+    if (Array.isArray(removed) && removed.length === 0) throw new Error('delete photos removed nothing');
   }
+  throw new Error('delete photos did not finish');
 }
 
 async function deleteMyAccount() {
@@ -6595,8 +6652,32 @@ async function loadBusiness() {
   _loadBusinessInFlight = _loadBusinessImpl().finally(() => { _loadBusinessInFlight = null; });
   return _loadBusinessInFlight;
 }
+// The business row is cached per account, so company details, logo and
+// licence still reach the PDFs when the app is opened with no signal.
+const BUSINESS_CACHE_KEY = 'korva_business_cache';
+
+function rememberBusiness() {
+  try {
+    if (authBusiness && authUser) localStorage.setItem(BUSINESS_CACHE_KEY, JSON.stringify({ user_id: authUser.id, business: authBusiness }));
+  } catch (e) {}
+}
+
+function restoreCachedBusiness() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(BUSINESS_CACHE_KEY) || 'null');
+    if (cached && authUser && cached.user_id === authUser.id && cached.business) authBusiness = cached.business;
+  } catch (e) {}
+}
+
 async function _loadBusinessImpl() {
   try {
+    await _lookUpBusiness();
+  } catch (e) { console.warn('loadBusiness error:', e); }
+  if (authBusiness) rememberBusiness();
+  else restoreCachedBusiness();
+}
+
+async function _lookUpBusiness() {
     // First try to find existing business for this user (as owner)
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/businesses?owner_id=eq.${authUser.id}&limit=1`,
@@ -6610,6 +6691,10 @@ async function _loadBusinessImpl() {
         loadBillingStatus();
         return;
       }
+    } else {
+      // A failed lookup is not "no business": creating one here made
+      // duplicate businesses for the same owner.
+      return;
     }
 
     // Not an owner — check if they're a technician already on someone
@@ -6632,8 +6717,12 @@ async function _loadBusinessImpl() {
             loadBillingStatus();
             return;
           }
+        } else {
+          return;
         }
       }
+    } else {
+      return;
     }
 
     // No business found — try to create one
@@ -6668,7 +6757,6 @@ async function _loadBusinessImpl() {
       });
       loadBillingStatus();
     }
-  } catch(e) { console.warn('loadBusiness error:', e); }
 }
 
 // ── ENTER APP ─────────────────────────────────────────────────────────────
@@ -6868,6 +6956,16 @@ async function restoreAuthSession() {
     const ok = await refreshSession(stored.refresh_token);
     if (ok) {
       authUser = authSession.user;
+      await loadBusiness();
+      startAuthAutoRefresh();
+      return true;
+    }
+    // No signal (in a subfloor, out of range): keep the saved sign-in and
+    // open the app so the inspector can keep working. The token is refreshed
+    // once the signal is back; only a refusal from Supabase signs them out.
+    if (lastRefreshWasOffline || !navigator.onLine) {
+      authSession = stored;
+      authUser    = stored.user;
       await loadBusiness();
       startAuthAutoRefresh();
       return true;
