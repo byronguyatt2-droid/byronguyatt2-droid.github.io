@@ -1,0 +1,245 @@
+{
+  "id": "car-test-invasive",
+  "transcript": "transcripts/car-test-invasive.txt",
+  "about": "Real car-test dictation via CarPlay (12 Oct 2026, second car session; address changed). Pre-purchase, double brick single storey. Soil and timber bridging, blocked weep holes, live termites and damage at the subfloor door, ant-capped piers misheard as 'in capped', subfloor north side blocked, old mud tubing on the fence, damp bathroom skirting and door frame with suspected (unconfirmed) activity, leak under the bathroom tap, 35 on the right bathroom wall, and an invasive termite inspection recommended in two weeks.",
+  "checks": [
+    {
+      "id": "address",
+      "kind": "mentions",
+      "path": "propertyStreetAddress",
+      "all": [
+        [
+          "12 example street",
+          "twelve example street"
+        ]
+      ],
+      "weight": 3,
+      "why": "said 'Twelve Example Street'"
+    },
+    {
+      "id": "state",
+      "kind": "equals",
+      "path": "propertyState",
+      "values": [
+        "NSW"
+      ],
+      "weight": 2,
+      "why": "said New South Wales"
+    },
+    {
+      "id": "inspection-type",
+      "kind": "equals",
+      "path": "inspectionType",
+      "values": [
+        "Pre-Purchase — Timber Pest"
+      ],
+      "weight": 2,
+      "why": "said 'pre-purchase inspection'"
+    },
+    {
+      "id": "walls",
+      "kind": "mentions",
+      "path": "wallConstruction",
+      "all": [
+        [
+          "double brick"
+        ]
+      ],
+      "weight": 2,
+      "why": "said double brick"
+    },
+    {
+      "id": "height",
+      "kind": "equals",
+      "path": "height",
+      "values": [
+        "Single storey"
+      ],
+      "weight": 1,
+      "why": "said single story"
+    },
+    {
+      "id": "weep-holes",
+      "kind": "equals",
+      "path": "weepHoles",
+      "values": [
+        "BRIDGED"
+      ],
+      "weight": 2,
+      "why": "couple of weep holes not clear"
+    },
+    {
+      "id": "timber-soil",
+      "kind": "equals",
+      "path": "timberSoil",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "timbers on the ground near soil, bridging"
+    },
+    {
+      "id": "live-subfloor-door",
+      "kind": "findingMatch",
+      "weight": 3,
+      "why": "live termites and heavy damage at the subfloor entry door",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "ACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "subfloor"
+            ],
+            [
+              "door"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "old-fence",
+      "kind": "findingMatch",
+      "weight": 3,
+      "why": "old mud tubing up the fence, not active",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "INACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "fence"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "suspected-bathroom",
+      "kind": "findingMatch",
+      "weight": 3,
+      "why": "damp bathroom skirting boards and door frame, possible activity in the wall, not confirmed",
+      "checks": [
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "bathroom"
+            ],
+            [
+              "skirting",
+              "door frame"
+            ]
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "damageDescription",
+          "all": [
+            [
+              "suspected",
+              "possible",
+              "not confirmed",
+              "unconfirmed"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "leak",
+      "kind": "mentions",
+      "path": "leakLocation",
+      "all": [
+        [
+          "bathroom"
+        ]
+      ],
+      "weight": 2,
+      "why": "water leak under the bathroom tap"
+    },
+    {
+      "id": "moisture-reading",
+      "kind": "every",
+      "path": "moistureMeterReadings",
+      "weight": 2,
+      "why": "35 on the right side bathroom wall",
+      "checks": [
+        {
+          "kind": "mentions",
+          "path": "location",
+          "all": [
+            [
+              "bathroom"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "subfloor-blocked",
+      "kind": "mentions",
+      "path": "restrictedAccess",
+      "all": [
+        [
+          "subfloor"
+        ]
+      ],
+      "weight": 2,
+      "why": "north side of the subfloor blocked by stored items"
+    },
+    {
+      "id": "invasive",
+      "kind": "equals",
+      "path": "invasiveInspection",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "recommended an invasive termite inspection"
+    },
+    {
+      "id": "invasive-when",
+      "kind": "mentions",
+      "path": "invasiveInspectionDetails",
+      "all": [
+        [
+          "2 weeks",
+          "two weeks"
+        ]
+      ],
+      "weight": 2,
+      "why": "'invasive termite inspection in two weeks'"
+    },
+    {
+      "id": "no-frequency",
+      "kind": "absent",
+      "path": "inspectionFrequency",
+      "weight": 3,
+      "why": "no routine re-inspection interval was said; the two weeks belongs to the invasive inspection"
+    },
+    {
+      "id": "no-soldered",
+      "kind": "absent",
+      "path": "antCapSoldered",
+      "weight": 1,
+      "why": "'ant capped' says nothing about soldering"
+    }
+  ]
+}
