@@ -1578,6 +1578,7 @@ function openNotesVoice(key) {
 
   if (!popover.classList.contains('open')) {
     popover.classList.add('open');
+    showTestModeBadge();
     fab.classList.add('open');
   }
 
@@ -2293,6 +2294,7 @@ function usePrompt(el) {
   const fab = document.getElementById('micFab');
   if (!popover.classList.contains('open')) {
     popover.classList.add('open');
+    showTestModeBadge();
     fab.classList.add('open');
   }
 
@@ -2631,6 +2633,7 @@ function toggleHandsFreeMode() {
     const fab = document.getElementById('micFab');
     if (!popover.classList.contains('open')) {
       popover.classList.add('open'); fab.classList.add('open');
+      showTestModeBadge();
     }
     hfStartListening();
   } else {
@@ -2937,6 +2940,13 @@ function saveTestNote(transcript, extraction, problem, seconds) {
 function toggleTestMode() {
   try { localStorage.setItem(TEST_MODE_KEY, testModeOn() ? '0' : '1'); } catch (e) {}
   restoreTestModeSetting();
+}
+
+// A label on the mic popup, so the owner can see before recording that
+// this browser will save the note (the switch is kept per browser).
+function showTestModeBadge() {
+  const badge = document.getElementById('testModeBadge');
+  if (badge) badge.hidden = !testModeOn();
 }
 
 // The row only shows for the business owner.
@@ -5668,6 +5678,7 @@ function toggleVoicePopover() {
   const fab = document.getElementById('micFab');
   const isOpen = popover.classList.toggle('open');
   fab.classList.toggle('open', isOpen);
+  showTestModeBadge();
 
   // If closing while in notes-dictation mode, reset to default
   if (!isOpen && activeNotesTargetKey) {
