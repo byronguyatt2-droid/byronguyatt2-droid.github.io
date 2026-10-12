@@ -35,8 +35,12 @@ let telemetryEnabled = false;   // set by restoreTelemetrySetting below
 
 // Emails, long numbers (phones, licence and job numbers) and the query and
 // hash of any web address (sign-in tokens ride in a reset link's hash).
+// JSON errors quote the start of what failed to parse ('Unexpected token
+// 'T', "The subflo"... is not valid JSON'), which can be a transcript or a
+// saved report, so anything in double quotes is dropped.
 function scrubTelemetryText(text) {
   return String(text ?? '')
+    .replace(/"[^"]*"(?:\.\.\.)?/g, '"…"')
     .replace(/[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}/gi, '[email]')
     .replace(/(https?:\/\/[^\s?#"']+)[?#][^\s"']*/gi, '$1')
     .replace(/\+?\d[\d\s-]{6,}\d/g, '[number]')

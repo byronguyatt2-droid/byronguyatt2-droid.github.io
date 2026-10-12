@@ -1,0 +1,276 @@
+{
+  "id": "car-test-clean",
+  "transcript": "transcripts/car-test-clean.txt",
+  "about": "Real car-test dictation (iPhone, 12 Oct 2026; name and address changed), cleanly transcribed. Whole house: blocked weep holes on one side, live termites on the back fence, old damage at the subfloor door with no live activity, ant-capped piers, blocked corners, bathroom leak, physical barrier and 12-monthly inspections recommended.",
+  "checks": [
+    {
+      "id": "address",
+      "kind": "mentions",
+      "path": "propertyStreetAddress",
+      "all": [
+        [
+          "12 example street",
+          "twelve example street"
+        ]
+      ],
+      "weight": 3,
+      "why": "said 'twelve Example Street'"
+    },
+    {
+      "id": "client-name",
+      "kind": "mentions",
+      "path": "clientName",
+      "all": [
+        [
+          "sam taylor"
+        ]
+      ],
+      "weight": 3,
+      "why": "said 'client name is Sam Taylor'"
+    },
+    {
+      "id": "inspection-type",
+      "kind": "equals",
+      "path": "inspectionType",
+      "values": [
+        "Pre-Purchase — Timber Pest"
+      ],
+      "weight": 2,
+      "why": "said 'pre-purchase'"
+    },
+    {
+      "id": "no-state",
+      "kind": "absent",
+      "path": "propertyState",
+      "weight": 2,
+      "why": "no state was said; do not default to NSW"
+    },
+    {
+      "id": "no-postcode",
+      "kind": "absent",
+      "path": "propertyPostcode",
+      "weight": 2,
+      "why": "no postcode was said"
+    },
+    {
+      "id": "durable-notice-no",
+      "kind": "equals",
+      "path": "durableNoticePresent",
+      "values": [
+        "NO"
+      ],
+      "weight": 3,
+      "why": "no durable notice sticker on the meter box"
+    },
+    {
+      "id": "no-existing-system",
+      "kind": "absent",
+      "path": "existingSystem",
+      "weight": 3,
+      "why": "said no termite management system is installed; none is written as null"
+    },
+    {
+      "id": "treatment-yes",
+      "kind": "equals",
+      "path": "treatmentRecommended",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "recommends installing a barrier"
+    },
+    {
+      "id": "area-subfloor",
+      "kind": "equals",
+      "path": "areaStatus.subfloor",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 3,
+      "why": "a corner of the subfloor was blocked by stored items"
+    },
+    {
+      "id": "area-roofvoid",
+      "kind": "equals",
+      "path": "areaStatus.roofvoid",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 3,
+      "why": "the north east of the roof void was blocked by stored items"
+    },
+    {
+      "id": "leaks-yes",
+      "kind": "equals",
+      "path": "waterLeaks",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "a water leak in the bathroom"
+    },
+    {
+      "id": "leak-in-bathroom",
+      "kind": "mentions",
+      "path": "leakLocation",
+      "all": [
+        [
+          "bathroom"
+        ]
+      ],
+      "weight": 3,
+      "why": "the leak is in the bathroom; the high reading elsewhere is not the leak",
+      "none": [
+        "hallway",
+        "hall way"
+      ]
+    },
+    {
+      "id": "moisture-yes",
+      "kind": "equals",
+      "path": "moistureReadings",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "high moisture readings"
+    },
+    {
+      "id": "soft-landscaping",
+      "kind": "equals",
+      "path": "softLandscaping",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "garden bed soil bridging the wall"
+    },
+    {
+      "id": "walls-double-brick",
+      "kind": "mentions",
+      "path": "wallConstruction",
+      "all": [
+        [
+          "double brick",
+          "double-brick"
+        ]
+      ],
+      "weight": 2,
+      "why": "said 'double brick construction'",
+      "none": [
+        "veneer"
+      ]
+    },
+    {
+      "id": "weep-holes-bridged",
+      "kind": "equals",
+      "path": "weepHoles",
+      "values": [
+        "BRIDGED"
+      ],
+      "weight": 3,
+      "why": "four weep holes blocked on the left side"
+    },
+    {
+      "id": "no-ant-cap-soldering",
+      "kind": "absent",
+      "path": "antCapSoldered",
+      "weight": 2,
+      "why": "'all piers are ant-capped' says nothing about soldering"
+    },
+    {
+      "id": "findings-count",
+      "kind": "count",
+      "path": "findings",
+      "min": 2,
+      "max": 2,
+      "weight": 2,
+      "why": "live fence activity, old damage at the subfloor door"
+    },
+    {
+      "id": "finding-fence",
+      "kind": "findingMatch",
+      "weight": 3,
+      "why": "live termites and mud tubing on the back fence, minimal damage",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "ACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "fence"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "finding-subfloor-door",
+      "kind": "findingMatch",
+      "weight": 3,
+      "why": "damage at the subfloor door entry, no live activity",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "INACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "subfloor"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "treatment-physical",
+      "kind": "mentions",
+      "path": "treatmentType",
+      "all": [
+        [
+          "physical"
+        ]
+      ],
+      "weight": 3,
+      "why": "recommends a physical barrier",
+      "none": [
+        "chemical"
+      ]
+    },
+    {
+      "id": "frequency-12",
+      "kind": "mentions",
+      "path": "inspectionFrequency",
+      "all": [
+        [
+          "12"
+        ]
+      ],
+      "weight": 2,
+      "why": "inspections every 12 months"
+    },
+    {
+      "id": "area-interior",
+      "kind": "equals",
+      "path": "areaStatus.interior",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 2,
+      "why": "interior completed"
+    }
+  ]
+}
