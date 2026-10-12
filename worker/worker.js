@@ -4,7 +4,25 @@
  * The API keys are stored as Cloudflare secrets and never exposed to the
  * browser or public repo. See worker/README.md for setup and deploy steps.
  *
- * CHANGES FROM v9 -> v9.1:
+ * CHANGES FROM v9.1 -> v9.2:
+ * - Counts AI calls safely: a call now reserves its place in the monthly
+ *   allowance before it runs, with a database update that only succeeds if
+ *   nobody else changed the count first. Calls fired at the same moment can
+ *   no longer slip past the limit. A call that fails gives its place back.
+ * - Stripe's "unpaid" and "paused" now block AI and email like a canceled
+ *   plan. "past_due" and "incomplete" still work while Stripe retries.
+ * - Checks the system prompt's size and what kinds of content a message
+ *   may carry (text, and photos sent as base64, nothing else).
+ * - If Anthropic can't be reached or answers with something that isn't
+ *   JSON, the app now gets a clear 502 instead of a crash.
+ * - /send-email has a daily limit per business (25 on a trial, 200 on a
+ *   paid plan). Needs two columns on `subscriptions`:
+ *     alter table public.subscriptions
+ *       add column if not exists emails_sent_today int not null default 0,
+ *       add column if not exists emails_day date;
+ *   Until they exist, sending works as before with no limit.
+ *
+ * CHANGES FROM v9 -> v9.1 (also in this version):
  * Lets Netlify preview copies of the app (https://*--sayon-preview.netlify.app)
  * call the Worker and come back from Stripe, and checks each allowed origin
  * exactly instead of by prefix.
@@ -146,6 +164,10 @@ const ALLOWED_EFFORTS = ['low', 'medium', 'high'];
 // array of blocks).
 const MAX_INPUT_CHARS = 20000;
 
+// Hard ceiling on the system prompt's characters. The app's longest one
+// (the inspection extraction prompt) is about 24,000.
+const MAX_SYSTEM_CHARS = 60000;
+
 // Hard ceiling on total base64 image data accepted per call, summed across
 // every image block in every message.
 const MAX_IMAGE_BASE64_CHARS = 8000000;
@@ -187,6 +209,10 @@ const MAX_EMAIL_ATTACHMENTS = 4;
 const MAX_EMAIL_BASE64_CHARS = 25 * 1024 * 1024;
 const MAX_EMAIL_TEXT_CHARS = 5000;
 const MAX_EMAIL_SUBJECT_CHARS = 200;
+// Emails each business may send per day (UTC), so a stolen session can't
+// turn the Worker into a spam relay.
+const EMAIL_DAILY_LIMIT_TRIAL = 25;
+const EMAIL_DAILY_LIMIT_PAID = 200;
 const EMAIL_PATTERN = /^[^\s@<>,;"()]+@[^\s@<>,;"()]+\.[^\s@<>,;"()]+$/;
 
 export default {
@@ -239,47 +265,81 @@ export default {
     }
 
     // Plan/subscription gate. Runs after identity is confirmed, before we
-    // spend anything calling Anthropic or Workers AI.
+    // spend anything calling Anthropic or Workers AI. An allowed call has
+    // already reserved its place in the monthly allowance; any answer that
+    // isn't a success gives that place back.
     const gate = await checkPlanAndUsage(verifiedUser.id, env);
     if (!gate.allowed) {
       return new Response(gate.message, { status: gate.status, headers: corsHeaders(origin) });
     }
 
-    if (url.pathname === '/transcribe') {
-      return handleTranscribe(request, origin, gate, env);
-    }
-
-    let body;
+    let response;
     try {
-      body = await request.json();
-    } catch {
-      return new Response('Invalid JSON', { status: 400, headers: corsHeaders(origin) });
+      response = url.pathname === '/transcribe'
+        ? await handleTranscribe(request, origin, env)
+        : await handleMessages(request, origin, env);
+    } catch (err) {
+      console.error('AI call failed: ' + (err && err.message ? err.message : String(err)));
+      response = upstreamError(origin);
     }
+    if (!response.ok) await releaseAiCall(gate.reservation, env);
+    return response;
+  },
+};
 
-    if (!Array.isArray(body.messages) || body.messages.length === 0) {
-      return new Response('Invalid request: messages required', { status: 400, headers: corsHeaders(origin) });
-    }
+function upstreamError(origin) {
+  return jsonResponse(502, { error: { type: 'upstream_error', message: 'The AI service could not be reached. Try again' } }, origin);
+}
 
-    const inputText = collectText(body.messages);
-    if (inputText.length > MAX_INPUT_CHARS) {
-      return new Response(`Invalid request: input exceeds ${MAX_INPUT_CHARS} characters`, { status: 413, headers: corsHeaders(origin) });
-    }
+// Forwards a Messages call to Anthropic, rebuilt from only the parts the
+// app uses, so the proxy can't be used for anything else.
+async function handleMessages(request, origin, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return new Response('Invalid JSON', { status: 400, headers: corsHeaders(origin) });
+  }
 
-    const imageBase64Len = collectImageBase64Length(body.messages);
-    if (imageBase64Len > MAX_IMAGE_BASE64_CHARS) {
-      return new Response('Invalid request: image exceeds size limit', { status: 413, headers: corsHeaders(origin) });
-    }
+  if (!body || !Array.isArray(body.messages) || body.messages.length === 0) {
+    return new Response('Invalid request: messages required', { status: 400, headers: corsHeaders(origin) });
+  }
 
-    const safeBody = {
-      model: ALLOWED_MODEL,
-      max_tokens: Math.min(Number(body.max_tokens) || MAX_TOKENS_CEILING, MAX_TOKENS_CEILING),
-      system: body.system,
-      messages: body.messages,
-    };
-    const effort = body.output_config && body.output_config.effort;
-    if (ALLOWED_EFFORTS.includes(effort)) safeBody.output_config = { effort };
+  const messages = cleanMessages(body.messages);
+  if (!messages) {
+    return new Response('Invalid request: messages may only hold text and base64 images', { status: 400, headers: corsHeaders(origin) });
+  }
+  const system = cleanSystem(body.system);
+  if (system === null) {
+    return new Response('Invalid request: system must be text', { status: 400, headers: corsHeaders(origin) });
+  }
 
-    const anthropicResponse = await fetch(ANTHROPIC_API, {
+  const inputText = collectText(messages);
+  if (inputText.length > MAX_INPUT_CHARS) {
+    return new Response(`Invalid request: input exceeds ${MAX_INPUT_CHARS} characters`, { status: 413, headers: corsHeaders(origin) });
+  }
+  const systemChars = typeof system === 'string' ? system.length : (system || []).reduce((n, b) => n + b.text.length, 0);
+  if (systemChars > MAX_SYSTEM_CHARS) {
+    return new Response(`Invalid request: system prompt exceeds ${MAX_SYSTEM_CHARS} characters`, { status: 413, headers: corsHeaders(origin) });
+  }
+
+  const imageBase64Len = collectImageBase64Length(messages);
+  if (imageBase64Len > MAX_IMAGE_BASE64_CHARS) {
+    return new Response('Invalid request: image exceeds size limit', { status: 413, headers: corsHeaders(origin) });
+  }
+
+  const safeBody = {
+    model: ALLOWED_MODEL,
+    max_tokens: Math.min(Number(body.max_tokens) || MAX_TOKENS_CEILING, MAX_TOKENS_CEILING),
+    messages,
+  };
+  if (system !== undefined) safeBody.system = system;
+  const effort = body.output_config && body.output_config.effort;
+  if (ALLOWED_EFFORTS.includes(effort)) safeBody.output_config = { effort };
+
+  let anthropicResponse, data;
+  try {
+    anthropicResponse = await fetch(ANTHROPIC_API, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -288,22 +348,58 @@ export default {
       },
       body: JSON.stringify(safeBody),
     });
+    data = await anthropicResponse.json();
+  } catch (err) {
+    console.error('Anthropic call failed: ' + (err && err.message ? err.message : String(err)));
+    return upstreamError(origin);
+  }
 
-    const data = await anthropicResponse.json();
+  return new Response(JSON.stringify(data), {
+    status: anthropicResponse.status,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) },
+  });
+}
 
-    // Only count it against the plan if Anthropic actually served the call -
-    // a failed call (bad key, Anthropic outage, etc.) shouldn't burn the
-    // user's allowance.
-    if (anthropicResponse.ok) {
-      await recordUsage(gate.subscription, env);
+// Rebuilds each message from text blocks and base64 image blocks only.
+// Returns null if anything else is in there.
+function cleanMessages(messages) {
+  const out = [];
+  for (const m of messages) {
+    if (!m || (m.role !== 'user' && m.role !== 'assistant')) return null;
+    if (typeof m.content === 'string') {
+      out.push({ role: m.role, content: m.content });
+      continue;
     }
+    if (!Array.isArray(m.content) || !m.content.length) return null;
+    const blocks = [];
+    for (const b of m.content) {
+      if (b && b.type === 'text' && typeof b.text === 'string') {
+        blocks.push({ type: 'text', text: b.text });
+      } else if (b && b.type === 'image' && b.source && b.source.type === 'base64'
+          && typeof b.source.media_type === 'string' && typeof b.source.data === 'string') {
+        blocks.push({ type: 'image', source: { type: 'base64', media_type: b.source.media_type, data: b.source.data } });
+      } else {
+        return null;
+      }
+    }
+    out.push({ role: m.role, content: blocks });
+  }
+  return out;
+}
 
-    return new Response(JSON.stringify(data), {
-      status: anthropicResponse.status,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(origin) },
-    });
-  },
-};
+// The system prompt may be left out (undefined), a string, or an array of
+// text blocks. Returns null for anything else.
+function cleanSystem(system) {
+  if (system === undefined || system === null) return undefined;
+  if (typeof system === 'string') return system;
+  if (!Array.isArray(system)) return null;
+  const blocks = [];
+  for (const b of system) {
+    if (!b || b.type !== 'text' || typeof b.text !== 'string') return null;
+    blocks.push({ type: 'text', text: b.text });
+  }
+  return blocks;
+}
 
 async function verifySupabaseToken(token) {
   try {
@@ -391,7 +487,8 @@ function effectiveUsage(sub) {
   return { rolledOver, effectiveUsed: rolledOver ? 0 : sub.ai_calls_used_this_period };
 }
 
-// Returns { allowed, status?, message?, subscription }.
+// Returns { allowed: true, reservation } with this call's place in the
+// monthly allowance already taken, or { allowed: false, status, message }.
 async function checkPlanAndUsage(userId, env) {
   try {
     const found = await loadBusinessSubscription(userId, env);
@@ -407,39 +504,93 @@ async function checkPlanAndUsage(userId, env) {
       return { allowed: false, status: 402, message: 'Your 14-day trial has ended — subscribe to keep using Sayon AI features' };
     }
 
-    const { rolledOver, effectiveUsed } = effectiveUsage(sub);
     const limit = PLAN_LIMITS[sub.plan] ?? DEFAULT_PLAN_LIMIT;
-    if (effectiveUsed >= limit) {
+    const reservation = await reserveAiCall(sub, limit, env);
+    if (reservation === 'limit') {
       return { allowed: false, status: 429, message: 'Monthly AI usage limit reached for your plan — upgrade or wait for next billing period' };
     }
-
-    return {
-      allowed: true,
-      subscription: { id: sub.id, effectiveUsed, rolledOver, serviceHeaders: serviceHeadersFor(env) },
-    };
+    if (!reservation) {
+      return { allowed: false, status: 503, message: 'Too many requests at once. Try again' };
+    }
+    return { allowed: true, reservation };
   } catch (err) {
     console.error('checkPlanAndUsage: unexpected error: ' + (err && err.message ? err.message : String(err)));
     return { allowed: false, status: 500, message: 'Could not verify plan' };
   }
 }
 
-// Increments (or resets-then-increments) the usage counter for a
-// subscription row that checkPlanAndUsage already fetched.
-async function recordUsage(subscription, env) {
-  if (!subscription) return;
-  try {
-    const patch = subscription.rolledOver
-      ? { ai_calls_used_this_period: 1, period_start: new Date().toISOString() }
-      : { ai_calls_used_this_period: subscription.effectiveUsed + 1 };
+// PATCHes the subscription row only if it still matches `match` (the
+// values we last read). Returns the updated row, or null when someone else
+// changed it first.
+async function patchSubscriptionIf(id, match, patch, env) {
+  const filters = [`id=eq.${encodeURIComponent(id)}`];
+  for (const [col, val] of Object.entries(match)) {
+    filters.push(val === null || val === undefined ? `${col}=is.null` : `${col}=eq.${encodeURIComponent(val)}`);
+  }
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?${filters.join('&')}`, {
+    method: 'PATCH',
+    headers: { ...serviceHeadersFor(env), 'Prefer': 'return=representation' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`subscriptions update failed (HTTP ${res.status}): ${detail}`);
+  }
+  const rows = await res.json();
+  return rows.length ? rows[0] : null;
+}
 
-    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?id=eq.${subscription.id}`, {
-      method: 'PATCH',
-      headers: subscription.serviceHeaders,
-      body: JSON.stringify(patch),
-    });
-  } catch {
-    // Best-effort - a failed usage write shouldn't fail the response the
-    // user already received their AI result for.
+async function readSubscription(id, env) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?id=eq.${encodeURIComponent(id)}&limit=1`, {
+    headers: serviceHeadersFor(env),
+  });
+  if (!res.ok) throw new Error(`subscriptions read failed (HTTP ${res.status})`);
+  const rows = await res.json();
+  if (!rows.length) throw new Error('subscription row disappeared');
+  return rows[0];
+}
+
+// Takes one place in this month's allowance. The update only lands if the
+// count is still what we read, so two calls at once can't both take the
+// last place. Returns the row as updated, 'limit' when the allowance is
+// used up, or null if the row kept changing under us.
+async function reserveAiCall(sub, limit, env) {
+  let row = sub;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { rolledOver, effectiveUsed } = effectiveUsage(row);
+    if (effectiveUsed >= limit) return 'limit';
+    const patch = rolledOver
+      ? { ai_calls_used_this_period: 1, period_start: new Date().toISOString() }
+      : { ai_calls_used_this_period: effectiveUsed + 1 };
+    const updated = await patchSubscriptionIf(row.id, {
+      ai_calls_used_this_period: row.ai_calls_used_this_period,
+      period_start: row.period_start,
+    }, patch, env);
+    if (updated) return updated;
+    row = await readSubscription(row.id, env);
+  }
+  console.error(`reserveAiCall: subscription ${sub.id} kept changing, gave up`);
+  return null;
+}
+
+// Gives back a place taken by reserveAiCall when the call didn't succeed.
+// Best effort: a failure here only costs the business one call.
+async function releaseAiCall(reserved, env) {
+  if (!reserved) return;
+  try {
+    let row = reserved;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      // A new month started since, so there's nothing of ours to give back.
+      if (row.period_start !== reserved.period_start || !(row.ai_calls_used_this_period > 0)) return;
+      const updated = await patchSubscriptionIf(row.id, {
+        ai_calls_used_this_period: row.ai_calls_used_this_period,
+        period_start: row.period_start,
+      }, { ai_calls_used_this_period: row.ai_calls_used_this_period - 1 }, env);
+      if (updated) return;
+      row = await readSubscription(row.id, env);
+    }
+  } catch (err) {
+    console.error('releaseAiCall failed: ' + (err && err.message ? err.message : String(err)));
   }
 }
 
@@ -675,12 +826,10 @@ function mapStripeStatus(stripeStatus) {
     case 'active':
     case 'trialing':
       return 'active';
-    case 'past_due':
-    case 'unpaid':
-    case 'incomplete':
-    case 'paused':
+    case 'past_due':   // Stripe is still retrying the card
+    case 'incomplete': // first payment still being confirmed
       return 'past_due';
-    default: // canceled, incomplete_expired
+    default: // canceled, unpaid, paused, incomplete_expired
       return 'canceled';
   }
 }
@@ -754,6 +903,7 @@ async function handleSendEmail(request, user, env, origin) {
   if (body && body.check) return reply(200, { configured });
   if (!configured) return reply(501, { message: 'Email sending is not set up yet' });
 
+  let emailSlot = null;
   try {
     const found = await loadBusinessSubscription(user.id, env);
     if (!found.ok) return reply(found.status, { message: found.message });
@@ -788,6 +938,13 @@ async function handleSendEmail(request, user, env, origin) {
     const replyTo = cleanEmail(body.replyTo);
     const copyTo = cleanEmail(body.copyTo);
 
+    emailSlot = await reserveEmailSend(sub, env);
+    if (emailSlot === 'limit') {
+      return reply(429, { message: "You've reached today's limit for sending from SAYON" });
+    }
+    if (emailSlot === null) return reply(503, { message: 'Too many emails at once' });
+    const reservedSlot = emailSlot;
+
     const res = await fetch(RESEND_API, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -802,14 +959,60 @@ async function handleSendEmail(request, user, env, origin) {
       }),
     });
     const data = await res.json().catch(() => ({}));
+    emailSlot = null;
     if (!res.ok) {
+      await releaseEmailSend(reservedSlot, env);
       console.error(`send-email: Resend refused (HTTP ${res.status}): ${data && data.message ? data.message : 'unknown error'}`);
       return reply(502, { message: 'The email service didn\'t accept it. Try again, or send it from your mail app' });
     }
     return reply(200, { id: data.id || null });
   } catch (err) {
     console.error('send-email failed: ' + (err && err.message ? err.message : String(err)));
+    await releaseEmailSend(emailSlot, env);
     return reply(502, { message: 'Could not send the email' });
+  }
+}
+
+// Takes one of today's sends for the business, the same way reserveAiCall
+// does. Returns the updated row, 'limit', null if the row kept changing, or
+// 'unlimited' when the counter columns haven't been added yet.
+async function reserveEmailSend(sub, env) {
+  if (!('emails_sent_today' in sub)) {
+    console.warn('send-email: subscriptions has no emails_sent_today column yet, so there is no daily limit');
+    return 'unlimited';
+  }
+  const limit = sub.status === 'trialing' ? EMAIL_DAILY_LIMIT_TRIAL : EMAIL_DAILY_LIMIT_PAID;
+  const today = new Date().toISOString().slice(0, 10);
+  let row = sub;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const sent = row.emails_day === today ? (row.emails_sent_today || 0) : 0;
+    if (sent >= limit) return 'limit';
+    const updated = await patchSubscriptionIf(row.id, {
+      emails_sent_today: row.emails_sent_today,
+      emails_day: row.emails_day,
+    }, { emails_sent_today: sent + 1, emails_day: today }, env);
+    if (updated) return updated;
+    row = await readSubscription(row.id, env);
+  }
+  return null;
+}
+
+// Gives back a send taken by reserveEmailSend when Resend refused it.
+async function releaseEmailSend(reserved, env) {
+  if (!reserved || typeof reserved !== 'object') return;
+  try {
+    let row = reserved;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (row.emails_day !== reserved.emails_day || !(row.emails_sent_today > 0)) return;
+      const updated = await patchSubscriptionIf(row.id, {
+        emails_sent_today: row.emails_sent_today,
+        emails_day: row.emails_day,
+      }, { emails_sent_today: row.emails_sent_today - 1 }, env);
+      if (updated) return;
+      row = await readSubscription(row.id, env);
+    }
+  } catch (err) {
+    console.error('releaseEmailSend failed: ' + (err && err.message ? err.message : String(err)));
   }
 }
 
@@ -827,7 +1030,7 @@ function cleanEmail(value) {
 // Workers AI Whisper model rather than a third-party API, so no new
 // secret/API key is needed, only the Workers AI binding described in the
 // version-history comment at the top of this file.
-async function handleTranscribe(request, origin, gate, env) {
+async function handleTranscribe(request, origin, env) {
   if (!env.AI) {
     console.error('handleTranscribe: env.AI binding missing - add a Workers AI binding named "AI" to this Worker (Settings -> Bindings) and redeploy');
     return new Response('Transcription is not configured on this server yet', { status: 501, headers: corsHeaders(origin) });
@@ -875,11 +1078,6 @@ async function handleTranscribe(request, origin, gate, env) {
   if (!transcript) {
     return new Response('Transcription produced no text', { status: 502, headers: corsHeaders(origin) });
   }
-
-  // Same usage metering as the Anthropic calls above - this is still an AI
-  // feature spending the business's monthly allowance, not a free side
-  // door around it.
-  await recordUsage(gate.subscription, env);
 
   return new Response(JSON.stringify({ transcript }), {
     status: 200,
