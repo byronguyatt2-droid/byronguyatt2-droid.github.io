@@ -1432,6 +1432,11 @@
             <h3><span class="sec-num">6.</span>Recommendations &amp; Risk</h3>
             <span class="sec-badge empty" id="sts-recommendations">Not started</span>
           </div>
+          <!-- Shown when live termites set Treatment Required to Yes -->
+          <div class="treatment-auto-banner" id="treatmentAutoBanner" role="status" style="display:none">
+            <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <div><strong>Treatment required: live termites found</strong><span>Set to Yes from your findings. Add the treatment type below, or change it if that's wrong.</span></div>
+          </div>
           <div class="section-fields">
             <div class="field field-wide"><div class="field-label">Risk of Termite Attack</div><div class="field-val" id="f-riskLevel" onclick="startEdit(this,'riskLevel','risk')">—</div></div>
             <div class="field"><div class="field-label">Treatment Required</div><div class="field-val" id="f-treatmentRecommended" onclick="startEdit(this,'treatmentRecommended','yesno')">—</div></div>
