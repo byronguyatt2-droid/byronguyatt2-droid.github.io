@@ -3717,6 +3717,7 @@ function populateFields(data) {
     setTimeout(() => {
       autoReveal(data);
       saveDraft();
+      ensureTreatmentForLiveTermites();
       resolve();
     }, entries.length * 70 + 50);
   });
@@ -3776,6 +3777,7 @@ function setFindingField(id, key, val) {
   renderFindingsUI();
   updateProgress();
   saveDraft();
+  ensureTreatmentForLiveTermites();
 }
 
 // ── CHOICE CARDS ──────────────────────────────────────────────────────────
@@ -4087,6 +4089,7 @@ function commitFindingEdit(findingId, key, value) {
   renderFindingsUI();
   updateProgress();
   saveDraft();
+  ensureTreatmentForLiveTermites();
 }
 
 // ── HIGH RISK AREA PROMPT ────────────────────────────────────────────────
@@ -4187,6 +4190,29 @@ function isAboveGroundLeak(text) {
   if (!text) return false;
   const norm = text.toLowerCase();
   return ABOVE_GROUND_LEAK_KEYWORDS.some(k => norm.includes(k));
+}
+
+// Inspectors always recommend treatment when live termites are found, so a
+// live finding fills Treatment Required with YES when it's still blank. It
+// never overrides an answer the inspector gave. The banner stays up while
+// that auto answer stands and no treatment type has been added.
+function ensureTreatmentForLiveTermites() {
+  const live = getFindings().some(f => f && f.termiteActivity === 'ACTIVE');
+  if (live && !reportData.treatmentRecommended) {
+    const el = document.getElementById('f-treatmentRecommended');
+    reportData.treatmentRecommended = 'YES';
+    reportData.treatmentAutoSet = true;
+    applyFieldCascade('treatmentRecommended', 'YES', el);
+    if (el) renderField(el, 'treatmentRecommended', 'YES');
+    updateProgress();
+    saveDraft();
+    showToast('Live termites found, so Treatment Required is set to Yes', 'info');
+  }
+  const banner = document.getElementById('treatmentAutoBanner');
+  if (banner) {
+    const show = live && reportData.treatmentAutoSet && reportData.treatmentRecommended === 'YES' && !reportData.treatmentType;
+    banner.style.display = show ? 'flex' : 'none';
+  }
 }
 
 function checkSecondaryColonyFlag() {
@@ -4684,6 +4710,7 @@ function commitEdit(el, key, value) {
   }
 
   reportData[key] = value.trim();
+  if (key === 'treatmentRecommended') reportData.treatmentAutoSet = false;
   applyFieldCascade(key, value.trim(), el);
 
   renderField(el, key, value.trim());
@@ -4700,6 +4727,7 @@ function commitEdit(el, key, value) {
   checkFindingsGate();
   checkSystemVerify();
   checkSecondaryColonyFlag();
+  ensureTreatmentForLiveTermites();
   if (key === 'standard') {
     const sel = document.getElementById('standardSelect');
     if (sel) sel.value = value.trim();
@@ -7267,6 +7295,7 @@ function loadDraft() {
     checkFindingsGate();
     checkSystemVerify();
     checkSecondaryColonyFlag();
+    ensureTreatmentForLiveTermites();
     restoreSignaturePads(); restoreLicenceField();
     renderReportWidgets();
     renderFindingsUI();
@@ -7471,6 +7500,7 @@ function loadReport(id) {
   checkFindingsGate();
   checkSystemVerify();
   checkSecondaryColonyFlag();
+  ensureTreatmentForLiveTermites();
   restoreSignaturePads(); restoreLicenceField();
   loadJobInfo();
   renderReportWidgets();
@@ -7809,6 +7839,7 @@ function resetReportState() {
   checkFindingsGate();
   checkSystemVerify();
   checkSecondaryColonyFlag();
+  ensureTreatmentForLiveTermites();
   if (inspectorSignaturePad) inspectorSignaturePad.clear();
   setInspectorSignatureStatus(false);
   renderAgreementBanner();
