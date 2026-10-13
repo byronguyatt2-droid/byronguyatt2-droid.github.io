@@ -3064,6 +3064,24 @@ body.large-touch .findings-gate .choice-card { min-height: 88px; }
 }
 .inactive-reminder .icon { color: var(--yellow-text); flex-shrink: 0; margin-top: 1px; }
 
+.treatment-auto-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 14px 0;
+  padding: 13px 14px;
+  background: rgba(192,57,43,0.10);
+  border: 1.5px solid var(--risk);
+  border-left-width: 5px;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.treatment-auto-banner .icon { color: var(--risk); flex-shrink: 0; margin-top: 1px; }
+.treatment-auto-banner strong { display: block; font-size: 14px; font-weight: 800; color: var(--risk); margin-bottom: 2px; }
+.treatment-auto-banner span { color: var(--text2); }
+
 .system-verify {
   margin: 0 14px 14px;
   padding: 14px;
