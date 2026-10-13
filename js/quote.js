@@ -34,6 +34,7 @@ const QUOTE_CATALOGUE = {
   weep_holes:    { desc: 'Clear bridged weep holes', unit: 'job', price: 180 },
   slab_edge:     { desc: 'Expose concealed slab edge for inspection', unit: 'job', price: 250 },
   followup:      { desc: 'Follow-up timber pest inspection', unit: 'visit', price: 280 },
+  invasive:      { desc: 'Invasive timber pest inspection', unit: 'visit', price: 495 },
   custom:        { desc: '', unit: 'job', price: 0 },
 };
 
@@ -338,6 +339,9 @@ function buildQuoteItemsFromReport(rd, system) {
   if (rd.slabEdge === 'OBSTRUCTED') {
     items.push(newQuoteItem('slab_edge', { source: 'Conducive condition: slab edge concealed' }));
   }
+  if (rd.invasiveInspection === 'YES') {
+    items.push(newQuoteItem('invasive', { detail: rd.invasiveInspectionDetails || '', source: 'Recommendation: invasive inspection' }));
+  }
   if (rd.inspectionFrequency) {
     items.push(newQuoteItem('followup', { detail: `Recommended frequency: ${rd.inspectionFrequency}`, source: 'Recommendation: inspection frequency' }));
   }
@@ -541,7 +545,7 @@ function pickQuoteSystem(kind) {
   const q = quoteState;
   if (!src || !q || !q.systemChoice) return;
   const rd = src.reportData || {};
-  const fresh = buildQuoteItemsFromReport(rd, kind).filter(it => /^Recommendation: /.test(it.source) && it.key !== 'followup');
+  const fresh = buildQuoteItemsFromReport(rd, kind).filter(it => /^Recommendation: /.test(it.source) && it.key !== 'followup' && it.key !== 'invasive');
   // After the direct-treatment lines, before conducive conditions.
   let at = 0;
   while (at < q.items.length && q.items[at].key === 'direct') at++;
