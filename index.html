@@ -1335,7 +1335,7 @@
           <div class="system-verify" id="otherTimberPests">
             <div class="system-verify-header">
               <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
-              <span>Borers &amp; Wood Decay</span>
+              <span>Borers, Wood Decay &amp; Delignification</span>
             </div>
             <p class="system-verify-hint">AS 4349.3 timber pests other than termites. Record what you saw, even if it's none.</p>
             <div class="section-fields">
@@ -1343,6 +1343,8 @@
               <div class="field"><div class="field-label">Wood Decay Fungi (Rot)</div><div class="field-val" id="f-decayFound" onclick="startEdit(this,'decayFound','yesno')">—</div></div>
               <div class="field field-wide"><div class="field-label">Borer Type, Location &amp; Evidence</div><div class="field-val" id="f-borerDetails" onclick="startEdit(this,'borerDetails','text')">—</div></div>
               <div class="field field-wide"><div class="field-label">Wood Decay Location &amp; Evidence</div><div class="field-val" id="f-decayDetails" onclick="startEdit(this,'decayDetails','text')">—</div></div>
+              <div class="field"><div class="field-label">Chemical Delignification</div><div class="field-val" id="f-delignification" onclick="startEdit(this,'delignification','yesno')">—</div></div>
+              <div class="field field-wide"><div class="field-label">Delignification Location &amp; Evidence</div><div class="field-val" id="f-delignificationDetails" onclick="startEdit(this,'delignificationDetails','text')">—</div></div>
             </div>
           </div>
 
@@ -1390,6 +1392,9 @@
             <div class="field"><div class="field-label">Weep Holes</div><div class="field-val" id="f-weepHoles" onclick="startEdit(this,'weepHoles','weepholes')">—</div></div>
             <div class="field"><div class="field-label">Ant Capping</div><div class="field-val" id="f-antCapping" onclick="startEdit(this,'antCapping','antcapping')">—</div></div>
             <div class="field field-wide"><div class="field-label">Ant Capping: Where &amp; What</div><div class="field-val" id="f-antCappingDetails" onclick="startEdit(this,'antCappingDetails','text')">—</div></div>
+            <div class="field"><div class="field-label">Subfloor Ventilation</div><div class="field-val" id="f-subfloorVentilation" onclick="startEdit(this,'subfloorVentilation','ventilation')">—</div></div>
+            <div class="field"><div class="field-label">Untreated or Non-durable Timber in Damp Areas</div><div class="field-val" id="f-nonDurableTimber" onclick="startEdit(this,'nonDurableTimber','yesno')">—</div></div>
+            <div class="field field-wide"><div class="field-label">Non-durable Timber: What &amp; Where</div><div class="field-val" id="f-nonDurableTimberDetails" onclick="startEdit(this,'nonDurableTimberDetails','text')">—</div></div>
           </div>
           <!-- Above-ground leak / secondary colony reminder -->
           <div class="inactive-reminder" id="secondaryColonyReminder" style="display:none">
