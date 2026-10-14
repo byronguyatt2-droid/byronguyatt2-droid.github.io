@@ -1,0 +1,143 @@
+{
+  "id": "fence-workings",
+  "transcript": "transcripts/fence-workings.txt",
+  "about": "Written case (2026-10-14): per-area results the way AS 4349.3 reports state them, chemical delignification in the roof void, poor subfloor ventilation and untreated pine sleepers. Old workings on a fence post, everything else clear.",
+  "checks": [
+    {
+      "id": "fences-found",
+      "kind": "equals",
+      "path": "areaResult.fences",
+      "values": [
+        "FOUND"
+      ],
+      "weight": 3,
+      "why": "old workings on the fence post"
+    },
+    {
+      "id": "interior-clear",
+      "kind": "equals",
+      "path": "areaResult.interior",
+      "values": [
+        "CLEAR"
+      ],
+      "weight": 2,
+      "why": "interior all clear"
+    },
+    {
+      "id": "roof-found",
+      "kind": "equals",
+      "path": "areaResult.roofvoid",
+      "values": [
+        "FOUND"
+      ],
+      "weight": 2,
+      "why": "delignification in the roof void is timber pest evidence"
+    },
+    {
+      "id": "subfloor-clear",
+      "kind": "equals",
+      "path": "areaResult.subfloor",
+      "values": [
+        "CLEAR"
+      ],
+      "weight": 1,
+      "why": "no termite activity under the house; poor ventilation is a conducive condition, not evidence"
+    },
+    {
+      "id": "exterior-clear",
+      "kind": "equals",
+      "path": "areaResult.exterior",
+      "values": [
+        "CLEAR"
+      ],
+      "weight": 1,
+      "why": "exterior no issues"
+    },
+    {
+      "id": "delig",
+      "kind": "equals",
+      "path": "delignification",
+      "values": [
+        "YES"
+      ],
+      "weight": 3,
+      "why": "furry battens near the chimney"
+    },
+    {
+      "id": "delig-where",
+      "kind": "mentions",
+      "path": "delignificationDetails",
+      "all": [
+        [
+          "chimney"
+        ],
+        [
+          "batten"
+        ]
+      ],
+      "weight": 1,
+      "why": "where and what"
+    },
+    {
+      "id": "vent",
+      "kind": "equals",
+      "path": "subfloorVentilation",
+      "values": [
+        "POOR"
+      ],
+      "weight": 2,
+      "why": "only two vents, damp"
+    },
+    {
+      "id": "nondurable",
+      "kind": "equals",
+      "path": "nonDurableTimber",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "untreated pine sleepers in soil"
+    },
+    {
+      "id": "nondurable-what",
+      "kind": "mentions",
+      "path": "nonDurableTimberDetails",
+      "all": [
+        [
+          "sleeper"
+        ]
+      ],
+      "weight": 1,
+      "why": "what and where"
+    },
+    {
+      "id": "timber-soil",
+      "kind": "equals",
+      "path": "timberSoil",
+      "values": [
+        "YES"
+      ],
+      "weight": 1,
+      "why": "sleepers sitting in the soil"
+    },
+    {
+      "id": "one-finding",
+      "kind": "count",
+      "path": "findings",
+      "min": 1,
+      "max": 1,
+      "weight": 1,
+      "why": "the fence post only"
+    },
+    {
+      "id": "decay",
+      "kind": "equals",
+      "path": "decayFound",
+      "values": [
+        "NO"
+      ],
+      "weight": 1,
+      "why": "no rot anywhere"
+    }
+  ]
+}
