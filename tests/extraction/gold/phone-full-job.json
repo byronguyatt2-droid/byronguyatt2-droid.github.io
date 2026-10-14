@@ -1,0 +1,292 @@
+{
+  "id": "phone-full-job",
+  "transcript": "transcripts/phone-full-job.txt",
+  "about": "Read-out test script on iPhone (14 Oct 2026; made-up address). Single storey brick veneer on a timber subfloor, live termites in the kitchen bearers, 'and capping on the peers is incomplete', a bathroom vanity leak, blocked bedroom and roof void ('roof fluid'), garden beds over the weep holes, advice for a plumber and removing the garden bed, and an invasive inspection of the kitchen wall.",
+  "checks": [
+    {
+      "id": "address",
+      "kind": "mentions",
+      "path": "propertyStreetAddress",
+      "all": [
+        [
+          "12 example street"
+        ]
+      ],
+      "weight": 2,
+      "why": "said '12 example Street'"
+    },
+    {
+      "id": "walls",
+      "kind": "equals",
+      "path": "wallConstruction",
+      "values": [
+        "Brick veneer"
+      ],
+      "weight": 1,
+      "why": "brick veneer"
+    },
+    {
+      "id": "floor",
+      "kind": "equals",
+      "path": "floorType",
+      "values": [
+        "Timber suspended floor"
+      ],
+      "weight": 1,
+      "why": "timber subfloor"
+    },
+    {
+      "id": "era",
+      "kind": "equals",
+      "path": "constructionEra",
+      "values": [
+        "1965-1985"
+      ],
+      "weight": 1,
+      "why": "built around the 1970s"
+    },
+    {
+      "id": "finding-count",
+      "kind": "count",
+      "path": "findings",
+      "min": 1,
+      "max": 1,
+      "weight": 2,
+      "why": "one finding: live termites under the kitchen"
+    },
+    {
+      "id": "live-kitchen",
+      "kind": "findingMatch",
+      "weight": 3,
+      "why": "live termites in the bearers under the kitchen",
+      "checks": [
+        {
+          "kind": "equals",
+          "path": "termiteActivity",
+          "values": [
+            "ACTIVE"
+          ]
+        },
+        {
+          "kind": "mentions",
+          "path": "activityLocation",
+          "all": [
+            [
+              "bearer"
+            ],
+            [
+              "kitchen"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "no-severity",
+      "kind": "every",
+      "path": "findings",
+      "weight": 1,
+      "why": "'moderate' is a severity word and is dropped",
+      "checks": [
+        {
+          "kind": "mentions",
+          "path": "damageDescription",
+          "all": [],
+          "none": [
+            "moderate"
+          ],
+          "nullOk": true
+        }
+      ]
+    },
+    {
+      "id": "treatment",
+      "kind": "equals",
+      "path": "treatmentRecommended",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "treatment recommended"
+    },
+    {
+      "id": "treatment-type",
+      "kind": "mentions",
+      "path": "treatmentType",
+      "all": [
+        [
+          "chemical"
+        ],
+        [
+          "barrier"
+        ]
+      ],
+      "weight": 1,
+      "why": "chemical barrier around the perimeter"
+    },
+    {
+      "id": "ant-capping",
+      "kind": "equals",
+      "path": "antCapping",
+      "values": [
+        "GAPS"
+      ],
+      "weight": 3,
+      "why": "'and capping on the peers is incomplete'"
+    },
+    {
+      "id": "ant-capping-details",
+      "kind": "mentions",
+      "path": "antCappingDetails",
+      "all": [
+        [
+          "three",
+          "3"
+        ],
+        [
+          "pier"
+        ]
+      ],
+      "weight": 2,
+      "why": "gaps on three piers near the kitchen"
+    },
+    {
+      "id": "ant-soldered",
+      "kind": "absent",
+      "path": "antCapSoldered",
+      "weight": 1,
+      "why": "nothing said about soldered joins"
+    },
+    {
+      "id": "leak",
+      "kind": "equals",
+      "path": "waterLeaks",
+      "values": [
+        "YES"
+      ],
+      "weight": 1,
+      "why": "leak under the bathroom vanity"
+    },
+    {
+      "id": "leak-location",
+      "kind": "mentions",
+      "path": "leakLocation",
+      "all": [
+        [
+          "vanity"
+        ]
+      ],
+      "weight": 1,
+      "why": "bathroom vanity"
+    },
+    {
+      "id": "weep",
+      "kind": "equals",
+      "path": "weepHoles",
+      "values": [
+        "BRIDGED"
+      ],
+      "weight": 2,
+      "why": "garden beds covering the weep holes"
+    },
+    {
+      "id": "durable-notice",
+      "kind": "equals",
+      "path": "durableNoticePresent",
+      "values": [
+        "NO"
+      ],
+      "weight": 1,
+      "why": "no durable notice"
+    },
+    {
+      "id": "no-system",
+      "kind": "absent",
+      "path": "existingSystem",
+      "weight": 1,
+      "why": "no barrier found"
+    },
+    {
+      "id": "roofvoid",
+      "kind": "equals",
+      "path": "areaStatus.roofvoid",
+      "values": [
+        "NOT"
+      ],
+      "weight": 2,
+      "why": "'roof fluid' = roof void, access blocked"
+    },
+    {
+      "id": "interior",
+      "kind": "equals",
+      "path": "areaStatus.interior",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 1,
+      "why": "back bedroom walls blocked by boxes"
+    },
+    {
+      "id": "invasive",
+      "kind": "equals",
+      "path": "invasiveInspection",
+      "values": [
+        "YES"
+      ],
+      "weight": 2,
+      "why": "invasive inspection recommended"
+    },
+    {
+      "id": "invasive-where",
+      "kind": "mentions",
+      "path": "invasiveInspectionDetails",
+      "all": [
+        [
+          "kitchen"
+        ]
+      ],
+      "weight": 1,
+      "why": "kitchen wall"
+    },
+    {
+      "id": "other-recs",
+      "kind": "mentions",
+      "path": "otherRecommendations",
+      "all": [
+        [
+          "plumber",
+          "leak"
+        ],
+        [
+          "garden bed"
+        ]
+      ],
+      "weight": 3,
+      "why": "plumber for the leak; remove the garden bed from the wall"
+    },
+    {
+      "id": "other-recs-clean",
+      "kind": "mentions",
+      "path": "otherRecommendations",
+      "all": [],
+      "none": [
+        "invasive",
+        "chemical barrier",
+        "12 months"
+      ],
+      "weight": 1,
+      "why": "other recommendations never repeat the treatment, invasive inspection or interval",
+      "nullOk": true
+    },
+    {
+      "id": "frequency",
+      "kind": "equals",
+      "path": "inspectionFrequency",
+      "values": [
+        "12 months"
+      ],
+      "weight": 1,
+      "why": "inspection in 12 months"
+    }
+  ]
+}
