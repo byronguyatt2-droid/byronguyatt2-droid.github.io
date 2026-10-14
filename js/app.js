@@ -1160,8 +1160,8 @@ const SECTIONS = {
   obstructions:    { fields:['areaStatus','highRiskAreas'], total:2 },
   restrictions:    { fields:['hinderedAreas','hinderedAreasDetail'], total:2 },
   findings:        { fields:['findings','borerActivity','decayFound'], total:3 },
-  conducive:       { fields:['waterLeaks','moistureReadings','leakLocation','timberSoil','slabEdge','weepHoles'], total:6 },
-  recommendations: { fields:['riskLevel','treatmentRecommended','treatmentType','inspectionFrequency','invasiveInspection','invasiveInspectionDetails'], total:4 },
+  conducive:       { fields:['waterLeaks','moistureReadings','leakLocation','timberSoil','slabEdge','weepHoles','antCapping','antCappingDetails'], total:6 },
+  recommendations: { fields:['riskLevel','treatmentRecommended','treatmentType','inspectionFrequency','invasiveInspection','invasiveInspectionDetails','otherRecommendations'], total:4 },
   photos:          { fields:['photos'], total:1 },
   signoff:         { fields:['inspectorLicence','inspectorSignature','agreement'], total:3 }
 };
@@ -1192,8 +1192,8 @@ FIELDS (every one null unless the note gives it):
 "areaStatus":{"interior"|"exterior"|"subfloor"|"roofvoid"|"outbuildings"|"site"|"fences"|"retainingwalls"|"landscapingtimbers":"INSPECTED"|"PARTIAL"|"NOT"|"NA"},"obstructions":string,"restrictedAccess":string,"highRiskAreas":string,"hinderedAreas":string,"hinderedAreasDetail":string,
 "findings":[{"termiteActivity":"ACTIVE"|"INACTIVE"|"NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES"|"NO","structuralConcern":"YES"|"NO"}],
 "borerActivity":"ACTIVE"|"INACTIVE"|"NONE","borerDetails":string,"decayFound":"YES"|"NO","decayDetails":string,
-"moistureReadings":"YES"|"NO","waterLeaks":"YES"|"NO","leakLocation":string,"moistureMeterReadings":[{"location":string,"reading":string}],"timberSoil":"YES"|"NO","slabEdge":"CLEAR"|"OBSTRUCTED","weepHoles":"CLEAR"|"BRIDGED",
-"riskLevel":"LOW"|"MEDIUM"|"HIGH","treatmentRecommended":"YES"|"NO","treatmentType":string,"inspectionFrequency":string,"invasiveInspection":"YES"|"NO","invasiveInspectionDetails":string}
+"moistureReadings":"YES"|"NO","waterLeaks":"YES"|"NO","leakLocation":string,"moistureMeterReadings":[{"location":string,"reading":string}],"timberSoil":"YES"|"NO","slabEdge":"CLEAR"|"OBSTRUCTED","weepHoles":"CLEAR"|"BRIDGED","antCapping":"INTACT"|"GAPS"|"NONE","antCappingDetails":string,
+"riskLevel":"LOW"|"MEDIUM"|"HIGH","treatmentRecommended":"YES"|"NO","treatmentType":string,"inspectionFrequency":string,"invasiveInspection":"YES"|"NO","invasiveInspectionDetails":string,"otherRecommendations":string}
 
 DROPDOWN FIELDS: the app shows these as pick-lists. Return the list value EXACTLY as written below when the inspector's words fit one; when they describe something the list cannot express, return their words instead (never a list value that adds a fact they did not state).
 - structureType: "Detached house" | "Semi-detached" | "Terrace / townhouse" | "Duplex" | "Unit / apartment" | "Granny flat" | "Commercial building". "House" or "home" with nothing more is "Detached house".
@@ -1210,6 +1210,7 @@ DROPDOWN FIELDS: the app shows these as pick-lists. Return the list value EXACTL
 - inspectionType: "Annual — Existing Building" for an annual, routine, regular or yearly inspection of the client's own home; "Pre-Purchase — Timber Pest" for pre-purchase, pre-sale or a client buying the property ("pre-purchased" is the same); "Pre-Purchase — Combined Building & Pest" only when they say building and pest; "Treatment Follow-Up", "Re-inspection", "New Construction — Completion" and "Insurance / Legal" only when said in those words. Otherwise null.
 - inspectionFrequency: write the NEXT interval first as a number of months, then any later pattern, e.g. "3 months, then every 12 months" or "12 months". Never put a later interval before the first one. It is only the routine re-inspection interval: a one-off invasive or follow-up inspection ("invasive inspection in two weeks") never goes here.
 - invasiveInspection: "YES" when the inspector recommends an invasive timber pest inspection, one where walls, linings or timbers may be cut, drilled or removed to see inside; "NO" only when they say one isn't needed. invasiveInspectionDetails: where, why and when, in their words, e.g. "Bathroom skirting boards and door frame, to trace live activity and the moisture source, within 2 weeks".
+- otherRecommendations: every other piece of advice the inspector gives that is not the treatment, the invasive inspection or the re-inspection interval, in their words, joined with "; ". E.g. "Have a plumber fix the bathroom vanity leak; remove the garden beds from against the east wall; improve subfloor ventilation". Null when there is none.
 
 AREAS INSPECTED (areaStatus): one key per area the note actually covers; leave out areas the note does not mention, including when a later note may cover them.
 - Keys: interior (inside the house), exterior (outside walls and perimeter), subfloor (under the floor), roofvoid (roof void, roof space, ceiling cavity, manhole), outbuildings (sheds and garages, whether attached or not), site (yard, grounds, gardens), fences, retainingwalls, landscapingtimbers (sleepers, garden edging timbers).
@@ -1260,6 +1261,7 @@ EXISTING SYSTEM AND VERIFICATION:
 - durableNoticePresent: "YES" when a durable notice, sticker or plate was seen or read out (in the meter box or elsewhere). "NO" when they looked and found none. Null when not raised. This field stands on its own: fill it even when no system was found.
 - hardLandscaping / softLandscaping: whether paving, paths or driveways (hard) or garden beds, soil and lawn (soft) sit against the perimeter. Descriptive, YES or NO as said, independent of any system.
 - zone25mmVisible (against hard landscaping) and zone75mmVisible (against soft landscaping): whether the inspection zone or the slab edge is visible there. Soil or a garden bed built up over the slab edge is zone75mmVisible NO. Fill only when the inspector describes the edge against that surface.
+- antCapping: the condition of the ant caps or strip shields on piers and stumps. "INTACT" when they say the capping is in place, complete, intact or on all piers; "GAPS" when it is incomplete: caps missing, damaged, with gaps, or on only some piers; "NONE" when there are piers or stumps with no ant caps at all. Null for a slab house or when not raised. antCappingDetails: where and what, in their words ("gaps on three piers near the kitchen"). Null when antCapping is INTACT with nothing more said.
 - antCapSoldered: "YES" or "NO" only when the inspector speaks about the joins or soldering of ant caps or strip shields. "Ant caps on all the piers" says nothing about soldering: null. "N/A" when they say there are no ant caps or shields.
 
 RECOMMENDATIONS AND RISK:
@@ -3800,11 +3802,12 @@ const CHOICE_SETS = {
   risk:      [['LOW', 'good'], ['MEDIUM', 'warn'], ['HIGH', 'bad']],
   slabedge:  [['CLEAR', 'good'], ['OBSTRUCTED', 'bad']],
   weepholes: [['CLEAR', 'good'], ['BRIDGED', 'bad']],
+  antcapping: [['INTACT', 'good'], ['GAPS', 'bad'], ['NONE', 'bad']],
   height:    [['Single storey', 'neutral'], ['Double storey', 'neutral'], ['Split level', 'neutral'], ['Three storey+', 'neutral']],
 };
 // Report fields: the set comes from the field's key, else its edit type.
 const CHOICE_SET_BY_KEY = { borerActivity: 'borer', durableNoticePresent: 'wantyes', antCapSoldered: 'wantyes', hardLandscaping: 'neutral', softLandscaping: 'neutral' };
-const CHOICE_SET_BY_TYPE = { yesno: 'yesno', yesnona: 'yesno', risk: 'risk', slabedge: 'slabedge', weepholes: 'weepholes', height: 'height', activity: 'activity' };
+const CHOICE_SET_BY_TYPE = { yesno: 'yesno', yesnona: 'yesno', risk: 'risk', slabedge: 'slabedge', weepholes: 'weepholes', antcapping: 'antcapping', height: 'height', activity: 'activity' };
 
 function choiceCardsHTML(set, name, current, dataAttrs) {
   const opts = CHOICE_SETS[set];
@@ -8219,6 +8222,8 @@ function reportSummary() {
   const fs = (reportData.findings || []).filter(f => f && f.termiteActivity);
   const live = fs.filter(f => f.termiteActivity === 'ACTIVE');
   const evidence = fs.filter(f => f.termiteActivity === 'INACTIVE');
+  // Damage counts wherever it was found, including alongside live termites.
+  const damaged = fs.filter(f => f.termiteActivity === 'INACTIVE' || (f.termiteActivity === 'ACTIVE' && !isBlankValue(f.damageDescription)));
   const structural = fs.some(f => f.structuralConcern === 'YES');
   const unanswered = findingsMissingReferral();
   const conducive = [];
@@ -8226,6 +8231,8 @@ function reportSummary() {
   else if (reportData.moistureReadings === 'YES') conducive.push('elevated moisture');
   if (reportData.timberSoil === 'YES') conducive.push('timber in contact with soil');
   if (reportData.weepHoles === 'BRIDGED') conducive.push('weep holes bridged');
+  if (reportData.antCapping === 'GAPS') conducive.push('gaps in the ant capping');
+  else if (reportData.antCapping === 'NONE') conducive.push('no ant capping on piers');
   if (reportData.slabEdge === 'OBSTRUCTED') conducive.push('slab edge concealed');
   const places = list => list.map(f => f.activityLocation).filter(Boolean).join('; ');
   const NR = 'NOT RECORDED';
@@ -8242,7 +8249,7 @@ function reportSummary() {
   if (limitedZones.length) basis.push(`${plural(limitedZones.length, 'area')} not fully inspected`);
   const tiles = [
     ['Live termites', live.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, live.length ? 'bad' : fs.length ? 'good' : 'none', places(live)],
-    ['Termite damage or old activity', evidence.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, evidence.length ? 'warn' : fs.length ? 'good' : 'none', places(evidence)],
+    ['Termite damage or old activity', damaged.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, damaged.length ? 'warn' : fs.length ? 'good' : 'none', places(damaged)],
     ['Borers', { ACTIVE: 'ACTIVE', INACTIVE: 'OLD DAMAGE', NONE: 'NONE SEEN' }[reportData.borerActivity] || NR,
       { ACTIVE: 'bad', INACTIVE: 'warn', NONE: 'good' }[reportData.borerActivity] || 'none', reportData.borerDetails || ''],
     ['Wood decay (rot)', { YES: 'FOUND', NO: 'NONE SEEN' }[reportData.decayFound] || NR,
@@ -8271,6 +8278,10 @@ function reportSummary() {
   if (conducive.length) next.push(`Fix the conditions that attract termites: ${conducive.join('; ')}.`);
   if (reportData.invasiveInspection === 'YES') {
     next.push(`Invasive timber pest inspection${reportData.invasiveInspectionDetails ? `: ${reportData.invasiveInspectionDetails}` : ''}. This needs a separate agreement.`);
+  }
+  if (!isBlankValue(reportData.otherRecommendations)) {
+    const other = String(reportData.otherRecommendations).trim().replace(/\.$/, '');
+    next.push(`Also recommended: ${other.charAt(0).toLowerCase()}${other.slice(1)}.`);
   }
   if (limitedZones.length) next.push(`Provide access to ${limitedZones.map(z => OBS_ZONES[z].label.replace(/^The /, '').toLowerCase()).join(', ')} for a follow-up inspection.`);
   next.push(`Next timber pest inspection: ${reportData.inspectionFrequency || 'within 12 months'}.`);
@@ -9294,7 +9305,7 @@ async function buildReportPdf() {
     waterLeaks:'Water Leaks', leakLocation:'Location of Moisture Ingress', moistureReadings:'Moisture Readings', timberSoil:'Timber-to-Soil Contact', slabEdge:'Slab Edge Concealed', weepHoles:'Weep Holes (Clear / Bridged)', existingSystem:'Existing System',
     durableNoticePresent:'Durable Notice Present', hardLandscaping:'Hard Landscaping Adjacent', zone25mmVisible:'25mm Inspection Zone Visible', softLandscaping:'Soft Landscaping Adjacent', zone75mmVisible:'75mm Inspection Zone Visible', antCapSoldered:'Ant Cap Joins Soldered',
     treatmentRecommended:'Treatment Recommended', treatmentType:'Treatment Type', inspectionFrequency:'Inspection Frequency', riskLevel:'Risk of Termite Attack',
-    invasiveInspection:'Invasive Inspection Recommended', invasiveInspectionDetails:'Invasive Inspection: Where, Why & When',
+    invasiveInspection:'Invasive Inspection Recommended', invasiveInspectionDetails:'Invasive Inspection: Where, Why & When', otherRecommendations:'Other Recommendations', antCapping:'Ant Capping', antCappingDetails:'Ant Capping: Where & What',
   };
 
   function notesBlock(sectionKey) {
@@ -9787,12 +9798,14 @@ async function buildReportPdf() {
   gap(4);
 
   // ── Physical barriers group ────────────────────────────────────────────
-  const hasBarriers = reportData.timberSoil || reportData.slabEdge || reportData.weepHoles || reportData.highRiskAreas;
+  // Areas not inspected are printed once, in section 4, not repeated here.
+  const hasBarriers = reportData.timberSoil || reportData.slabEdge || reportData.weepHoles || reportData.antCapping;
   if (hasBarriers) subhead('PHYSICAL BARRIERS & CONSTRUCTION');
   row('Timber-to-Soil Contact', reportData.timberSoil);
   row('Slab Edge Concealed', reportData.slabEdge);
   row('Weep Holes', reportData.weepHoles);
-  if (reportData.highRiskAreas) row('Areas of Concern', reportData.highRiskAreas);
+  row('Ant Capping', reportData.antCapping);
+  if (reportData.antCappingDetails) row('Ant Capping: Where & What', reportData.antCappingDetails);
   gap(4);
 
   // ── Existing system group ──────────────────────────────────────────────
@@ -9837,6 +9850,7 @@ async function buildReportPdf() {
   row('Re-inspection Interval', reportData.inspectionFrequency);
   if (reportData.invasiveInspection) row('Invasive Inspection Recommended', reportData.invasiveInspection);
   if (reportData.invasiveInspectionDetails) row('Invasive Inspection: Where, Why & When', reportData.invasiveInspectionDetails);
+  if (reportData.otherRecommendations) row('Other Recommendations', reportData.otherRecommendations);
   notesBlock('recommendations');
   renderSectionPhotosInPDF('recommendations', 'Recommendations');
   gap(4);
