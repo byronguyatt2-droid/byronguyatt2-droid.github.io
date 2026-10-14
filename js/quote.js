@@ -366,6 +366,9 @@ function buildQuoteExclusions(rd) {
   if (rd.waterLeaks === 'YES') {
     out.push(`Repair of the moisture source${rd.leakLocation ? ` (${rd.leakLocation})` : ''} by a licensed plumber or builder.`);
   }
+  if (rd.antCapping === 'GAPS' || rd.antCapping === 'NONE') {
+    out.push(`Repair or installation of ant caps${rd.antCappingDetails ? ` (${rd.antCappingDetails})` : ''} by a builder.`);
+  }
   if (rd.highRiskAreas) {
     out.push(`Areas not accessible at inspection (${rd.highRiskAreas}) unless access is provided.`);
   }
