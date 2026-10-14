@@ -374,6 +374,12 @@ const OBS_ZONES = {
 // reportData.obstructions / restrictedAccess are kept as the derived
 // plain-text summary (areas not fully inspected, and why) for the AI and
 // older code paths.
+// Reason labels that mean the area (or a room in it) couldn't be entered at
+// all: these print under "reasonable access not available". Labels in
+// RESTRICTION_REASONS limited access within an area; every other label is
+// an obstruction, something in the way of the view.
+const NO_ACCESS_REASONS = new Set(['Locked room and storage to garage', 'No access to subfloor', 'Item blocking access to manhole']);
+const RESTRICTION_REASONS = new Set(['Low Clearance', 'Low clearance in roof void', 'Low clearance to the outside edges of roof void', 'Height Restrictions', 'Limited access to skirting boards', 'Skillion Roof Design (no void)']);
 const AREA_STATUSES = [
   ['INSPECTED', 'Inspected'],
   ['PARTIAL',   'Partly'],
@@ -1157,7 +1163,7 @@ function lookupSpecies(raw) {
 
 const SECTIONS = {
   property:        { fields:['structureType','height','occupancyStatus','weatherConditions','wallConstruction','roofType','floorType','facadeDirection','constructionEra','standard'], total:10 },
-  obstructions:    { fields:['areaStatus','highRiskAreas'], total:2 },
+  obstructions:    { fields:['areaStatus','noAccessAreas','highRiskAreas'], total:2 },
   restrictions:    { fields:['hinderedAreas','hinderedAreasDetail'], total:2 },
   findings:        { fields:['findings','borerActivity','decayFound'], total:3 },
   conducive:       { fields:['waterLeaks','moistureReadings','leakLocation','timberSoil','slabEdge','weepHoles','antCapping','antCappingDetails'], total:6 },
@@ -1189,7 +1195,7 @@ FIELDS (every one null unless the note gives it):
 {"propertyStreetAddress":string,"propertySuburb":string,"propertyState":"NSW"|"VIC"|"QLD"|"WA"|"SA"|"TAS"|"ACT"|"NT","propertyPostcode":string,"clientName":string,"inspectionType":"Annual — Existing Building"|"Pre-Purchase — Timber Pest"|"Pre-Purchase — Combined Building & Pest"|"New Construction — Completion"|"Treatment Follow-Up"|"Re-inspection"|"Insurance / Legal",
 "structureType":string,"height":string,"wallConstruction":string,"roofType":string,"floorType":string,"facadeDirection":string,"constructionEra":"Pre-1920s"|"1920s-1940s"|"1945-1965"|"1965-1985"|"1985-2003"|"Post-2003","occupancyStatus":string,"weatherConditions":string,
 "existingSystem":string,"existingSystemOther":string,"durableNoticePresent":"YES"|"NO","hardLandscaping":"YES"|"NO","zone25mmVisible":"YES"|"NO","softLandscaping":"YES"|"NO","zone75mmVisible":"YES"|"NO","antCapSoldered":"YES"|"NO"|"N/A",
-"areaStatus":{"interior"|"exterior"|"subfloor"|"roofvoid"|"outbuildings"|"site"|"fences"|"retainingwalls"|"landscapingtimbers":"INSPECTED"|"PARTIAL"|"NOT"|"NA"},"obstructions":string,"restrictedAccess":string,"highRiskAreas":string,"hinderedAreas":string,"hinderedAreasDetail":string,
+"areaStatus":{"interior"|"exterior"|"subfloor"|"roofvoid"|"outbuildings"|"site"|"fences"|"retainingwalls"|"landscapingtimbers":"INSPECTED"|"PARTIAL"|"NOT"|"NA"},"obstructions":string,"restrictedAccess":string,"noAccessAreas":string,"highRiskAreas":string,"hinderedAreas":string,"hinderedAreasDetail":string,
 "findings":[{"termiteActivity":"ACTIVE"|"INACTIVE"|"NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES"|"NO","structuralConcern":"YES"|"NO"}],
 "borerActivity":"ACTIVE"|"INACTIVE"|"NONE","borerDetails":string,"decayFound":"YES"|"NO","decayDetails":string,
 "moistureReadings":"YES"|"NO","waterLeaks":"YES"|"NO","leakLocation":string,"moistureMeterReadings":[{"location":string,"reading":string}],"timberSoil":"YES"|"NO","slabEdge":"CLEAR"|"OBSTRUCTED","weepHoles":"CLEAR"|"BRIDGED","antCapping":"INTACT"|"GAPS"|"NONE","antCappingDetails":string,
@@ -1219,7 +1225,7 @@ AREAS INSPECTED (areaStatus): one key per area the note actually covers; leave o
 - "Everything was accessible" or "full access everywhere" sets every area mentioned in the note to INSPECTED; it never adds areas the note does not mention.
 - A later note re-covering an area ("got into the back of the subfloor now, all clear") simply states that area's new status.
 
-OBSTRUCTIONS AND RESTRICTIONS: four fields, each with one meaning.
+OBSTRUCTIONS, RESTRICTIONS AND NO ACCESS: five fields, each with one meaning. The report follows AS 4349.3: an area or room the inspector could not enter at all is "reasonable access not available" (noAccessAreas); an area they entered but could not fully see is obstructed (something in the way: furniture, stored goods, floor coverings, insulation) or restricted (access within it limited: low clearance, height, unsafe parts).
 - obstructions: which areas were not fully inspected and roughly where, e.g. "Subfloor: back section behind stored items. Roof void: outer edges and corners". Only PARTIAL or NOT areas appear here. Null when nothing was in the way.
 - restrictedAccess: WHY, as "Area: reason" pairs separated by ". ", using the app's reason labels where one fits, because the app ticks them from these exact words:
   Interior: Furniture | Flooring | Fixtures | Items/belongings stored against wall | Items/belongings stored to cupboards | Limited access to skirting boards | Locked room and storage to garage
@@ -1228,9 +1234,10 @@ OBSTRUCTIONS AND RESTRICTIONS: four fields, each with one meaning.
   Roof void: Insulation | Sarking | Air conditioning ducting | Stored articles | Low clearance to the outside edges of roof void | Low clearance in roof void | Item blocking access to manhole | Height Restrictions | Skillion Roof Design (no void)
   Outbuildings / Site / Fences: Vegetation | Stored Articles.  Retaining walls / Landscaping timbers: Back Fill | Abutting Timbers | Vegetation | Stored Articles
   Stored items, boxes, goods or belongings are "Stored Articles". Use "No access to subfloor" ONLY when the subfloor was not entered at all; a subfloor the inspector was in but could not fully reach gets "Stored Articles" or "Low Clearance", never any phrase with the word "access". When no label fits, write the reason in a few plain words after the area name. Null when nothing was in the way.
-- hinderedAreas: areas where the inspection was RESTRICTED but not prevented, as the report's "Areas where inspection was restricted" row. Name only the limited areas and the limit ("Roof void: outer edges and corners not reached. Bedrooms: walls behind furniture"). It is NOT a list of what was inspected, and it never names an area that was fully inspected. Null when the note states no restriction, and also null when the note simply does not raise the subject.
+- noAccessAreas: every area, room or space the inspector could NOT enter or reach at all, where and why, in their words, e.g. "Front left bedroom, north-east side: locked. Roof void: manhole blocked by a fixed cabinet". Inspectors often call this "restricted" ("restricted due to a locked bedroom"); a place that was not entered at all still goes here. Null when the note names no such place.
+- hinderedAreas: areas the inspector DID enter where the inspection was RESTRICTED, as the report's "Areas where inspection was restricted" row. A room or area that was not entered at all is noAccessAreas, not this. Name only the limited areas and the limit ("Roof void: outer edges and corners not reached. Bedrooms: walls behind furniture"). It is NOT a list of what was inspected, and it never names an area that was fully inspected. Null when the note states no restriction, and also null when the note simply does not raise the subject.
 - hinderedAreasDetail: the nature of the restrictions in hinderedAreas ("low clearance; furniture against walls"). Null when hinderedAreas is null.
-- highRiskAreas: places the inspector could NOT inspect and would want checked once access exists ("back section of the subfloor behind the stored items", "roof void outer edges"). An unreached area stays here even when evidence was seen at its edge. It is never a place where activity WAS found and inspected (that is a finding), never a clear area, and never an area the note does not mention.
+- highRiskAreas: places the inspector could NOT inspect and would want checked once access exists ("back section of the subfloor behind the stored items", "roof void outer edges"). Every place in noAccessAreas belongs here too. An unreached area stays here even when evidence was seen at its edge. It is never a place where activity WAS found and inspected (that is a finding), never a clear area, and never an area the note does not mention.
 
 TERMITE FINDINGS (findings is always an array; it holds termites only):
 - One entry per distinct place where live termites or termite evidence was found. A new entry when the location, the status or the species changes ("and over near the...", "separately", "also"). Never merge two places into one entry, and never put a finding's details in another finding.
@@ -3546,9 +3553,9 @@ function renderField(el, key, val) {
 // Text fields that hold a list of places or observations. A later note
 // adds to them instead of replacing them, so "borer holes in the subfloor"
 // survives a second note about rot in a fascia.
-const APPEND_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'highRiskAreas', 'borerDetails', 'decayDetails', 'leakLocation']);
+const APPEND_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'noAccessAreas', 'highRiskAreas', 'borerDetails', 'decayDetails', 'leakLocation']);
 // Free-text fields where "None", "Nil" or "N/A" means nothing to record.
-const NIL_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'highRiskAreas', 'borerDetails', 'decayDetails', 'leakLocation', 'treatmentType', 'existingSystemOther']);
+const NIL_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'noAccessAreas', 'highRiskAreas', 'borerDetails', 'decayDetails', 'leakLocation', 'treatmentType', 'existingSystemOther']);
 const isNilText = v => /^\s*(nil|none|no|n\/a|na|not applicable|nothing|not stated|not mentioned|unknown)\s*[.!]?\s*$/i.test(String(v));
 const hasRealFinding = list => list.some(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
 const findingHasData = f => !!(f.termiteActivity || f.species || f.damageDescription || f.activityLocation || f.nestLocated || f.structuralConcern);
@@ -9299,7 +9306,7 @@ async function buildReportPdf() {
     structureType:'Structure Type', wallConstruction:'Wall Construction', floorType:'Floor Type', roofType:'Roof Type',
     height:'Height', facadeDirection:'Orientation', occupancyStatus:'Occupancy Status', weatherConditions:'Weather Conditions',
     constructionEra:'Year / Period of Construction', standard:'Applicable Standard',
-    hinderedAreas:'Areas Where Inspection Was Restricted', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'Nature of Restriction', highRiskAreas:'High Risk Areas',
+    hinderedAreas:'Areas Where Inspection Was Restricted', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'Nature of Restriction', noAccessAreas:'Areas With No Reasonable Access', highRiskAreas:'High Risk Areas',
     borerActivity:'Borers of Seasoned Timber', borerDetails:'Borer Type, Location & Evidence', decayFound:'Wood Decay Fungi (Rot)', decayDetails:'Wood Decay Location & Evidence',
     termiteActivity:'Termite Activity Status', species:'Species', damageDescription:'Damage Description', activityLocation:'Location of Activity', nestLocated:'Workings / Nest Located', structuralConcern:'Builder / Engineer Referral',
     waterLeaks:'Water Leaks', leakLocation:'Location of Moisture Ingress', moistureReadings:'Moisture Readings', timberSoil:'Timber-to-Soil Contact', slabEdge:'Slab Edge Concealed', weepHoles:'Weep Holes (Clear / Bridged)', existingSystem:'Existing System',
@@ -9599,62 +9606,82 @@ async function buildReportPdf() {
   disclaimer('This rating reflects the risk of timber pest activity existing but not being detected at the time of inspection, due to access limitations. It is not an assessment of pest pressure or building susceptibility.');
   gap(6);
 
-  // ── OBSTRUCTIONS ──────────────────────────────────────────────────────
+  // ── AREAS INSPECTED, ACCESS, OBSTRUCTIONS & RESTRICTIONS ───────────────
+  // Laid out under the headings AS 4349.3 reports use: areas inspected; areas
+  // to which reasonable access was not available; areas in which the visual
+  // inspection was obstructed or restricted; and high risk areas to which
+  // access should be gained. An area that couldn't be entered at all (a
+  // locked room, a blocked manhole) is a no-access area; one that was entered
+  // but not fully seen is obstructed (something in the way) or restricted
+  // (access within it was limited).
   startPart('Areas Inspected');
-  sectionTitle('AREAS INSPECTED & OBSTRUCTIONS');
+  sectionTitle('AREAS INSPECTED, ACCESS & RESTRICTIONS');
   resetRowShade();
-  // Every area with its status; partly / not inspected areas list why.
-  const AREA_STATUS_TEXT = { INSPECTED:'Inspected', PARTIAL:'PARTLY INSPECTED', NOT:'NOT INSPECTED', NA:'Not present' };
+  const AREA_STATUS_TEXT = { INSPECTED:'Inspected', PARTIAL:'Partly inspected', NOT:'NOT INSPECTED', NA:'Not present' };
+  const anyStatus = Object.keys(OBS_ZONES).some(z => areaStatusOf(z));
+  const allMarked = Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
+  const reasonsOf = z => (reportData.areaReasons || {})[z] || [];
+  const noneRow = complete => row('Result', complete ? 'None' : 'Not recorded');
+
+  subhead('AREAS INSPECTED');
   Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
     const st = areaStatusOf(zoneId);
-    const why = ((reportData.areaReasons || {})[zoneId] || []).join(', ');
-    row(zone.label, st ? AREA_STATUS_TEXT[st] + (why ? ' — ' + why : '') : '');
+    if (st) row(zone.label, AREA_STATUS_TEXT[st]);
   });
-  gap(4);
-  const noObstructions = areasNotFullyInspected().length === 0;
-  // Question row
-  if (y + 14 > 278) newPage();
-  doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, 12, 'F');
-  doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, 12, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
-  doc.text('WERE THERE OBSTRUCTIONS THAT MAY CONCEAL POSSIBLE TIMBER PEST ACTIVITY?', M+4, y+5);
-  const obsUnknown = noObstructions && !Object.keys(OBS_ZONES).some(z => areaStatusOf(z));
-  const obsAns = obsUnknown ? 'NOT RECORDED' : noObstructions ? 'NO' : 'YES';
-  const obsCol = obsUnknown ? C.inkMuted : noObstructions ? C.safe : C.danger;
-  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...obsCol);
-  doc.text(obsAns, W-M-4, y+8, { align:'right' });
-  y += 14;
-  if (!noObstructions) {
-    if (reportData.highRiskAreas) row('High Risk Areas — Access Recommended', reportData.highRiskAreas);
+  if (!anyStatus) noneRow(false);
+  gap(3);
+
+  subhead('AREAS TO WHICH REASONABLE ACCESS WAS NOT AVAILABLE, AND WHY');
+  let noAccessRows = 0;
+  Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
+    const st = areaStatusOf(zoneId);
+    const why = reasonsOf(zoneId).filter(i => NO_ACCESS_REASONS.has(i));
+    // A part of an area that wasn't accessed is better told by the
+    // inspector's own where-and-why, when they gave one.
+    if (st === 'NOT' || (why.length && isBlankValue(reportData.noAccessAreas))) {
+      row(zone.label, (st === 'NOT' ? 'Not inspected' : 'Part not accessed') + (why.length ? ': ' + why.join(', ') : ''));
+      noAccessRows++;
+    }
+  });
+  if (!isBlankValue(reportData.noAccessAreas)) { row('Where and why', reportData.noAccessAreas); noAccessRows++; }
+  if (!noAccessRows) noneRow(allMarked);
+  gap(3);
+
+  subhead('AREAS IN WHICH THE VISUAL INSPECTION WAS OBSTRUCTED OR RESTRICTED, AND WHY');
+  let obsRows = 0;
+  Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
+    if (!['PARTIAL', 'NOT'].includes(areaStatusOf(zoneId))) return;
+    const items = reasonsOf(zoneId).filter(i => !NO_ACCESS_REASONS.has(i));
+    const obstructed = items.filter(i => !RESTRICTION_REASONS.has(i));
+    const restricted = items.filter(i => RESTRICTION_REASONS.has(i));
+    const parts = [];
+    if (obstructed.length) parts.push('Obstructed by ' + obstructed.join(', ').toLowerCase());
+    if (restricted.length) parts.push('Restricted by ' + restricted.join(', ').toLowerCase());
+    if (!parts.length && areaStatusOf(zoneId) === 'PARTIAL') parts.push('Partly inspected, reason not recorded');
+    if (parts.length) { row(zone.label, parts.join('. ')); obsRows++; }
+  });
+  const resAnswer = restrictionsAnswer();
+  if (resAnswer === 'YES') {
+    row('Restricted areas', reportData.hinderedAreas);
+    row('Nature of restriction', reportData.hinderedAreasDetail);
+    obsRows++;
+  }
+  if (!obsRows) noneRow(allMarked && resAnswer === 'NO');
+  gap(3);
+
+  subhead('HIGH RISK AREAS TO WHICH ACCESS SHOULD BE GAINED, OR FULLY GAINED');
+  const limited = areasNotFullyInspected();
+  const highRisk = !isBlankValue(reportData.highRiskAreas) ? reportData.highRiskAreas
+    : [!isBlankValue(reportData.noAccessAreas) ? reportData.noAccessAreas : '', ...limited.map(z => OBS_ZONES[z].label)].filter(Boolean).join('; ');
+  if (highRisk) {
+    row('Access should be gained to', highRisk);
     gap(3);
-    disclaimer('A further, more invasive inspection is strongly recommended of all obstructed areas once access is provided or obstructions are removed. It must be assumed that timber pest activity may exist in these areas.');
+    disclaimer('These areas may show evidence of timber pest activity or damage. Access should be gained, or fully gained, and a further inspection carried out. Until then it must be assumed that timber pest activity or damage may exist in them.');
+  } else {
+    noneRow(allMarked && resAnswer === 'NO');
   }
   notesBlock('obstructions');
   renderSectionPhotosInPDF('obstructions', 'Obstructions');
-  gap(8);
-
-  // ── RESTRICTIONS ──────────────────────────────────────────────────────
-  startPart('Restrictions');
-  sectionTitle('RESTRICTIONS');
-  resetRowShade();
-  const resAnswer = restrictionsAnswer();
-  const noRestrictions = resAnswer !== 'YES';
-  if (y + 14 > 278) newPage();
-  doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, 12, 'F');
-  doc.setFillColor(...C.accent); doc.rect(M, y, 1.5, 12, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
-  doc.text('WERE THERE CONDITIONS THAT RESTRICTED BUT DID NOT PREVENT INSPECTION?', M+4, y+5);
-  const resAns = resAnswer || 'NOT RECORDED';
-  const resCol = resAnswer === 'YES' ? C.warn : resAnswer === 'NO' ? C.safe : C.inkMuted;
-  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...resCol);
-  doc.text(resAns, W-M-4, y+8, { align:'right' });
-  y += 14;
-  if (!noRestrictions) {
-    row('Areas Where Inspection Was Restricted', reportData.hinderedAreas);
-    row('Nature of Restriction', reportData.hinderedAreasDetail);
-    gap(3);
-    disclaimer('Areas where inspection was limited may contain concealed timber pest activity or damage. Restricted areas should be assessed once limitations are resolved.');
-  }
   notesBlock('restrictions');
   renderSectionPhotosInPDF('restrictions', 'Restrictions');
   gap(8);
@@ -9907,8 +9934,9 @@ async function buildReportPdf() {
     ['Visual Inspection', 'An inspection conducted by an inspector who uses their unaided visual faculties, and may use a probe, screwdriver, or moisture meter, to observe accessible areas of the property for evidence of timber pest activity, damage, and conducive conditions.'],
     ['Reasonable Access', 'Access to areas of a building that are safe, accessible, and do not require any removal, dismantling, or disturbance of fixed or stored items. Access is via a standard 3.6m ladder from ground level. Subfloor access requires minimum 400mm clearance; roof void access requires minimum 450mm x 400mm opening.'],
     ['Readily Accessible Area', 'An area that can be inspected without moving furniture, stored goods, floor coverings, wall or ceiling linings, insulation, or personal possessions.'],
-    ['Obstructions', 'Physical items or conditions that prevent a complete visual inspection of an accessible area, including but not limited to furniture, stored goods, floor coverings, insulation, and vegetation. The inspector is not required to move obstructions.'],
-    ['Restrictions', 'Conditions that limited the inspection of an area without preventing it altogether, such as low clearance, stored items, insulation, poor lighting, or parts beyond safe reach. The parts of the area that could not be seen are treated like obstructed areas: timber pest activity or damage may exist in them.'],
+    ['Reasonable Access Not Available', 'An area, room or space the inspector could not enter or reach at all, such as a locked room, a blocked or missing manhole, or a subfloor or roof space below the minimum access dimensions. No inspection was made of these areas.'],
+    ['Obstructions', 'Physical items that block the view of part of an area the inspector entered, such as furniture, stored goods, floor coverings, fixtures, insulation and vegetation. The inspector is not required to move obstructions.'],
+    ['Restrictions', 'Conditions that limit the inspector\'s access within an area that was entered, such as low clearance, height beyond safe reach, or unsafe sections. The parts of the area that could not be seen or reached may contain timber pest activity or damage.'],
     ['Conducive Conditions', 'Conditions that may attract termites or provide conditions favourable to timber pest activity, including moisture, timber-to-soil contact, inadequate drainage, and conditions that compromise the integrity of an existing termite management system.'],
     ['Active Termites', 'Live termites sighted by the inspector during the inspection.'],
     ['Inactive / Evidence Only', 'Evidence of termite activity, such as workings, mudding, damaged timber or galleries, where no live termites were seen at the time of inspection. It does not show when the activity happened or whether termites are still present in concealed areas, so it should be investigated further and the recommendations in this report followed.'],

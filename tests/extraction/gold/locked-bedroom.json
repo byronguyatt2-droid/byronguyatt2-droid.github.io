@@ -1,0 +1,122 @@
+{
+  "id": "locked-bedroom",
+  "transcript": "transcripts/locked-bedroom.txt",
+  "about": "Written case (2026-10-14) from a qualified technician's own wording: a locked front left bedroom described as 'restricted', with a recommendation to gain access because it may conceal termite activity, plus furniture, low subfloor clearance and roof insulation. Tests that a room never entered goes to noAccessAreas and highRiskAreas, not to restricted areas.",
+  "checks": [
+    {
+      "id": "no-access",
+      "kind": "mentions",
+      "path": "noAccessAreas",
+      "all": [
+        [
+          "bedroom"
+        ],
+        [
+          "locked"
+        ]
+      ],
+      "weight": 3,
+      "why": "locked front left bedroom couldn't be entered"
+    },
+    {
+      "id": "no-access-where",
+      "kind": "mentions",
+      "path": "noAccessAreas",
+      "all": [
+        [
+          "front left",
+          "north east",
+          "north-east"
+        ]
+      ],
+      "weight": 2,
+      "why": "where the bedroom is"
+    },
+    {
+      "id": "no-access-not-subfloor",
+      "kind": "mentions",
+      "path": "noAccessAreas",
+      "all": [],
+      "none": [
+        "subfloor",
+        "roof"
+      ],
+      "weight": 1,
+      "why": "subfloor and roof void were entered",
+      "nullOk": false
+    },
+    {
+      "id": "high-risk-bedroom",
+      "kind": "mentions",
+      "path": "highRiskAreas",
+      "all": [
+        [
+          "bedroom"
+        ]
+      ],
+      "weight": 2,
+      "why": "tech recommends gaining access to the bedroom"
+    },
+    {
+      "id": "restricted-not-bedroom",
+      "kind": "mentions",
+      "path": "hinderedAreas",
+      "all": [],
+      "none": [
+        "bedroom"
+      ],
+      "weight": 2,
+      "why": "a room that was not entered is no access, not restricted",
+      "nullOk": true
+    },
+    {
+      "id": "interior",
+      "kind": "equals",
+      "path": "areaStatus.interior",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 2,
+      "why": "interior inspected except the locked bedroom"
+    },
+    {
+      "id": "subfloor",
+      "kind": "equals",
+      "path": "areaStatus.subfloor",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 1,
+      "why": "rear section not reached"
+    },
+    {
+      "id": "roofvoid",
+      "kind": "equals",
+      "path": "areaStatus.roofvoid",
+      "values": [
+        "PARTIAL"
+      ],
+      "weight": 1,
+      "why": "insulation over the joists"
+    },
+    {
+      "id": "fences",
+      "kind": "equals",
+      "path": "areaStatus.fences",
+      "values": [
+        "INSPECTED"
+      ],
+      "weight": 1,
+      "why": "fences clear"
+    },
+    {
+      "id": "no-findings",
+      "kind": "count",
+      "path": "findings",
+      "min": 0,
+      "max": 1,
+      "weight": 1,
+      "why": "no termites found"
+    }
+  ]
+}

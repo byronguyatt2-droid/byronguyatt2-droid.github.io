@@ -1176,6 +1176,10 @@
           <!-- High Risk Areas -->
           <div class="section-fields" style="padding-top:4px">
             <div class="field field-wide">
+              <div class="field-label">No Reasonable Access <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">— rooms or areas you couldn't enter at all, where and why (e.g. locked bedroom)</span></div>
+              <div class="field-val" id="f-noAccessAreas" onclick="startEdit(this,'noAccessAreas','text')">—</div>
+            </div>
+            <div class="field field-wide">
               <div class="field-label">High Risk Areas <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">— areas where access should be gained when available</span></div>
               <div class="field-val" id="f-highRiskAreas" onclick="startEdit(this,'highRiskAreas','text')">—</div>
             </div>
@@ -1215,7 +1219,7 @@
           <div class="section-fields">
             <!-- YES/NO question -->
             <div class="field field-wide">
-              <div class="field-label">Were there any normally accessible areas that had restricted access?</div>
+              <div class="field-label">Was the inspection restricted in any area you entered? <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">(low clearance, height, unsafe parts). Rooms you couldn't enter go under No Reasonable Access in Areas.</span></div>
               <div class="choice-panel" id="resYesNo"><div class="choice-grid" style="--cols:2">
                 <button type="button" class="choice-card tone-bad" id="resYesBtn" onclick="setRestrictedAccess(true)"><span class="choice-card-code">YES</span></button>
                 <button type="button" class="choice-card tone-good" id="resNoBtn" onclick="setRestrictedAccess(false)"><span class="choice-card-code">NO</span></button>
@@ -1235,7 +1239,7 @@
               </div>
             </div>
             <div class="res-disclaimer">
-              It is important to note that as an inspection of the above areas was not possible at the time of the inspection, termite activity or damage may therefore exist in these areas.
+              The parts of these areas that could not be seen or reached may contain termite activity or damage.
             </div>
           </div>
           <!-- High Risk Areas covered in Obstructions section -->
