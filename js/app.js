@@ -421,12 +421,81 @@ function areaResultOf(zoneId) {
   if (!areaWasEntered(zoneId)) return null;
   return (reportData.areaResult || {})[zoneId] || (wholePropertyClear() ? 'CLEAR' : null);
 }
+// Which recorded evidence is in an area, read from the words of each
+// finding's location and description and the borer, decay and
+// delignification details. Areas named outright (fence, subfloor, roof
+// void...) are matched first; interior and exterior words only count when
+// no other area is named, so "bearers under the kitchen" is the subfloor.
+const AREA_EVIDENCE_WORDS = {
+  fences: ['fence'],
+  retainingwalls: ['retaining wall'],
+  landscapingtimbers: ['sleeper', 'landscaping timber', 'garden edging', 'edging timber'],
+  outbuildings: ['shed', 'carport', 'garage', 'outbuilding', 'pergola', 'gazebo'],
+  roofvoid: ['roof void', 'roof space', 'roof timber', 'ceiling space', 'ceiling cavity', 'manhole', 'rafter', 'batten', 'ceiling joist', 'purlin'],
+  subfloor: ['subfloor', 'sub floor', 'sub-floor', 'underfloor', 'under the house', 'under the floor', 'bearer', 'joist', 'pier', 'stump'],
+  site: ['site', 'yard', 'backyard', 'garden', 'tree', 'grounds', 'log', 'woodpile', 'wood pile'],
+  exterior: ['exterior', 'outside', 'external', 'perimeter', 'fascia', 'eave', 'weatherboard', 'cladding', 'window frame', 'veranda', 'verandah', 'deck', 'porch', 'barge'],
+  interior: ['interior', 'inside', 'room', 'bedroom', 'living', 'dining', 'study', 'kitchen', 'bathroom', 'laundry', 'lounge', 'hallway', 'hall', 'skirting', 'architrave', 'door frame', 'doorframe', 'cupboard', 'wardrobe', 'toilet', 'ensuite', 'stair', 'floorboard', 'floor board'],
+};
+const AREA_EVIDENCE_GENERAL = new Set(['exterior', 'interior']);
+function textAreas(text) {
+  const t = ' ' + String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
+  const has = w => new RegExp(' ' + w.replace(/[^a-z0-9]+/g, ' ').trim() + '(s|es)? ').test(t);
+  // A stump out in the yard is a tree stump, not one under the house.
+  const yardStump = (AREA_EVIDENCE_WORDS.site).some(has);
+  const hit = z => (AREA_EVIDENCE_WORDS[z] || []).some(w => has(w) && !(z === 'subfloor' && w === 'stump' && yardStump));
+  const specific = Object.keys(AREA_EVIDENCE_WORDS).filter(z => !AREA_EVIDENCE_GENERAL.has(z) && hit(z));
+  if (specific.length) return specific;
+  return [...AREA_EVIDENCE_GENERAL].filter(hit);
+}
+// The evidence recorded in an area, as short references for the report:
+// "Finding 2 (rear left fence post)", "Borers (front bedroom floorboards)".
+function areaEvidence(zoneId) {
+  const out = [];
+  const short = t => { const s = String(t || '').trim().replace(/[.;]+$/, ''); return s.length > 60 ? s.slice(0, 57).replace(/\s+\S*$/, '') + '...' : s; };
+  (reportData.findings || []).forEach((f, i) => {
+    if (!f || f.termiteActivity === 'NONE') return;
+    if (textAreas([f.activityLocation, f.damageDescription].join(' ')).includes(zoneId)) out.push(`Finding ${i + 1}${f.activityLocation ? ` (${short(f.activityLocation)})` : ''}`);
+  });
+  const other = [
+    ['Borers', ['ACTIVE', 'INACTIVE'].includes(reportData.borerActivity), reportData.borerDetails],
+    ['Wood decay', reportData.decayFound === 'YES', reportData.decayDetails],
+    ['Chemical delignification', reportData.delignification === 'YES', reportData.delignificationDetails],
+  ];
+  other.forEach(([label, found, details]) => {
+    if (found && textAreas(details).includes(zoneId)) out.push(`${label} (${short(details)})`);
+  });
+  return out;
+}
+// Areas marked "evidence found" with nothing recorded that names them.
+function areasEvidenceUnlinked() { return Object.keys(OBS_ZONES).filter(z => areaResultOf(z) === 'FOUND' && !areaEvidence(z).length); }
+// Adds a termite finding for an area, reusing the empty first card.
+function addFindingForArea(zoneId) {
+  const where = OBS_ZONES[zoneId].label.replace(/^The /, '');
+  const findings = getFindings();
+  let f = findings.find(x => !x.termiteActivity && isBlankValue(x.activityLocation) && isBlankValue(x.damageDescription));
+  if (!f) {
+    const before = getFindings().length;
+    addFinding();
+    if (getFindings().length === before) { showToast(`Only ${MAX_FINDINGS} findings fit in a report. Name ${where} in an existing finding's location`, 'info'); return; }
+    f = getFindings()[before];
+  }
+  f.activityLocation = where + ': ';
+  renderFindingsUI(); saveDraft();
+  showSection('findings');
+  showToast(`Finding ${getFindings().indexOf(f) + 1} started for ${where}. Fill in where and what you saw`, 'info');
+}
+
 function areasMissingResult() { return Object.keys(OBS_ZONES).filter(z => areaWasEntered(z) && !areaResultOf(z)); }
 function setAreaResult(zoneId, result) {
   if (!reportData.areaResult) reportData.areaResult = {};
   if (reportData.areaResult[zoneId] === result) delete reportData.areaResult[zoneId];
   else reportData.areaResult[zoneId] = result;
   syncObstructionData();
+  if (reportData.areaResult[zoneId] === 'FOUND' && !areaEvidence(zoneId).length) {
+    showToast(`Nothing recorded mentions ${OBS_ZONES[zoneId].label.replace(/^The /, '')} yet`, 'info',
+      { label: 'Add finding', run: () => addFindingForArea(zoneId) });
+  }
 }
 function markRemainingAreasClear() {
   if (!reportData.areaResult) reportData.areaResult = {};
@@ -484,6 +553,13 @@ function renderAreaChecklist() {
       result = '<div class="area-result"><span class="area-result-label">Found here:</span>' + AREA_RESULTS.map(([val, label]) =>
         `<button class="obs-item-btn area-result-btn${picked === val ? ' selected result-' + val.toLowerCase() : ''}"
           onclick="setAreaResult('${zoneId}','${val}')">${label}</button>`).join('') + '</div>';
+      if (picked === 'FOUND') {
+        const ev = areaEvidence(zoneId);
+        result += ev.length
+          ? `<div class="area-evidence">See ${escapeHtml(ev.join('; '))}</div>`
+          : `<div class="area-evidence area-evidence-missing">Nothing recorded mentions this area yet. Add a termite finding, or name it in the borer, decay or delignification details.
+              <button class="link-btn" onclick="addFindingForArea('${zoneId}')">Add finding</button></div>`;
+      }
     }
     return `<div class="obs-zone-panel"><div class="obs-zone-panel-header">${zone.label}</div>
       <div class="area-status">${statusBtns}</div>${result}${reasons}</div>`;
@@ -8371,6 +8447,8 @@ function reportPrepGaps() {
   const noResult = areasMissingResult();
   if (noResult.length) push(`${noResult.length} area${noResult.length === 1 ? ' has' : 's have'} no result for what was found there (${noResult.map(z => OBS_ZONES[z].label).join(', ')})`,
     `<button class="link-btn" onclick="fixSendGap('clear')">Mark the rest as nothing found</button>`);
+  areasEvidenceUnlinked().forEach(z => push(`${OBS_ZONES[z].label}: marked "evidence found", but no finding mentions it`,
+    `<button class="link-btn" onclick="closeSendReview(); addFindingForArea('${z}')">Add finding</button>`));
   if (!restrictionsAnswer()) push('Section 3: "restricted access?" isn\'t answered');
   findingsMissingReferral().forEach(n => push(`Finding ${n}: "refer to a builder or engineer?" isn't answered`));
   const pending = (reportData.pendingNotes || []).length;
@@ -9694,7 +9772,10 @@ async function buildReportPdf() {
     const st = areaStatusOf(zoneId);
     if (!st) return;
     const result = areaResultOf(zoneId);
-    row(zone.label, AREA_STATUS_TEXT[st] + (areaWasEntered(zoneId) ? `. ${result ? AREA_RESULT_TEXT[result] : 'Result not recorded'}.` : ''));
+    const ev = result === 'FOUND' ? areaEvidence(zoneId) : [];
+    const resultText = !result ? 'Result not recorded'
+      : ev.length ? `Timber pest evidence found, see ${ev.join('; ')}` : AREA_RESULT_TEXT[result];
+    row(zone.label, AREA_STATUS_TEXT[st] + (areaWasEntered(zoneId) ? `. ${resultText}.` : ''));
   });
   if (!anyStatus) noneRow(false);
   gap(3);

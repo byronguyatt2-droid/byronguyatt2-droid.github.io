@@ -3648,6 +3648,9 @@ body.ai-busy:has(#app[style*="flex"]) .ai-busy-bar { display: block; }
 .area-result { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 12px 10px; }
 .area-result-label { font-size: 11.5px; font-weight: 600; color: var(--text2); margin-right: 2px; }
 .area-result-btn.result-clear { background: rgba(39,174,96,0.12); border-color: var(--green); color: var(--green); }
+.area-evidence { padding: 0 12px 10px; font-size: 12px; color: var(--text2); line-height: 1.45; }
+.area-evidence-missing { color: var(--risk); }
+.area-evidence .link-btn { display: inline; margin-left: 4px; }
 .area-result-btn.result-found { background: rgba(192,57,43,0.12); border-color: var(--risk); color: var(--risk); }
 .moisture-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
 .moisture-row .photo-caption-input { flex: 1; min-width: 0; }
