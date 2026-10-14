@@ -8219,6 +8219,8 @@ function reportSummary() {
   const fs = (reportData.findings || []).filter(f => f && f.termiteActivity);
   const live = fs.filter(f => f.termiteActivity === 'ACTIVE');
   const evidence = fs.filter(f => f.termiteActivity === 'INACTIVE');
+  // Damage counts wherever it was found, including alongside live termites.
+  const damaged = fs.filter(f => f.termiteActivity === 'INACTIVE' || (f.termiteActivity === 'ACTIVE' && !isBlankValue(f.damageDescription)));
   const structural = fs.some(f => f.structuralConcern === 'YES');
   const unanswered = findingsMissingReferral();
   const conducive = [];
@@ -8242,7 +8244,7 @@ function reportSummary() {
   if (limitedZones.length) basis.push(`${plural(limitedZones.length, 'area')} not fully inspected`);
   const tiles = [
     ['Live termites', live.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, live.length ? 'bad' : fs.length ? 'good' : 'none', places(live)],
-    ['Termite damage or old activity', evidence.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, evidence.length ? 'warn' : fs.length ? 'good' : 'none', places(evidence)],
+    ['Termite damage or old activity', damaged.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, damaged.length ? 'warn' : fs.length ? 'good' : 'none', places(damaged)],
     ['Borers', { ACTIVE: 'ACTIVE', INACTIVE: 'OLD DAMAGE', NONE: 'NONE SEEN' }[reportData.borerActivity] || NR,
       { ACTIVE: 'bad', INACTIVE: 'warn', NONE: 'good' }[reportData.borerActivity] || 'none', reportData.borerDetails || ''],
     ['Wood decay (rot)', { YES: 'FOUND', NO: 'NONE SEEN' }[reportData.decayFound] || NR,
