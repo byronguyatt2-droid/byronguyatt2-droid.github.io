@@ -3620,6 +3620,8 @@ body.ai-busy:has(#app[style*="flex"]) .ai-busy-bar { display: block; }
   letter-spacing: 0.7px;
 }
 .obs-items { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; }
+.obs-items-label { padding: 2px 12px 0; font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text3); }
+.obs-items-label + .obs-items { padding-top: 6px; }
 .obs-item-btn {
   padding: 6px 14px;
   background: var(--surface3);

@@ -1,0 +1,18 @@
+{
+  "id": "drainage-treatment",
+  "transcript": "transcripts/drainage-treatment.txt",
+  "about": "Written case (2026-10-15) for the fields added with the report restructure: site and subfloor drainage, weep holes none located, previous treatment from drill holes, and the hindered (temporary, low clearance) / restricted (locked) split.",
+  "checks": [
+    { "id": "site-drainage", "kind": "equals", "path": "siteDrainage", "values": ["POOR"], "weight": 3, "why": "water pooling against the rear wall" },
+    { "id": "subfloor-drainage", "kind": "equals", "path": "subfloorDrainage", "values": ["ADEQUATE"], "weight": 2, "why": "no water lying under the house" },
+    { "id": "weep-holes-none", "kind": "equals", "path": "weepHoles", "values": ["NONE"], "weight": 3, "why": "no weep holes located" },
+    { "id": "previous-treatment", "kind": "equals", "path": "previousTreatment", "values": ["YES"], "weight": 3, "why": "plugged drill holes" },
+    { "id": "previous-treatment-details", "kind": "mentions", "path": "previousTreatmentDetails", "all": [["drill"], ["patio", "path"]], "weight": 2, "why": "what and where" },
+    { "id": "no-durable-notice", "kind": "equals", "path": "durableNoticePresent", "values": ["NO"], "weight": 2, "why": "none in the meter box" },
+    { "id": "restricted-shed", "kind": "mentions", "path": "noAccessAreas", "all": [["shed"], ["lock"]], "none": ["subfloor", "manhole", "hot water"], "weight": 3, "why": "the locked shed is restricted access; the blocked manhole and low clearance are hindered" },
+    { "id": "hindered-subfloor", "kind": "mentions", "path": "hinderedAreas", "all": [["subfloor", "hot water", "back section"]], "none": ["shed"], "weight": 3, "why": "the back of the subfloor behind the hot water system, low clearance" },
+    { "id": "hindered-detail", "kind": "mentions", "path": "hinderedAreasDetail", "all": [["clearance"]], "weight": 2, "why": "low clearance" },
+    { "id": "no-termite-cards", "kind": "count", "path": "findings", "max": 0, "weight": 1, "why": "a clear remark about one area makes no NONE card" },
+    { "id": "no-invented-system", "kind": "absent", "path": "existingSystemOther", "weight": 1, "why": "no product named" }
+  ]
+}
