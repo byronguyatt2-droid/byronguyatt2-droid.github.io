@@ -3646,6 +3646,7 @@ body.ai-busy:has(#app[style*="flex"]) .ai-busy-bar { display: block; }
 .area-status-btn.status-partial { background: rgba(245,162,35,0.14); border-color: var(--yellow); color: var(--yellow-text); }
 .area-status-btn.status-not { background: rgba(192,57,43,0.12); border-color: var(--risk); color: var(--risk); }
 .area-status-btn.status-na { background: var(--surface3); border-color: var(--border); color: var(--text2); }
+.area-add-limit { display: block; margin: 6px 0 2px; font-size: 13px; }
 .area-status + .obs-items, .area-result + .obs-items { padding-top: 0; }
 .area-result { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 12px 10px; }
 .area-result-label { font-size: 11.5px; font-weight: 600; color: var(--text2); margin-right: 2px; }
