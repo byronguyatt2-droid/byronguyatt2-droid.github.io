@@ -618,7 +618,7 @@ const OBS_REASON_SYNONYMS = {
   'Vegetation': ['vegetation', 'shrubs', 'shrubbery', 'overgrown', 'plants', 'garden growth'],
   'Low Clearance': ['low clearance', 'clearance too low', 'not enough clearance', 'tight clearance'],
   'Low clearance in roof void': ['low clearance in the roof', 'low clearance in roof void', 'low pitch'],
-  'Low clearance to the outside edges of roof void': ['low clearance to the outer edges', 'low clearance at the outer edges', 'low clearance to the edges', 'low clearance at the edges', 'low clearance at the eaves', 'low clearance to the eaves', 'low clearance at the outer sides', 'low clearance to the outer sides'],
+  'Low clearance to the outside edges of roof void': ['outer edges low clearance', 'outside edges low clearance', 'edges low clearance', 'low clearance to the outer edges', 'low clearance at the outer edges', 'low clearance to the edges', 'low clearance at the edges', 'low clearance at the eaves', 'low clearance to the eaves', 'low clearance at the outer sides', 'low clearance to the outer sides'],
   'Ducting': ['ducting', 'ducts'],
   'Air conditioning ducting': ['ducting', 'ducts', 'air con'],
   'Air Conditioner Ducting': ['ducting', 'ducts', 'air con'],
@@ -628,6 +628,8 @@ const OBS_REASON_SYNONYMS = {
   'Skillion Roof Design (no void)': ['skillion', 'no roof void', 'no void'],
   'Item blocking access to manhole': ['manhole blocked', 'blocking the manhole', 'blocking access to manhole', 'manhole'],
   'Water Tanks': ['water tank', 'rainwater tank', 'tank'],
+  'Items/belongings stored to cupboards': ['stored items in cupboards', 'stored items in the cupboards', 'cupboards with stored items', 'stored in cupboards', 'stored in the cupboards', 'items in cupboards', 'items in the cupboards', 'cupboards full'],
+  'Locked room and storage to garage': ['locked room', 'locked bedroom', 'room was locked', 'room locked', 'bedroom was locked', 'bedroom locked', 'locked door'],
   'Locked, no access': ['locked', 'no key', 'couldn\'t get in', 'could not get in'],
   'Back Fill': ['backfill', 'back fill', 'soil built up', 'soil against'],
   'Abutting Timbers': ['abutting timber', 'timbers against', 'timber against'],
@@ -647,12 +649,27 @@ const OBS_REASON_SYNONYMS = {
 // "no" ("No access to subfloor") needs that "no" in the phrase too, so a
 // subfloor the inspector was in is never reported as not accessed. Every
 // button stays a normal toggle the technician can correct.
-function applyObstructionExtraction(data) {
+//
+// An area an earlier note marked partly or not inspected keeps that, with
+// its reasons, when a later note calls it inspected, unless the later note
+// says the inspector got in after all ("got into the back of the subfloor
+// now"). A note about a finding or a leak in the kitchen is not a note
+// about access, and must not drop the interior's access limits from the
+// report.
+const ACCESS_GAINED_RE = /\b(got|get|went|go|gone|crawled)\s+(in|into|under|up|through|back)\b|\baccessed\b|\bnow\s+(accessible|inspected|clear|open)\b|\b(fully|completely)\s+inspected\b|\binspected\s+(it|the rest|all|fully)\b|\bthe rest of\b|\ball of (the|it)\b|\bfull access\b|\b(moved|cleared|unlocked)\b|\bopened (it|up the|the)\b/i;
+function noteSaysAccessGained(transcript, zoneId) {
+  if (!transcript) return false;
+  const names = [OBS_ZONES[zoneId].label.replace(/^the /i, ''), ...(AREA_ALIASES[zoneId] || [])].map(n => n.toLowerCase());
+  return String(transcript).toLowerCase().split(/[.!?\n]+/).some(sentence => names.some(n => sentence.includes(n)) && ACCESS_GAINED_RE.test(sentence));
+}
+
+function applyObstructionExtraction(data, transcript) {
   const VALID = new Set(AREA_STATUSES.map(([v]) => v));
   let changed = false;
   const aiStatus = (data.areaStatus && typeof data.areaStatus === 'object') ? data.areaStatus : {};
   Object.entries(aiStatus).forEach(([z, st]) => {
     if (!OBS_ZONES[z] || !VALID.has(st)) return;
+    if (st === 'INSPECTED' && ['PARTIAL', 'NOT'].includes(areaStatusOf(z)) && !noteSaysAccessGained(transcript, z)) return;
     if (!reportData.areaStatus) reportData.areaStatus = {};
     reportData.areaStatus[z] = st;
     if (!['PARTIAL', 'NOT'].includes(st) && reportData.areaReasons) delete reportData.areaReasons[z];
@@ -3205,7 +3222,7 @@ async function processTranscript() {
       try { await processPendingNotes(true); } finally { extractSummaryOwned = false; }
       extracted = !getPendingNotes().length;
     } else {
-      await populateFields(await requestExtraction(currentTranscript));
+      await populateFields(await requestExtraction(currentTranscript), currentTranscript);
       extracted = true;
       pendingNotesProblem = null;
       setAI('ready', 'Data extracted');
@@ -3362,7 +3379,7 @@ async function processPendingNotes(manual) {
       pendingNotesProblem = null;
       if (reportData !== target) break;
       // Wait for the staggered field writes, so the saves below hold them.
-      await populateFields(extracted);
+      await populateFields(extracted, note.text);
       if (reportData !== target) break;
       reportData.pendingNotes = getPendingNotes().filter(n => n.id !== note.id);
       filled++;
@@ -3733,6 +3750,12 @@ const NIL_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'noAccess
 const isNilText = v => /^\s*(nil|none|no|n\/a|na|not applicable|nothing|not stated|not mentioned|unknown)\s*[.!]?\s*$/i.test(String(v));
 const hasRealFinding = list => list.some(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
 const findingHasData = f => !!(f.termiteActivity || f.species || f.damageDescription || f.activityLocation || f.nestLocated || f.structuralConcern);
+// The words that identify a place or an observation, for telling whether a
+// later note is only repeating an earlier one ("kitchen skirting board"
+// after "skirting board, kitchen, east wall").
+const KEY_WORD_SKIP = new Set(['the', 'from', 'with', 'leak', 'leaks', 'there', 'that', 'this', 'into', 'along']);
+const keyWords = t => String(t || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !KEY_WORD_SKIP.has(w));
+const repeatsText = (have, val) => { const h = new Set(keyWords(have)), v = keyWords(val); return v.length > 0 && v.every(w => h.has(w)); };
 
 // Writes one extracted note into the report. Every value the note gives
 // replaces what was there (the inspector's later word wins), with these
@@ -3745,7 +3768,7 @@ const findingHasData = f => !!(f.termiteActivity || f.species || f.damageDescrip
 //   - the system type doesn't clear a brand a plate scan read unless the
 //     type itself changed
 // Resolves once the staggered field writes are done, so a caller can save.
-function populateFields(data) {
+function populateFields(data, transcript) {
   if (!data || typeof data !== 'object') return Promise.resolve();
   // Handle findings array from AI extraction
   if (data.findings && Array.isArray(data.findings) && data.findings.length > 0) {
@@ -3770,6 +3793,17 @@ function populateFields(data) {
     const existingReal = existing.filter(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
     if (hasRealFinding(incoming) || existingReal.length) incoming = incoming.filter(f => f.termiteActivity !== 'NONE');
     const kept = hasRealFinding(incoming) ? existing.filter(f => f.termiteActivity !== 'NONE' && findingHasData(f)) : existing.filter(findingHasData);
+    // A note that only mentions a finding again (a recommendation to treat
+    // "the live termites in the kitchen skirting") isn't a new finding: it
+    // fills any blanks on the one already recorded instead of adding a card.
+    let merged = false;
+    incoming = incoming.filter(f => {
+      if (!f.activityLocation) return true;
+      const same = kept.find(k => k.activityLocation && (k.termiteActivity || null) === f.termiteActivity && repeatsText(k.activityLocation, f.activityLocation));
+      if (!same) return true;
+      ['species', 'damageDescription', 'nestLocated', 'structuralConcern'].forEach(k => { if (!same[k] && f[k]) { same[k] = f[k]; merged = true; } });
+      return false;
+    });
 
     if (incoming.length) {
       const combined = [...kept, ...incoming];
@@ -3777,7 +3811,7 @@ function populateFields(data) {
       if (combined.length > MAX_FINDINGS) {
         showToast(`Only ${MAX_FINDINGS} findings can be tracked per report — some new ones weren't added. Review and merge manually if needed.`, 'info');
       }
-    } else if (kept.length !== existing.length) {
+    } else if (kept.length !== existing.length || merged) {
       reportData.findings = kept;
     }
     renderFindingsUI();
@@ -3801,7 +3835,7 @@ function populateFields(data) {
   // per-area status buttons (reportData.areaStatus / areaReasons). The
   // generic field loop below only writes into 'f-'+key elements, so they
   // are applied here instead.
-  applyObstructionExtraction(data);
+  applyObstructionExtraction(data, transcript);
 
   // Moisture meter readings spoken by the technician are added as rows.
   if (Array.isArray(data.moistureMeterReadings)) {
@@ -3880,7 +3914,7 @@ function populateFields(data) {
       const prev = reportData[key];
       if (APPEND_TEXT_KEYS.has(key) && typeof prev === 'string' && prev.trim() && !prev.startsWith('NIL')) {
         const have = prev.toLowerCase();
-        if (have.includes(val.toLowerCase())) val = prev;
+        if (have.includes(val.toLowerCase()) || repeatsText(prev, val)) val = prev;
         else if (!val.toLowerCase().includes(have)) val = prev.replace(/[.;,\s]+$/, '') + '; ' + val;
       }
       reportData[key] = val;

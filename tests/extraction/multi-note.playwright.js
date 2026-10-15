@@ -38,6 +38,10 @@ const ANSWERS = {
     treatmentType: 'Treat the active termites in the backyard tree; install a termite management system (chemical barrier or baiting system)',
     inspectionFrequency: '3 months, then every 12 months', riskLevel: 'HIGH',
   },
+  KITCHEN: { // a later note that only repeats a finding and calls the interior inspected
+    areaStatus: { interior: 'INSPECTED' },
+    findings: [{ termiteActivity: 'ACTIVE', activityLocation: 'Backyard gum tree', species: null, damageDescription: null, nestLocated: null, structuralConcern: null }],
+  },
   SUBFLOOR: {
     areaStatus: { subfloor: 'INSPECTED' },
     moistureMeterReadings: [{ location: 'Rear bearer', reading: '18%' }],
@@ -50,7 +54,11 @@ const ANSWERS = {
     weatherConditions: 'Light rain', riskLevel: 'HIGH', decayFound: 'YES', decayDetails: 'Soft fascia board, western side',
   },
 };
-const noteFor = key => `MARKER_${key} note text`;
+const NOTE_TEXT = {
+  KITCHEN: 'Treat the live termites in the backyard gum tree. The interior skirting near the sink is damp.',
+  SUBFLOOR: 'Got into the back of the subfloor now, all clear. Rear bearer 18 percent.',
+};
+const noteFor = key => `MARKER_${key} ${NOTE_TEXT[key] || 'note text'}`;
 
 (async () => {
   const b = await chromium.launch(); const ctx = await b.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 844 }, acceptDownloads: true });
@@ -96,7 +104,12 @@ const noteFor = key => `MARKER_${key} note text`;
   await p.waitForTimeout(600);
   report.afterHouse = await snap();
 
-  // 2. subfloor-only follow-up
+  // 2. a note that mentions the interior and a known finding, not access
+  await p.evaluate(async (t) => { currentTranscript = t; await processTranscript(); }, noteFor('KITCHEN'));
+  await p.waitForTimeout(600);
+  report.afterKitchen = await snap();
+
+  // 3. subfloor-only follow-up
   await p.evaluate(async (t) => { currentTranscript = t; await processTranscript(); }, noteFor('SUBFLOOR'));
   await p.waitForTimeout(600);
   report.afterSubfloor = await snap();
@@ -126,6 +139,8 @@ const noteFor = key => `MARKER_${key} note text`;
   const a = report.afterHouse, s2 = report.afterSubfloor, n = report.afterNewer;
   report.verdicts = {
     firstNoteFactsSurvive: s2.wall === 'Double brick' && s2.floor === 'Timber suspended floor' && s2.risk === 'HIGH' && s2.findings.length === 2 && s2.hindered === a.hindered,
+    laterNoteKeepsInteriorLimit: report.afterKitchen.areaStatus.interior === 'PARTIAL' && JSON.stringify(report.afterKitchen.areaReasons.interior) === '["Furniture"]',
+    repeatedFindingNotAdded: report.afterKitchen.findings.length === 2,
     subfloorNowInspectedAndReasonCleared: s2.areaStatus.subfloor === 'INSPECTED' && !(s2.areaReasons && s2.areaReasons.subfloor && s2.areaReasons.subfloor.length),
     moistureRowsAddUp: s2.moistureRows.length === 4,
     reasonsTickedFromFirstNote: JSON.stringify(a.areaReasons) === JSON.stringify({ interior: ['Furniture'], subfloor: ['Stored Articles'], roofvoid: ['Low clearance to the outside edges of roof void'] }),
@@ -133,7 +148,7 @@ const noteFor = key => `MARKER_${key} note text`;
     waitingNoteQueued: report.afterWaitingQueued.pending.length === 1 && report.afterWaitingQueued.weather === 'Fine and dry',
     waitingNoteDidNotOverwriteNewer: n.weather === 'Light rain' && n.risk === 'HIGH' && n.pending.length === 0,
     bothNotesLanded: n.borer === 'INACTIVE' && n.decay === 'YES' && !!n.borerDetails && !!n.decayDetails,
-    callOrderOldestFirst: calls.filter(c => c.mode === 'answer' && c.key).map(c => c.key).join(',') === 'HOUSE,SUBFLOOR,WAITING,NEWER',
+    callOrderOldestFirst: calls.filter(c => c.mode === 'answer' && c.key).map(c => c.key).join(',') === 'HOUSE,KITCHEN,SUBFLOOR,WAITING,NEWER',
     pdfDownloadedNoErrors: report.pdf.downloaded && errs.length === 0,
   };
   console.log(JSON.stringify(report, null, 2));
