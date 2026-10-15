@@ -383,12 +383,20 @@ const OBS_ZONES = {
 //     room, no subfloor hatch, no roof void, beyond safe height).
 // Labels in RESTRICTED_REASONS are restricted; every other label hinders.
 const RESTRICTED_REASONS = new Set(['Locked room and storage to garage', 'Locked, no access', 'No access to subfloor', 'Height Restrictions', 'Skillion Roof Design (no void)']);
+// Every status an area can hold. PARTIAL is still stored (older reports
+// and the AI use it), but the inspector never picks it: an area is
+// Inspected, Not inspected or Not present, and an inspected area with a
+// hindered or restricted reason ticked is held as PARTIAL, "inspected with
+// limits".
 const AREA_STATUSES = [
   ['INSPECTED', 'Inspected'],
-  ['PARTIAL',   'Partly'],
+  ['PARTIAL',   'Inspected with limits'],
   ['NOT',       'Not inspected'],
-  ['NA',        'N/A'],
+  ['NA',        'Not present'],
 ];
+const AREA_STATUS_BUTTONS = [['INSPECTED', 'Inspected'], ['NOT', 'Not inspected'], ['NA', 'Not present']];
+// Inspected areas whose reason list has been opened with "Add a limit".
+const areaLimitsOpen = new Set();
 
 // Other ways inspectors name an area, for matching dictated text.
 const AREA_ALIASES = {
@@ -512,6 +520,9 @@ function areasNotFullyInspected() {
 }
 
 function setAreaStatus(zoneId, status) {
+  // Inspected is already lit for an area inspected with limits; tapping it
+  // again keeps the limits.
+  if (status === 'INSPECTED' && areaStatusOf(zoneId) === 'PARTIAL') return;
   if (!reportData.areaStatus) reportData.areaStatus = {};
   reportData.areaStatus[zoneId] = status;
   if (!['PARTIAL', 'NOT'].includes(status) && reportData.areaReasons) delete reportData.areaReasons[zoneId];
@@ -529,6 +540,11 @@ function toggleObsItem(zoneId, item) {
   const list = reportData.areaReasons[zoneId] || (reportData.areaReasons[zoneId] = []);
   const idx = list.indexOf(item);
   if (idx >= 0) list.splice(idx, 1); else list.push(item);
+  // On an inspected area, a ticked reason means inspected with limits, and
+  // unticking the last one makes it plainly inspected again.
+  if (!reportData.areaStatus) reportData.areaStatus = {};
+  if (areaStatusOf(zoneId) === 'INSPECTED' && list.length) reportData.areaStatus[zoneId] = 'PARTIAL';
+  else if (areaStatusOf(zoneId) === 'PARTIAL' && !list.length) { reportData.areaStatus[zoneId] = 'INSPECTED'; areaLimitsOpen.add(zoneId); }
   syncObstructionData();
 }
 
@@ -538,11 +554,14 @@ function renderAreaChecklist() {
   migrateLegacyObstructions();
   wrap.innerHTML = Object.entries(OBS_ZONES).map(([zoneId, zone]) => {
     const status = areaStatusOf(zoneId);
-    const statusBtns = AREA_STATUSES.map(([val, label]) =>
-      `<button class="obs-zone-btn area-status-btn${status === val ? ' active status-' + val.toLowerCase() : ''}"
+    const lit = status === 'PARTIAL' ? 'INSPECTED' : status;
+    const statusBtns = AREA_STATUS_BUTTONS.map(([val, label]) =>
+      `<button class="obs-zone-btn area-status-btn${lit === val ? ' active status-' + status.toLowerCase() : ''}"
         onclick="setAreaStatus('${zoneId}','${val}')">${label}</button>`).join('');
     let reasons = '';
-    if (status === 'PARTIAL' || status === 'NOT') {
+    if (status === 'INSPECTED' && !areaLimitsOpen.has(zoneId)) {
+      reasons = `<button class="link-btn area-add-limit" onclick="areaLimitsOpen.add('${zoneId}');renderAreaChecklist()">+ Add a hindered or restricted reason</button>`;
+    } else if (['INSPECTED', 'PARTIAL', 'NOT'].includes(status)) {
       const selected = (reportData.areaReasons || {})[zoneId] || [];
       const btn = item => {
         const safe = item.replace(/'/g, '&#39;');
@@ -576,7 +595,7 @@ function renderAreaChecklist() {
 function syncObstructionData() {
   const notFull = areasNotFullyInspected();
   const reasons = reportData.areaReasons || {};
-  reportData.obstructions = notFull.map(z => OBS_ZONES[z].label + (areaStatusOf(z) === 'PARTIAL' ? ' (partly inspected)' : '')).join(', ');
+  reportData.obstructions = notFull.map(z => OBS_ZONES[z].label + (areaStatusOf(z) === 'PARTIAL' ? ' (inspected with limits)' : '')).join(', ');
   reportData.restrictedAccess = notFull.map(z => {
     const items = reasons[z] || [];
     return items.length ? `${OBS_ZONES[z].label}: ${items.join(', ')}` : OBS_ZONES[z].label;
@@ -800,10 +819,10 @@ function accessLimits() {
     const st = areaStatusOf(z);
     if (!['PARTIAL', 'NOT'].includes(st)) return;
     const items = (reportData.areaReasons || {})[z] || [];
-    const status = st === 'NOT' ? 'Not inspected' : 'Partly inspected';
+    const status = st === 'NOT' ? 'Not inspected' : 'Inspected';
     const h = items.filter(i => !RESTRICTED_REASONS.has(i)), r = items.filter(i => RESTRICTED_REASONS.has(i));
     if (h.length) hindered.push([zone.label, `${status}, hindered by ${h.join(', ').toLowerCase()}`]);
-    if (r.length) restricted.push([zone.label, `${status}: ${r.join(', ').toLowerCase()}`]);
+    if (r.length) restricted.push([zone.label, `${st === 'NOT' ? 'Not inspected:' : 'Inspected, restricted by'} ${r.join(', ').toLowerCase()}`]);
     if (!items.length) hindered.push([zone.label, `${status}, reason not recorded`]);
   });
   if (hasHinderedAreas()) {
@@ -7621,7 +7640,7 @@ function isFieldFilled(key) {
       reportData.findings.some(f => f && (f.termiteActivity || f.species || f.damageDescription || f.activityLocation));
   }
   if (key === 'areaStatus') {
-    // Every area needs a status (Inspected / Partly / Not inspected / N/A).
+    // Every area needs a status (Inspected / Not inspected / Not present).
     return Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
   }
   if (key === 'standard') {
@@ -8531,7 +8550,7 @@ function reportSummary() {
   // Areas the inspector couldn't fully see, and why.
   const limited = limitedZones.map(z => {
     const why = ((reportData.areaReasons || {})[z] || []).join(', ');
-    return `${OBS_ZONES[z].label}: ${areaStatusOf(z) === 'NOT' ? 'not inspected' : 'partly inspected'}${why ? ` (${why})` : ''}`;
+    return `${OBS_ZONES[z].label}: ${areaStatusOf(z) === 'NOT' ? 'not inspected' : 'inspected with limits'}${why ? ` (${why})` : ''}`;
   });
   const next = [];
   if (live.length || reportData.treatmentRecommended === 'YES') {
@@ -8566,7 +8585,7 @@ function reportPrepGaps() {
   const unmarked = Object.keys(OBS_ZONES).filter(z => !areaStatusOf(z));
   if (unmarked.length) push(`${unmarked.length} area${unmarked.length === 1 ? ' has' : 's have'} no inspection status (${unmarked.map(z => OBS_ZONES[z].label).join(', ')})`,
     `<button class="link-btn" onclick="fixSendGap('inspected')">Mark the rest as inspected</button>` +
-    `<button class="link-btn" onclick="fixSendGap('na')">Not applicable</button>`);
+    `<button class="link-btn" onclick="fixSendGap('na')">Not present</button>`);
   const noResult = areasMissingResult();
   if (noResult.length) push(`${noResult.length} area${noResult.length === 1 ? ' has' : 's have'} no result for what was found there (${noResult.map(z => OBS_ZONES[z].label).join(', ')})`,
     `<button class="link-btn" onclick="fixSendGap('clear')">Mark the rest as nothing found</button>`);
@@ -9905,13 +9924,14 @@ async function buildReportPdf() {
   startPart('Areas Inspected');
   sectionTitle('AREAS INSPECTED', REPORT_PARTS.areas);
   resetRowShade();
-  const AREA_STATUS_TEXT = { INSPECTED:'Inspected', PARTIAL:'Partly inspected', NOT:'NOT INSPECTED', NA:'Not present' };
+  const AREA_STATUS_TEXT = { INSPECTED:'Inspected', PARTIAL:`Inspected with limits (see Section ${REPORT_PARTS.access})`, NOT:'NOT INSPECTED' };
   const anyStatus = Object.keys(OBS_ZONES).some(z => areaStatusOf(z));
   const noneRow = complete => row('Result', complete ? 'None' : 'Not recorded');
   para(`Each area of the property, how much of it could be inspected, and whether timber pest evidence was found there. Why an area could not be fully inspected is set out in Section ${REPORT_PARTS.access}.`);
   Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
     const st = areaStatusOf(zoneId);
-    if (!st) return;
+    // An area the property doesn't have isn't listed.
+    if (!st || st === 'NA') return;
     const result = areaResultOf(zoneId);
     const ev = result === 'FOUND' ? areaEvidence(zoneId) : [];
     const resultText = !result ? 'Result not recorded'
