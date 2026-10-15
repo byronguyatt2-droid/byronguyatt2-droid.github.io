@@ -374,12 +374,14 @@ const OBS_ZONES = {
 // reportData.obstructions / restrictedAccess are kept as the derived
 // plain-text summary (areas not fully inspected, and why) for the AI and
 // older code paths.
-// Reason labels that mean the area (or a room in it) couldn't be entered at
-// all: these print under "reasonable access not available". Labels in
-// RESTRICTION_REASONS limited access within an area; every other label is
-// an obstruction, something in the way of the view.
-const NO_ACCESS_REASONS = new Set(['Locked room and storage to garage', 'No access to subfloor', 'Item blocking access to manhole']);
-const RESTRICTION_REASONS = new Set(['Low Clearance', 'Low clearance in roof void', 'Low clearance to the outside edges of roof void', 'Height Restrictions', 'Limited access to skirting boards', 'Skillion Roof Design (no void)']);
+// The report sorts each reason into one of two kinds of access limit, the
+// terms AS 3660.2 / AS 4349.3 reports use:
+//   hindered access: temporary obstructions at the time of the inspection
+//     (furniture, stored goods, insulation, vegetation, low clearance);
+//   restricted access: a permanent restriction or locked entry (a locked
+//     room, no subfloor hatch, no roof void, beyond safe height).
+// Labels in RESTRICTED_REASONS are restricted; every other label hinders.
+const RESTRICTED_REASONS = new Set(['Locked room and storage to garage', 'No access to subfloor', 'Height Restrictions', 'Skillion Roof Design (no void)']);
 const AREA_STATUSES = [
   ['INSPECTED', 'Inspected'],
   ['PARTIAL',   'Partly'],
@@ -541,11 +543,15 @@ function renderAreaChecklist() {
     let reasons = '';
     if (status === 'PARTIAL' || status === 'NOT') {
       const selected = (reportData.areaReasons || {})[zoneId] || [];
-      reasons = '<div class="obs-items">' + zone.items.map(item => {
+      const btn = item => {
         const safe = item.replace(/'/g, '&#39;');
         return `<button class="obs-item-btn${selected.includes(item) ? ' selected' : ''}"
           onclick="toggleObsItem('${zoneId}','${safe}')">${item}</button>`;
-      }).join('') + '</div>';
+      };
+      const group = (title, items) => items.length
+        ? `<div class="obs-items-label">${title}</div><div class="obs-items">${items.map(btn).join('')}</div>` : '';
+      reasons = group('Hindered: in the way today', zone.items.filter(i => !RESTRICTED_REASONS.has(i)))
+        + group('Restricted: permanent or locked', zone.items.filter(i => RESTRICTED_REASONS.has(i)));
     }
     let result = '';
     if (areaWasEntered(zoneId)) {
@@ -726,7 +732,7 @@ function applyObstructionExtraction(data) {
   if (changed) syncObstructionData();
 }
 
-function setRestrictedAccess(hasRestrictions) {
+function setHinderedAccess(hasRestrictions) {
   const yesBtn  = document.getElementById('resYesBtn');
   const noBtn   = document.getElementById('resNoBtn');
   const detail  = document.getElementById('resDetailWrap');
@@ -738,7 +744,7 @@ function setRestrictedAccess(hasRestrictions) {
   } else {
     noBtn.classList.add('active'); yesBtn.classList.remove('active');
     if (detail) detail.style.display = 'none';
-    reportData.hinderedAreas      = 'NIL — No restricted access areas at time of inspection.';
+    reportData.hinderedAreas      = 'NIL — No hindered access areas at time of inspection.';
     reportData.hinderedAreasDetail = '';
     const elA = document.getElementById('f-hinderedAreas');
     const elB = document.getElementById('f-hinderedAreasDetail');
@@ -748,29 +754,60 @@ function setRestrictedAccess(hasRestrictions) {
   updateProgress(); flushDraftSave();
 }
 
-// The Restrictions answer: YES only when restricted areas were recorded.
+// The "access hindered?" answer: YES only when hindered areas were recorded.
 // Tapping No stores the 'NIL — …' text above, and older reports hold 'N/A'.
-function hasRestrictedAreas() {
+// (Before the hindered / restricted split this question asked about
+// "restricted" areas: low clearance and the like, which are hindered now.)
+function hasHinderedAreas() {
   const v = (reportData.hinderedAreas || '').trim();
   return !!v && !v.startsWith('NIL') && !v.includes('N/A');
 }
 
 // 'YES', 'NO', or null when the question hasn't been answered yet. An
 // unanswered question is never printed as NO.
-function restrictionsAnswer() {
+function hinderedAnswer() {
   if (!(reportData.hinderedAreas || '').trim()) return null;
-  return hasRestrictedAreas() ? 'YES' : 'NO';
+  return hasHinderedAreas() ? 'YES' : 'NO';
+}
+
+// Every access limit the report prints, as [label, text] rows: hindered
+// (temporary) and restricted (permanent or locked), from each area's
+// reasons and the inspector's own where-and-why, plus the high risk areas
+// to which access should be gained. allMarked: every area has a status, so
+// an empty list can be printed as "None".
+function accessLimits() {
+  const hindered = [], restricted = [];
+  Object.entries(OBS_ZONES).forEach(([z, zone]) => {
+    const st = areaStatusOf(z);
+    if (!['PARTIAL', 'NOT'].includes(st)) return;
+    const items = (reportData.areaReasons || {})[z] || [];
+    const status = st === 'NOT' ? 'Not inspected' : 'Partly inspected';
+    const h = items.filter(i => !RESTRICTED_REASONS.has(i)), r = items.filter(i => RESTRICTED_REASONS.has(i));
+    if (h.length) hindered.push([zone.label, `${status}, hindered by ${h.join(', ').toLowerCase()}`]);
+    if (r.length) restricted.push([zone.label, `${status}: ${r.join(', ').toLowerCase()}`]);
+    if (!items.length) hindered.push([zone.label, `${status}, reason not recorded`]);
+  });
+  if (hasHinderedAreas()) {
+    hindered.push(['Where', reportData.hinderedAreas]);
+    if (!isBlankValue(reportData.hinderedAreasDetail)) hindered.push(['What hindered it', reportData.hinderedAreasDetail]);
+  }
+  if (!isBlankValue(reportData.noAccessAreas)) restricted.push(['Where and why', reportData.noAccessAreas]);
+  const limited = areasNotFullyInspected();
+  const highRisk = !isBlankValue(reportData.highRiskAreas) ? reportData.highRiskAreas
+    : [!isBlankValue(reportData.noAccessAreas) ? reportData.noAccessAreas : '', ...limited.map(z => OBS_ZONES[z].label)].filter(Boolean).join('; ');
+  const allMarked = Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
+  return { hindered, restricted, highRisk, allMarked };
 }
 
 function restoreResState() {
-  const answer = restrictionsAnswer();
+  const answer = hinderedAnswer();
   if (!answer) {
     ['resYesBtn', 'resNoBtn'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.remove('active'); });
     const detail = document.getElementById('resDetailWrap');
     if (detail) detail.style.display = 'none';
     return;
   }
-  setRestrictedAccess(answer === 'YES');
+  setHinderedAccess(answer === 'YES');
 }
 
 // Findings with termite activity or evidence where "Refer to a builder or
@@ -1291,11 +1328,11 @@ function lookupSpecies(raw) {
 
 const SECTIONS = {
   property:        { fields:['structureType','height','occupancyStatus','weatherConditions','wallConstruction','roofType','floorType','facadeDirection','constructionEra','standard'], total:10 },
-  obstructions:    { fields:['areaStatus','noAccessAreas','highRiskAreas'], total:2 },
-  restrictions:    { fields:['hinderedAreas','hinderedAreasDetail'], total:2 },
-  findings:        { fields:['findings','borerActivity','decayFound','delignification'], total:4 },
-  conducive:       { fields:['waterLeaks','moistureReadings','leakLocation','timberSoil','slabEdge','weepHoles','antCapping','antCappingDetails','subfloorVentilation','nonDurableTimber','nonDurableTimberDetails'], total:6 },
-  recommendations: { fields:['riskLevel','treatmentRecommended','treatmentType','inspectionFrequency','invasiveInspection','invasiveInspectionDetails','otherRecommendations'], total:4 },
+  obstructions:    { fields:['areaStatus'], total:1 },
+  restrictions:    { fields:['hinderedAreas','hinderedAreasDetail','noAccessAreas','highRiskAreas','invasiveInspection','invasiveInspectionDetails'], total:2 },
+  findings:        { fields:['findings','borerActivity','decayFound','delignification','previousTreatment','previousTreatmentDetails'], total:4 },
+  conducive:       { fields:['waterLeaks','moistureReadings','leakLocation','siteDrainage','subfloorDrainage','subfloorVentilation','timberSoil','slabEdge','weepHoles','antCapping','antCappingDetails','nonDurableTimber','nonDurableTimberDetails'], total:6 },
+  recommendations: { fields:['riskLevel','treatmentRecommended','treatmentType','inspectionFrequency','otherRecommendations'], total:4 },
   photos:          { fields:['photos'], total:1 },
   signoff:         { fields:['inspectorLicence','inspectorSignature','agreement'], total:3 }
 };
@@ -1325,8 +1362,8 @@ FIELDS (every one null unless the note gives it):
 "existingSystem":string,"existingSystemOther":string,"durableNoticePresent":"YES"|"NO","hardLandscaping":"YES"|"NO","zone25mmVisible":"YES"|"NO","softLandscaping":"YES"|"NO","zone75mmVisible":"YES"|"NO","antCapSoldered":"YES"|"NO"|"N/A",
 "areaStatus":{"interior"|"exterior"|"subfloor"|"roofvoid"|"outbuildings"|"site"|"fences"|"retainingwalls"|"landscapingtimbers":"INSPECTED"|"PARTIAL"|"NOT"|"NA"},"areaResult":{same area keys:"CLEAR"|"FOUND"},"obstructions":string,"restrictedAccess":string,"noAccessAreas":string,"highRiskAreas":string,"hinderedAreas":string,"hinderedAreasDetail":string,
 "findings":[{"termiteActivity":"ACTIVE"|"INACTIVE"|"NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES"|"NO","structuralConcern":"YES"|"NO"}],
-"borerActivity":"ACTIVE"|"INACTIVE"|"NONE","borerDetails":string,"decayFound":"YES"|"NO","decayDetails":string,"delignification":"YES"|"NO","delignificationDetails":string,
-"moistureReadings":"YES"|"NO","waterLeaks":"YES"|"NO","leakLocation":string,"moistureMeterReadings":[{"location":string,"reading":string}],"timberSoil":"YES"|"NO","slabEdge":"CLEAR"|"OBSTRUCTED","weepHoles":"CLEAR"|"BRIDGED","antCapping":"INTACT"|"GAPS"|"NONE","antCappingDetails":string,"subfloorVentilation":"ADEQUATE"|"POOR","nonDurableTimber":"YES"|"NO","nonDurableTimberDetails":string,
+"borerActivity":"ACTIVE"|"INACTIVE"|"NONE","borerDetails":string,"decayFound":"YES"|"NO","decayDetails":string,"delignification":"YES"|"NO","delignificationDetails":string,"previousTreatment":"YES"|"NO","previousTreatmentDetails":string,
+"moistureReadings":"YES"|"NO","waterLeaks":"YES"|"NO","leakLocation":string,"moistureMeterReadings":[{"location":string,"reading":string}],"timberSoil":"YES"|"NO","slabEdge":"CLEAR"|"OBSTRUCTED","weepHoles":"CLEAR"|"BRIDGED"|"NONE","siteDrainage":"ADEQUATE"|"POOR","subfloorDrainage":"ADEQUATE"|"POOR","antCapping":"INTACT"|"GAPS"|"NONE","antCappingDetails":string,"subfloorVentilation":"ADEQUATE"|"POOR","nonDurableTimber":"YES"|"NO","nonDurableTimberDetails":string,
 "riskLevel":"LOW"|"MEDIUM"|"HIGH","treatmentRecommended":"YES"|"NO","treatmentType":string,"inspectionFrequency":string,"invasiveInspection":"YES"|"NO","invasiveInspectionDetails":string,"otherRecommendations":string}
 
 DROPDOWN FIELDS: the app shows these as pick-lists. Return the list value EXACTLY as written below when the inspector's words fit one; when they describe something the list cannot express, return their words instead (never a list value that adds a fact they did not state).
@@ -1354,7 +1391,7 @@ AREAS INSPECTED (areaStatus): one key per area the note actually covers; leave o
 - A later note re-covering an area ("got into the back of the subfloor now, all clear") simply states that area's new status.
 - areaResult: what was found in each area the note covers, same keys. "FOUND" when the note records termites or termite evidence (including suspected), borers, wood decay or chemical delignification in that area: workings in a fence post is fences FOUND, a skirting board in a bedroom is interior FOUND, a bearer under the house is subfloor FOUND, a tree in the yard is site FOUND, a sleeper is landscapingtimbers FOUND. "CLEAR" only when the inspector says that area had nothing ("fences all good, no activity", "roof void clear", "no termites or borers in the subfloor"), or says the whole property was clear, which makes every area the note covers CLEAR. A clear remark about one room or part ("no activity in the bathroom") is not the whole area: leave that area out unless they say the rest was clear too. Walking an area without saying what was found gives no areaResult. Moisture, leaks and other conducive conditions are not timber pest evidence.
 
-OBSTRUCTIONS, RESTRICTIONS AND NO ACCESS: five fields, each with one meaning. The report follows AS 4349.3: an area or room the inspector could not enter at all is "reasonable access not available" (noAccessAreas); an area they entered but could not fully see is obstructed (something in the way: furniture, stored goods, floor coverings, insulation) or restricted (access within it limited: low clearance, height, unsafe parts).
+HINDERED AND RESTRICTED ACCESS: five fields, each with one meaning. The report sorts every access limit into two kinds. HINDERED access is a temporary obstruction at the time of the inspection: furniture, stored goods, floor coverings, insulation, vegetation, a manhole blocked by stored items, or low clearance in the subfloor or roof void. RESTRICTED access is a permanent restriction or locked entry: a locked room, a subfloor with no access hatch, a roof with no void, or a part beyond safe height.
 - obstructions: which areas were not fully inspected and roughly where, e.g. "Subfloor: back section behind stored items. Roof void: outer edges and corners". Only PARTIAL or NOT areas appear here. Null when nothing was in the way.
 - restrictedAccess: WHY, as "Area: reason" pairs separated by ". ", using the app's reason labels where one fits, because the app ticks them from these exact words:
   Interior: Furniture | Flooring | Fixtures | Items/belongings stored against wall | Items/belongings stored to cupboards | Limited access to skirting boards | Locked room and storage to garage
@@ -1363,9 +1400,9 @@ OBSTRUCTIONS, RESTRICTIONS AND NO ACCESS: five fields, each with one meaning. Th
   Roof void: Insulation | Sarking | Air conditioning ducting | Stored articles | Low clearance to the outside edges of roof void | Low clearance in roof void | Item blocking access to manhole | Height Restrictions | Skillion Roof Design (no void)
   Outbuildings / Site / Fences: Vegetation | Stored Articles.  Retaining walls / Landscaping timbers: Back Fill | Abutting Timbers | Vegetation | Stored Articles
   Stored items, boxes, goods or belongings are "Stored Articles". Use "No access to subfloor" ONLY when the subfloor was not entered at all; a subfloor the inspector was in but could not fully reach gets "Stored Articles" or "Low Clearance", never any phrase with the word "access". When no label fits, write the reason in a few plain words after the area name. Null when nothing was in the way.
-- noAccessAreas: every area, room or space the inspector could NOT enter or reach at all, where and why, in their words, e.g. "Front left bedroom, north-east side: locked. Roof void: manhole blocked by a fixed cabinet". Inspectors often call this "restricted" ("restricted due to a locked bedroom"); a place that was not entered at all still goes here. Null when the note names no such place.
-- hinderedAreas: areas the inspector DID enter where the inspection was RESTRICTED, as the report's "Areas where inspection was restricted" row. A room or area that was not entered at all is noAccessAreas, not this. Name only the limited areas and the limit ("Roof void: outer edges and corners not reached. Bedrooms: walls behind furniture"). It is NOT a list of what was inspected, and it never names an area that was fully inspected. Null when the note states no restriction, and also null when the note simply does not raise the subject.
-- hinderedAreasDetail: the nature of the restrictions in hinderedAreas ("low clearance; furniture against walls"). Null when hinderedAreas is null.
+- noAccessAreas: RESTRICTED access: every room, area or space the inspector could not inspect because of a permanent restriction or locked entry, where and why, in their words, e.g. "Front left bedroom, north-east side: locked. Subfloor: no access hatch". Null when the note names no such place. A place that was blocked only by something movable (a manhole blocked by stored boxes) is hinderedAreas, not this.
+- hinderedAreas: HINDERED access: the areas or parts the inspector could not fully inspect because of temporary obstructions or low clearance, whether they got in or not. Name only the limited areas and parts ("Roof void: outer edges and corners, low clearance. Subfloor: back section behind stored items. Bedrooms: walls behind furniture"). It is NOT a list of what was inspected, and it never names an area that was fully inspected. Null when the note states nothing was in the way, and also null when the note simply does not raise the subject.
+- hinderedAreasDetail: what hindered access in hinderedAreas ("low clearance; stored items; furniture against walls"). Null when hinderedAreas is null.
 - highRiskAreas: places the inspector could NOT inspect and would want checked once access exists ("back section of the subfloor behind the stored items", "roof void outer edges"). Every place in noAccessAreas belongs here too. An unreached area stays here even when evidence was seen at its edge. It is never a place where activity WAS found and inspected (that is a finding), never a clear area, and never an area the note does not mention.
 
 TERMITE FINDINGS (findings is always an array; it holds termites only):
@@ -1383,6 +1420,7 @@ BORERS AND WOOD DECAY (never in findings):
 - borerDetails: the borer named (Anobium, Lyctus or powderpost, Queensland pine beetle, European house borer), where, and what was seen, with no severity words.
 - decayFound: "YES" for rot, fungal decay, soft, spongy or crumbling timber. "NO" when they say no rot or decay. Null when not raised.
 - decayDetails: where the decay is and what was seen, with no severity words.
+- previousTreatment: "YES" when the inspector sees signs the property was treated for termites before: drill holes in the slab, paving or brickwork (often plugged), dusting residue, or bait or monitoring stations in the ground. "NO" when they say there is no sign of a previous treatment. Null when not raised. It is about past treatment evidence, not an installed system the inspector names (that is existingSystem), although both can be filled. previousTreatmentDetails: what and where, in their words ("plugged drill holes along the rear patio").
 - delignification: chemical delignification, where chemicals or salt air break down the timber surface so it looks furry, hairy or fibrous (often on roof timbers near the coast or near chimneys). "YES" when the inspector reports it, "NO" when they say there is none. Null when not raised. delignificationDetails: where and what was seen.
 
 MOISTURE AND CONDUCIVE CONDITIONS:
@@ -1392,7 +1430,9 @@ MOISTURE AND CONDUCIVE CONDITIONS:
 - leakLocation: where the leak or water is getting in, anywhere in the building (roof, gutter, wall, wet area, hot water system, subfloor). Null unless waterLeaks is YES. It is the leak itself, not where a moisture reading was taken: "a leak in the bathroom, high readings on the hallway wall outside" is leakLocation "Bathroom", with the hallway wall going in moistureMeterReadings.
 - timberSoil: "YES" for timber in contact with soil (timber lying on the subfloor soil, sleepers or landscaping timbers against the house, fence timber with soil built up, stumps buried). "NO" when they say none or that it has been removed. Null when not raised.
 - slabEdge: "CLEAR" when the slab edge is visible around the building; "OBSTRUCTED" when soil, a garden bed, paving, render or cladding covers or bridges it anywhere. Null when there is no slab or it was not raised.
-- weepHoles: "CLEAR" or "BRIDGED" (blocked, covered, below soil or paving, anywhere). Null when not raised or the building has none (weatherboard).
+- weepHoles: "CLEAR" or "BRIDGED" (blocked, covered, below soil or paving, anywhere). "NONE" only when the inspector says no weep holes were found or located. Null when not raised, or for a building that has none by design (weatherboard) when the inspector says nothing about them.
+- siteDrainage: "ADEQUATE" when the inspector says the site drains well; "POOR" for poor, inadequate or no drainage around the building: water pooling, ponding, ground falling towards the house, soggy soil against the walls, downpipes discharging at the walls. Null when not raised.
+- subfloorDrainage: the same for the subfloor: "POOR" for water lying or pooling in the subfloor, wet or boggy subfloor soil, or drainage the inspector calls poor; "ADEQUATE" when they say it is dry and drains well. Null when not raised or there is no subfloor.
 - subfloorVentilation: "ADEQUATE" when the inspector says the subfloor is well ventilated or vents are fine; "POOR" for poor, inadequate, little or blocked ventilation, too few vents, or a stuffy, damp, humid subfloor they put down to airflow. Null when not raised or there is no subfloor.
 - nonDurableTimber: "YES" when untreated, non-durable or softwood timber is used where it gets wet or touches the ground (pine sleepers, untreated garden edging, untreated posts, untreated decking near soil). "NO" when they say the timber there is treated or durable. nonDurableTimberDetails: what and where, in their words. Null when not raised. This is separate from timberSoil, and both can be YES.
 
@@ -2487,8 +2527,8 @@ const HF_SILENCE_MS  = 2200;
 
 const HF_SECTION_KEYWORDS = {
   property:        ['property','property details','structure type','building details','property section'],
-  obstructions:    ['obstructions','obstruction','areas not inspected','obstructed','hindered'],
-  restrictions:    ['restrictions','restriction','restricted access','restricted areas'],
+  obstructions:    ['areas inspected','obstructions','obstruction'],
+  restrictions:    ['access section','areas not inspected','unable to inspect','hindered','hindered access','restrictions','restriction','restricted access','restricted areas','high risk','invasive'],
   findings:        ['findings','finding','termite activity','termites','species','timber pest'],
   conducive:       ['conducive','conducive conditions','moisture','water leak','timber to soil'],
   recommendations: ['recommendations','recommendation','treatment','susceptibility','risk level'],
@@ -2497,7 +2537,7 @@ const HF_SECTION_KEYWORDS = {
 };
 
 const HF_SECTION_NAMES = {
-  property:'property details', obstructions:'obstructions', restrictions:'restrictions',
+  property:'about the property', obstructions:'areas inspected', restrictions:'areas unable to be inspected',
   findings:'findings', conducive:'conducive conditions', recommendations:'recommendations',
   photos:'photos', signoff:'sign off',
 };
@@ -3390,7 +3430,7 @@ function extractBlanks() {
   if (blank('structureType')) blanks.push({ label: 'structure type', target: 'f-structureType' });
   if (blank('height')) blanks.push({ label: 'height', target: 'f-height' });
   if (blank('existingSystem')) blanks.push({ label: 'termite management system', target: 'f-existingSystem' });
-  if (!restrictionsAnswer()) blanks.push({ label: 'restrictions', target: 'resYesNo' });
+  if (!hinderedAnswer()) blanks.push({ label: 'hindered access', target: 'resYesNo' });
   const missing = findingsMissingReferral();
   if (missing.length) {
     const f = reportData.findings[missing[0] - 1];
@@ -3685,9 +3725,9 @@ function renderField(el, key, val) {
 // Text fields that hold a list of places or observations. A later note
 // adds to them instead of replacing them, so "borer holes in the subfloor"
 // survives a second note about rot in a fascia.
-const APPEND_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'noAccessAreas', 'highRiskAreas', 'borerDetails', 'decayDetails', 'delignificationDetails', 'nonDurableTimberDetails', 'leakLocation']);
+const APPEND_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'noAccessAreas', 'highRiskAreas', 'borerDetails', 'decayDetails', 'delignificationDetails', 'nonDurableTimberDetails', 'previousTreatmentDetails', 'leakLocation']);
 // Free-text fields where "None", "Nil" or "N/A" means nothing to record.
-const NIL_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'noAccessAreas', 'highRiskAreas', 'borerDetails', 'decayDetails', 'delignificationDetails', 'nonDurableTimberDetails', 'leakLocation', 'treatmentType', 'existingSystemOther']);
+const NIL_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'noAccessAreas', 'highRiskAreas', 'borerDetails', 'decayDetails', 'delignificationDetails', 'nonDurableTimberDetails', 'previousTreatmentDetails', 'leakLocation', 'treatmentType', 'existingSystemOther']);
 const isNilText = v => /^\s*(nil|none|no|n\/a|na|not applicable|nothing|not stated|not mentioned|unknown)\s*[.!]?\s*$/i.test(String(v));
 const hasRealFinding = list => list.some(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
 const findingHasData = f => !!(f.termiteActivity || f.species || f.damageDescription || f.activityLocation || f.nestLocated || f.structuralConcern);
@@ -3830,10 +3870,10 @@ function populateFields(data) {
     setTimeout(() => {
       let val = typeof rawVal === 'string' ? rawVal.trim() : String(rawVal);
       if (key === 'hinderedAreas') {
-        // The Restrictions question: a named restriction answers YES and
+        // The "access hindered?" question: a named limit answers YES and
         // shows the detail; an explicit "none" answers NO.
-        if (!val) { setRestrictedAccess(false); updateProgress(); return; }
-        setRestrictedAccess(true);
+        if (!val) { setHinderedAccess(false); updateProgress(); return; }
+        setHinderedAccess(true);
       }
       const prev = reportData[key];
       if (APPEND_TEXT_KEYS.has(key) && typeof prev === 'string' && prev.trim() && !prev.startsWith('NIL')) {
@@ -3940,14 +3980,15 @@ const CHOICE_SETS = {
   finding:   [['YES', 'bad'], ['NO', 'good']],
   risk:      [['LOW', 'good'], ['MEDIUM', 'warn'], ['HIGH', 'bad']],
   slabedge:  [['CLEAR', 'good'], ['OBSTRUCTED', 'bad']],
-  weepholes: [['CLEAR', 'good'], ['BRIDGED', 'bad']],
+  weepholes: [['CLEAR', 'good'], ['BRIDGED', 'bad'], ['NONE', 'neutral', 'None located']],
   antcapping: [['INTACT', 'good'], ['GAPS', 'bad'], ['NONE', 'bad']],
   ventilation: [['ADEQUATE', 'good'], ['POOR', 'bad'], ['N/A', 'neutral']],
+  drainage:  [['ADEQUATE', 'good'], ['POOR', 'bad'], ['N/A', 'neutral']],
   height:    [['Single storey', 'neutral'], ['Double storey', 'neutral'], ['Split level', 'neutral'], ['Three storey+', 'neutral']],
 };
 // Report fields: the set comes from the field's key, else its edit type.
 const CHOICE_SET_BY_KEY = { borerActivity: 'borer', durableNoticePresent: 'wantyes', antCapSoldered: 'wantyes', hardLandscaping: 'neutral', softLandscaping: 'neutral' };
-const CHOICE_SET_BY_TYPE = { yesno: 'yesno', yesnona: 'yesno', risk: 'risk', slabedge: 'slabedge', weepholes: 'weepholes', antcapping: 'antcapping', ventilation: 'ventilation', height: 'height', activity: 'activity' };
+const CHOICE_SET_BY_TYPE = { yesno: 'yesno', yesnona: 'yesno', risk: 'risk', slabedge: 'slabedge', weepholes: 'weepholes', antcapping: 'antcapping', ventilation: 'ventilation', drainage: 'drainage', height: 'height', activity: 'activity' };
 
 function choiceCardsHTML(set, name, current, dataAttrs) {
   const opts = CHOICE_SETS[set];
@@ -6007,6 +6048,14 @@ const INSPECTION_TYPE_STANDARD = {
 // label, the agreement wording and the "not for buying or selling" notice all
 // use this, so an insurance or legal job citing AS 4349.3 is never labelled
 // pre-purchase.
+// The report's title follows its standard: AS 4349.3 is a timber pest
+// inspection (termites, borers, decay, delignification), AS 3660.2 and the
+// rest a termite inspection.
+function reportKindTitle() {
+  const timberPest = isPrePurchaseJob() || /^AS 4349\.3/.test(reportData.standard || '');
+  return timberPest ? 'Timber Pest Inspection Report' : 'Termite Inspection Report';
+}
+
 function isPrePurchaseJob() {
   const type = reportData.jobInspectionType || '';
   if (type) return /pre-purchase/i.test(type);
@@ -8266,7 +8315,7 @@ else installToastScreenWatch();
 //   reportData.noQuoteNeeded true when the job needs no quote
 // The quote's own sent state lives on the quote (see SENT AND LOCKED in js/quote.js).
 const ISSUE_META_KEYS = ['reportNumber', 'sent', 'issue', 'issueHistory', 'amending', 'pendingNotes', 'noQuoteNeeded'];
-const ISSUE_SECTION_NAMES = { job:'Job details', quote:'Quote', property:'Property', obstructions:'Areas', restrictions:'Restrictions',
+const ISSUE_SECTION_NAMES = { job:'Job details', quote:'Quote', property:'Property', obstructions:'Areas inspected', restrictions:'Areas unable to be inspected',
   findings:'Findings', conducive:'Conducive', recommendations:'Recommendations', photos:'Photos', signoff:'Sign-off' };
 
 function isReportLocked() { return !!(reportData.issue && !reportData.amending); }
@@ -8355,6 +8404,11 @@ function reportVersion() {
 
 function currentJobQuote() { return quoteForReport(currentReportId || 'draft', getFullAddress()); }
 
+// The report's numbered sections, in print order. The app's section headers
+// carry the same numbers (index.html), and the summary points to them.
+const REPORT_PARTS = { client: 1, summary: 2, property: 3, areas: 4, access: 5, findings: 6, conducive: 7, recommendations: 8, photos: 9, terms: 10, inspector: 11, acknowledgement: 12 };
+const OBS_ZONES_BY_LABEL = Object.fromEntries(Object.entries(OBS_ZONES).map(([z, zone]) => [zone.label, z]));
+
 // The headline results, shared by the PDF's summary page and the review
 // screen before sending. Tiles are [label, value, tone (bad | warn | good |
 // none), detail].
@@ -8375,6 +8429,8 @@ function reportSummary() {
   else if (reportData.antCapping === 'NONE') conducive.push('no ant capping on piers');
   if (reportData.slabEdge === 'OBSTRUCTED') conducive.push('slab edge concealed');
   if (reportData.subfloorVentilation === 'POOR') conducive.push('poor subfloor ventilation');
+  if (reportData.siteDrainage === 'POOR') conducive.push('poor site drainage');
+  if (reportData.subfloorDrainage === 'POOR') conducive.push('poor subfloor drainage');
   if (reportData.nonDurableTimber === 'YES') conducive.push(`untreated or non-durable timber in a damp area${reportData.nonDurableTimberDetails ? ` (${reportData.nonDurableTimberDetails})` : ''}`);
   const places = list => list.map(f => f.activityLocation).filter(Boolean).join('; ');
   const NR = 'NOT RECORDED';
@@ -8389,21 +8445,52 @@ function reportSummary() {
   if (structural) basis.push('builder referral');
   if (conducive.length) basis.push(plural(conducive.length, 'conducive condition'));
   if (limitedZones.length) basis.push(`${plural(limitedZones.length, 'area')} not fully inspected`);
-  const tiles = [
-    ['Live termites', live.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, live.length ? 'bad' : fs.length ? 'good' : 'none', places(live)],
-    ['Termite damage or old activity', damaged.length ? 'FOUND' : fs.length ? 'NONE SEEN' : NR, damaged.length ? 'warn' : fs.length ? 'good' : 'none', places(damaged)],
-    ['Borers', { ACTIVE: 'ACTIVE', INACTIVE: 'OLD DAMAGE', NONE: 'NONE SEEN' }[reportData.borerActivity] || NR,
-      { ACTIVE: 'bad', INACTIVE: 'warn', NONE: 'good' }[reportData.borerActivity] || 'none', reportData.borerDetails || ''],
-    ['Wood decay (rot)', { YES: 'FOUND', NO: 'NONE SEEN' }[reportData.decayFound] || NR,
-      { YES: 'warn', NO: 'good' }[reportData.decayFound] || 'none', reportData.decayDetails || ''],
-    ['Builder referral', structural ? 'BUILDER TO ASSESS' : unanswered.length ? 'NOT ANSWERED' : fs.length ? 'NONE FLAGGED' : NR,
-      structural ? 'bad' : unanswered.length ? 'warn' : fs.length ? 'good' : 'none',
-      !structural && unanswered.length ? `Finding${unanswered.length === 1 ? '' : 's'} ${unanswered.join(', ')}: not answered` : ''],
-    ['Conducive conditions', conducive.length ? `${conducive.length} FOUND` : 'NONE RECORDED', conducive.length ? 'warn' : 'none', conducive.join('; ')],
-    ['Risk of termite attack', reportData.riskLevel || NR, { HIGH: 'bad', MEDIUM: 'warn', LOW: 'good' }[reportData.riskLevel] || 'none',
-      reportData.riskLevel && basis.length ? `Based on ${basis.join(', ')}` : ''],
-    ['Treatment recommended', { YES: 'YES', NO: 'NO' }[reportData.treatmentRecommended] || NR,
-      { YES: 'bad', NO: 'good' }[reportData.treatmentRecommended] || 'none', reportData.treatmentType || ''],
+  // The summary asks the reader's questions in a fixed order, in three
+  // groups, and each answer says which section has the detail. Items are
+  // [question, answer, tone (bad | warn | good | none), section, detail].
+  const acc = accessLimits();
+  const yn = (yes, no) => yes ? 'YES' : no ? 'NO' : NR;
+  const ynTone = (yes, no, bad = 'bad') => yes ? bad : no ? 'good' : 'none';
+  const hinderedYes = acc.hindered.length > 0, restrictedYes = acc.restricted.length > 0;
+  const hinderedNo = !hinderedYes && (hinderedAnswer() === 'NO' || (acc.allMarked && !limitedZones.length));
+  const withNest = fs.filter(f => f.nestLocated === 'YES');
+  const nestNo = fs.length && !withNest.length;
+  const groups = [
+    { title: 'Access', items: [
+      ['Was access hindered by temporary obstructions?', yn(hinderedYes, hinderedNo), ynTone(hinderedYes, hinderedNo, 'warn'), REPORT_PARTS.access,
+        acc.hindered.filter(([l]) => OBS_ZONES_BY_LABEL[l]).map(([l]) => l).join(', ')],
+      ['Was access restricted (permanent or locked)?', yn(restrictedYes, acc.allMarked), ynTone(restrictedYes, acc.allMarked, 'warn'), REPORT_PARTS.access,
+        acc.restricted.filter(([l]) => OBS_ZONES_BY_LABEL[l]).map(([l]) => l).join(', ')],
+      ['High risk areas to which access should be gained?', yn(!!acc.highRisk, acc.allMarked), ynTone(!!acc.highRisk, acc.allMarked, 'warn'), REPORT_PARTS.access, acc.highRisk],
+      ['Invasive inspection recommended?', { YES: 'YES', NO: 'NO' }[reportData.invasiveInspection] || NR,
+        { YES: 'warn', NO: 'good' }[reportData.invasiveInspection] || 'none', REPORT_PARTS.access, reportData.invasiveInspectionDetails || ''],
+    ] },
+    { title: 'Activity', items: [
+      ['Live termites found?', live.length ? 'YES' : fs.length ? 'NO' : NR, live.length ? 'bad' : fs.length ? 'good' : 'none', REPORT_PARTS.findings, places(live)],
+      ['Termite nest found?', withNest.length ? 'YES' : nestNo ? 'NO' : NR, withNest.length ? 'bad' : nestNo ? 'good' : 'none', REPORT_PARTS.findings, places(withNest)],
+      ['Termite workings or damage found?', damaged.length ? 'YES' : fs.length ? 'NO' : NR, damaged.length ? 'warn' : fs.length ? 'good' : 'none', REPORT_PARTS.findings, places(damaged)],
+      ['Borers found?', { ACTIVE: 'ACTIVE', INACTIVE: 'OLD DAMAGE', NONE: 'NO' }[reportData.borerActivity] || NR,
+        { ACTIVE: 'bad', INACTIVE: 'warn', NONE: 'good' }[reportData.borerActivity] || 'none', REPORT_PARTS.findings, reportData.borerDetails || ''],
+      ['Wood decay (rot) found?', { YES: 'YES', NO: 'NO' }[reportData.decayFound] || NR,
+        { YES: 'warn', NO: 'good' }[reportData.decayFound] || 'none', REPORT_PARTS.findings, reportData.decayDetails || ''],
+      ['Chemical delignification found?', { YES: 'YES', NO: 'NO' }[reportData.delignification] || NR,
+        { YES: 'warn', NO: 'good' }[reportData.delignification] || 'none', REPORT_PARTS.findings, reportData.delignificationDetails || ''],
+      ['Evidence of a previous termite treatment?', { YES: 'YES', NO: 'NO' }[reportData.previousTreatment] || NR,
+        { YES: 'warn', NO: 'good' }[reportData.previousTreatment] || 'none', REPORT_PARTS.findings, reportData.previousTreatmentDetails || ''],
+    ] },
+    { title: 'Safety & risk', items: [
+      ['Builder or engineer referral?', structural ? 'YES' : unanswered.length ? 'NOT ANSWERED' : fs.length ? 'NO' : NR,
+        structural ? 'bad' : unanswered.length ? 'warn' : fs.length ? 'good' : 'none', REPORT_PARTS.findings,
+        !structural && unanswered.length ? `Finding${unanswered.length === 1 ? '' : 's'} ${unanswered.join(', ')}: not answered` : ''],
+      ['Conditions conducive to timber pests?', conducive.length ? `${conducive.length} FOUND` : 'NONE RECORDED', conducive.length ? 'warn' : 'none', REPORT_PARTS.conducive,
+        conducive.join('; ').replace(/^./, ch => ch.toUpperCase())],
+      ['Termite treatment recommended?', { YES: 'YES', NO: 'NO' }[reportData.treatmentRecommended] || NR,
+        { YES: 'bad', NO: 'good' }[reportData.treatmentRecommended] || 'none', REPORT_PARTS.recommendations, reportData.treatmentType || ''],
+      ['Risk of termite attack', reportData.riskLevel || NR, { HIGH: 'bad', MEDIUM: 'warn', LOW: 'good' }[reportData.riskLevel] || 'none', REPORT_PARTS.recommendations,
+        reportData.riskLevel && basis.length ? `Based on ${basis.join(', ')}` : ''],
+      ['Next inspection', reportData.inspectionFrequency ? String(reportData.inspectionFrequency).split(/[,;]/)[0].trim().toUpperCase() : 'WITHIN 12 MONTHS', 'none', REPORT_PARTS.recommendations,
+        reportData.inspectionFrequency && /[,;]/.test(reportData.inspectionFrequency) ? reportData.inspectionFrequency : ''],
+    ] },
   ];
   // Areas the inspector couldn't fully see, and why.
   const limited = limitedZones.map(z => {
@@ -8412,7 +8499,7 @@ function reportSummary() {
   });
   const next = [];
   if (live.length || reportData.treatmentRecommended === 'YES') {
-    next.push(`Termite treatment${reportData.treatmentType ? `: ${reportData.treatmentType}` : ' (see Recommendations)'}.`);
+    next.push(`Termite treatment${reportData.treatmentType ? `: ${reportData.treatmentType}` : ` (see Section ${REPORT_PARTS.recommendations})`}.`);
   }
   if (structural) next.push('Have a licensed builder or structural engineer assess the termite damage before any repairs.');
   if (reportData.borerActivity === 'ACTIVE') next.push('Treat the active borers and replace badly affected timbers.');
@@ -8428,7 +8515,7 @@ function reportSummary() {
   }
   if (limitedZones.length) next.push(`Provide access to ${limitedZones.map(z => OBS_ZONES[z].label.replace(/^The /, '').toLowerCase()).join(', ')} for a follow-up inspection.`);
   next.push(`Next timber pest inspection: ${reportData.inspectionFrequency || 'within 12 months'}.`);
-  return { tiles, limited, next, basis };
+  return { groups, limited, next, basis };
 }
 
 // Gaps in the report itself, shown before sending and before completing.
@@ -8449,7 +8536,7 @@ function reportPrepGaps() {
     `<button class="link-btn" onclick="fixSendGap('clear')">Mark the rest as nothing found</button>`);
   areasEvidenceUnlinked().forEach(z => push(`${OBS_ZONES[z].label}: marked "evidence found", but no finding mentions it`,
     `<button class="link-btn" onclick="closeSendReview(); addFindingForArea('${z}')">Add finding</button>`));
-  if (!restrictionsAnswer()) push('Section 3: "restricted access?" isn\'t answered');
+  if (!hinderedAnswer()) push(`Section ${REPORT_PARTS.access}: "was access hindered?" isn't answered`);
   findingsMissingReferral().forEach(n => push(`Finding ${n}: "refer to a builder or engineer?" isn't answered`));
   const pending = (reportData.pendingNotes || []).length;
   if (pending) push(`${pending} voice note${pending === 1 ? ' is' : 's are'} still waiting to be filled in`);
@@ -8817,10 +8904,11 @@ function openSendReview() {
   }
   document.getElementById('sendReviewFiles').innerHTML = attach.join('');
 
-  const { tiles, limited } = reportSummary();
-  document.getElementById('sendReviewSummary').innerHTML =
-    '<div class="send-review-tiles">' + tiles.map(([label, value, tone]) =>
-      `<div class="send-review-tile tone-${tone}"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('') + '</div>' +
+  // The same questions, in the same groups, as the report's summary page.
+  const { groups, limited } = reportSummary();
+  document.getElementById('sendReviewSummary').innerHTML = groups.map(g =>
+    `<div class="send-review-sub">${esc(g.title)}</div><div class="send-review-tiles">` + g.items.map(([label, value, tone]) =>
+      `<div class="send-review-tile tone-${tone}"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('') + '</div>').join('') +
     (limited.length ? `<div class="send-review-sub">Not fully inspected</div><ul class="send-review-list">${limited.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : '');
 
   const gaps = reportPrepGaps();
@@ -9188,9 +9276,9 @@ async function buildReportPdf() {
     // left, the part of the report on the right, over a thin teal rule.
     const companyName = (getCompanyDetails().name || '').trim();
     doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.ink);
-    doc.text(companyName || 'Timber Pest Inspection Report', M, 10);
+    doc.text(companyName || reportKindTitle(), M, 10);
     const addr = getFullAddress() || '';
-    const sub = [companyName ? 'Timber Pest Inspection Report' : '', addr].filter(Boolean).join('   ·   ');
+    const sub = [companyName ? reportKindTitle() : '', addr].filter(Boolean).join('   ·   ');
     if (sub) {
       doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
       doc.text(sub.length > 90 ? sub.slice(0, 89) + '…' : sub, M, 14);
@@ -9202,11 +9290,12 @@ async function buildReportPdf() {
   }
 
   // ── SECTION TITLE ─────────────────────────────────────────────────────────
-  // Numbered sections count up in the order they're drawn; numbered=false
-  // for the reference sections. A title never sits at the foot of a page.
-  let sectionNo = 0;
-  function sectionTitle(title, numbered = true) {
-    const num = numbered ? ++sectionNo : '';
+  // no: the section's number from REPORT_PARTS (or 'A' for the appendix),
+  // whose page the contents list records. A title never sits at the foot of
+  // a page.
+  const partPages = {};
+  function sectionTitle(title, no) {
+    const num = no || '';
     if (y > 240) newPage();
     gap(4);
     // Number badge
@@ -9215,6 +9304,7 @@ async function buildReportPdf() {
       doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.white);
       doc.text(String(num), M+3.5, y+5.2, { align:'center' });
     }
+    if (num) partPages[num] = doc.internal.getNumberOfPages();
     // Title
     const titleX = num ? M+10 : M;
     doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(...C.ink);
@@ -9411,10 +9501,15 @@ async function buildReportPdf() {
   }
 
   function photoGallery() {
-    const photos = reportData.photos;
-    if (!photos || !photos.length) return;
+    const photos = reportData.photos || [];
     startPart('Photographs');
-    sectionTitle('PHOTOGRAPHIC EVIDENCE');
+    sectionTitle('PHOTOGRAPHS', REPORT_PARTS.photos);
+    if (!photos.length) {
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
+      doc.text('No general photographs were attached. Photos of each area appear in the section they belong to.', M, y);
+      y += 8;
+      return;
+    }
     const gutter = 6, colW = (CW - gutter) / 2, maxImgH = 58, captionGap = 4;
     function computeBox(p) {
       let w = colW, h = w * (p.height / p.width);
@@ -9448,7 +9543,8 @@ async function buildReportPdf() {
     structureType:'Structure Type', wallConstruction:'Wall Construction', floorType:'Floor Type', roofType:'Roof Type',
     height:'Height', facadeDirection:'Orientation', occupancyStatus:'Occupancy Status', weatherConditions:'Weather Conditions',
     constructionEra:'Year / Period of Construction', standard:'Applicable Standard',
-    hinderedAreas:'Areas Where Inspection Was Restricted', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'Nature of Restriction', noAccessAreas:'Areas With No Reasonable Access', highRiskAreas:'High Risk Areas',
+    hinderedAreas:'Hindered Access: Where', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'What Hindered Access', noAccessAreas:'Restricted Access: Where & Why', highRiskAreas:'High Risk Areas',
+    previousTreatment:'Evidence of Previous Treatment', previousTreatmentDetails:'Previous Treatment: What & Where', siteDrainage:'Site Drainage', subfloorDrainage:'Subfloor Drainage',
     borerActivity:'Borers of Seasoned Timber', borerDetails:'Borer Type, Location & Evidence', decayFound:'Wood Decay Fungi (Rot)', decayDetails:'Wood Decay Location & Evidence',
     termiteActivity:'Termite Activity Status', species:'Species', damageDescription:'Damage Description', activityLocation:'Location of Activity', nestLocated:'Workings / Nest Located', structuralConcern:'Builder / Engineer Referral',
     waterLeaks:'Water Leaks', leakLocation:'Location of Moisture Ingress', moistureReadings:'Moisture Readings', timberSoil:'Timber-to-Soil Contact', slabEdge:'Slab Edge Concealed', weepHoles:'Weep Holes (Clear / Bridged)', existingSystem:'Existing System',
@@ -9489,8 +9585,10 @@ async function buildReportPdf() {
   drawPdfLetterhead(doc, company, { docLabel: 'Inspection Report', date: today });
 
   // ── TITLE BLOCK ───────────────────────────────────────────────────────────
+  // The title follows the standard: a termite inspection (AS 3660.2) or a
+  // timber pest inspection (AS 4349.3), pre-purchase when it is one.
   const prePurchase = isPrePurchaseJob();
-  const reportTypeLabel = prePurchase ? 'PRE-PURCHASE TIMBER PEST' : 'TIMBER PEST';
+  const reportTypeLabel = prePurchase ? 'PRE-PURCHASE TIMBER PEST' : reportKindTitle().replace(/ Inspection Report$/, '').toUpperCase();
   doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.accentDark);
   pdfTracked(doc, reportTypeLabel, M, 52, { cs: 0.7 });
   doc.setFont('helvetica','bold'); doc.setFontSize(34); doc.setTextColor(...C.ink);
@@ -9501,7 +9599,22 @@ async function buildReportPdf() {
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
   doc.text('Prepared with reference to', M, 80);
   doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
-  doc.text(standardLabel, M, 85);
+  doc.text(doc.splitTextToSize(standardLabel, 100)[0], M, 85);
+
+  // ── PROPERTY PHOTO ── the first property photo, beside the title.
+  const coverPhoto = [...((reportData.photosBySection || {}).general || []), ...(reportData.photos || [])].find(p => photoSrc[p.id]);
+  if (coverPhoto) {
+    try {
+      const src = photoSrc[coverPhoto.id];
+      const props = doc.getImageProperties(src);
+      const boxW = 64, boxH = 46, boxX = W - M - boxW, boxY = 42;
+      let w = boxW, h = w * props.height / props.width;
+      if (h > boxH) { h = boxH; w = h * props.width / props.height; }
+      const x = boxX + boxW - w;
+      doc.addImage(src, src.startsWith('data:image/png') ? 'PNG' : 'JPEG', x, boxY, w, h, undefined, 'FAST');
+      doc.setDrawColor(...C.rule); doc.setLineWidth(0.3); doc.rect(x, boxY, w, h, 'D');
+    } catch (e) {}
+  }
 
   // ── THE PROPERTY ──────────────────────────────────────────────────────────
   // The client's property, large, then the job details in a two-column grid.
@@ -9515,14 +9628,11 @@ async function buildReportPdf() {
 
   const coverRows = [
     ['CLIENT',            client],
-    ['CLIENT PHONE',      reportData.jobClientPhone || ''],
+    ['INSPECTION TYPE',   reportData.jobInspectionType || ''],
     ['INSPECTOR',         inspector],
     ['PEST LICENCE NO.',  reportData.inspectorLicence || ''],
     ['DATE OF INSPECTION',inspectionDate],
     ['INSPECTION TIME',   reportData.jobInspectionTime || ''],
-    ['INSPECTION TYPE',   reportData.jobInspectionType || ''],
-    ['ORDER / JOB ID',    reportData.jobOrderId || ''],
-    ['INVOICE NO.',       reportData.jobInvoiceNo || ''],
     ['REPORT REFERENCE',  reportId],
   ].filter(([, v]) => v);
 
@@ -9576,53 +9686,112 @@ async function buildReportPdf() {
   doc.setFont('helvetica','bold'); doc.setTextColor(...C.inkLight);
   doc.text(today, W-M, 291, { align:'right' });
 
+  // ── CONTENTS ── its page is kept here and filled in at the end, once
+  // every section's page is known.
+  pageLabel = 'Contents';
+  newPage();
+  const contentsPageNo = doc.internal.getNumberOfPages();
+
+  // A short paragraph of body text.
+  function para(text, size = 8, color = C.inkLight) {
+    doc.setFont('helvetica','normal'); doc.setFontSize(size);
+    flowLines(doc.splitTextToSize(text, CW), M, size * 0.54, color);
+    y += 3;
+  }
+  const co = getCompanyDetails();
+  const clientPhone = reportData.jobClientPhone || document.getElementById('jobClientPhone')?.value?.trim();
+  const clientEmail = reportData.jobClientEmail || document.getElementById('jobClientEmail')?.value?.trim();
+  const inspectionTime = reportData.jobInspectionTime || document.getElementById('jobInspectionTime')?.value?.trim();
+  const orderId  = reportData.jobOrderId || document.getElementById('jobOrderId')?.value?.trim();
+  const inspType = reportData.jobInspectionType || document.getElementById('jobInspectionType')?.value?.trim();
+
   // ─────────────────────────────────────────────────────────────────────
-  // PAGE 2 — CLIENT, PROPERTY & SUMMARY
+  // 1. CLIENT & INSPECTION DETAILS: who it's for, where, when, what was
+  // asked for, and who inspected it, before any result.
   // ─────────────────────────────────────────────────────────────────────
+  startPart('Client & Inspection Details', true);
+  sectionTitle('CLIENT & INSPECTION DETAILS', REPORT_PARTS.client);
+  subhead('CLIENT');
+  row('Client Name', client);
+  row('Client Phone', clientPhone);
+  row('Client Email', clientEmail);
+  gap(4);
+  subhead('THE INSPECTION');
+  row('Property Inspected', address);
+  row('Inspection Date', inspectionDate);
+  row('Inspection Time', inspectionTime);
+  row('Weather Conditions', reportData.weatherConditions);
+  row('Inspection Type', inspType);
+  row('Applicable Standard', standardLabel);
+  row('Order / Job ID', orderId);
+  row('Report Reference', reportId);
+  gap(4);
+  subhead('INSPECTION PROVIDER');
+  row('Inspecting Company', co.name);
+  row('Pest Control Licence', co.licence);
+  row('ABN', co.abn);
+  row('Company Phone', co.phone);
+  row('Company Email', co.email);
+  row('Inspector', inspector);
+  row('Inspector Licence No.', reportData.inspectorLicence);
+  gap(5);
+  disclaimer('This report describes the property as it was on the day of the inspection. If it is relied on more than 30 days after that date, the property should be re-inspected first, because timber pest activity can start or spread in that time.');
+  gap(1);
+  disclaimer('The inspection covered the main building, and the other buildings, structures, fences and trees on the site within 50 metres of the main building and within the property boundaries. Anything further away was not inspected unless this report says it was.');
+  if (/unit|apartment|terrace|townhouse/i.test(reportData.structureType || '')) {
+    gap(1);
+    disclaimer('For a unit, townhouse or other strata or company title property, only the interior of this unit and its immediate exterior were inspected. Common property and other units were not, and timber pests in them can spread to this unit. An inspection of the whole complex is recommended.');
+  }
+
   // ─────────────────────────────────────────────────────────────────────
-  // SUMMARY — the answers a client, agent or insurer looks for first, on one
-  // page, drawn from the sections that follow.
+  // 2. SUMMARY: the reader's questions in three groups (access, activity,
+  // safety & risk), each answer pointing to the section with the detail.
   // ─────────────────────────────────────────────────────────────────────
   startPart('Summary', true);
-  sectionTitle('SUMMARY OF FINDINGS', false);
+  sectionTitle('SUMMARY', REPORT_PARTS.summary);
   {
-    const { tiles, limited, next } = reportSummary();
+    const { groups, next } = reportSummary();
     const TONE = { bad: [C.danger, [253,242,240]], warn: [C.warn, [253,247,234]], good: [C.safe, [239,249,237]], none: [C.inkMuted, C.rowAlt] };
-    const tileW = (CW - 4) / 2;
-    // Details wrap to three lines; each row of two tiles grows to fit the longer.
-    doc.setFont('helvetica','normal'); doc.setFontSize(7);
-    const details = tiles.map(t => t[3] ? doc.splitTextToSize(t[3], tileW - 8).slice(0, 3) : []);
-    const rowH = [];
-    for (let r = 0; r * 2 < tiles.length; r++) {
-      const n = Math.max(details[r * 2].length, (details[r * 2 + 1] || []).length);
-      rowH.push(19 + Math.max(0, n - 1) * 3.2);
-    }
-    let ty = y;
-    tiles.forEach(([label, value, tone], i) => {
-      const x = M + (i % 2) * (tileW + 4);
-      const tileH = rowH[Math.floor(i / 2)];
-      const [col, bg] = TONE[tone];
-      doc.setFillColor(...bg); doc.roundedRect(x, ty, tileW, tileH, 1.5, 1.5, 'F');
-      doc.setFillColor(...col); doc.rect(x, ty, 1.5, tileH, 'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
-      doc.text(label.toUpperCase(), x + 5, ty + 5.5);
-      doc.setFontSize(11); doc.setTextColor(...col);
-      doc.text(value, x + 5, ty + 11.5);
-      if (details[i].length) {
-        doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkLight);
-        doc.text(details[i], x + 5, ty + 16.5, { lineHeightFactor: 1.3 });
-      }
-      if (i % 2 === 1 || i === tiles.length - 1) ty += tileH + 3;
+    const QW = CW - 72, chipW = 34, chipX = W - M - 26 - chipW;
+    groups.forEach(g => {
+      if (y + 22 > 276) newPage();
+      doc.setFillColor(...C.accent); doc.rect(M, y, CW, 7, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.white);
+      doc.text(g.title.toUpperCase(), M + 3, y + 4.8);
+      y += 7;
+      g.items.forEach(([q, answer, tone, section, detail], i) => {
+        doc.setFont('helvetica','normal'); doc.setFontSize(7.2);
+        const dl = detail ? doc.splitTextToSize(String(detail), QW).slice(0, 2) : [];
+        const h = 9 + dl.length * 3.4;
+        if (y + h > 278) newPage();
+        if (i % 2 === 1) { doc.setFillColor(...C.rowAlt); doc.rect(M, y, CW, h, 'F'); }
+        doc.setDrawColor(...C.ruleLight); doc.setLineWidth(0.25); doc.line(M, y + h, M + CW, y + h);
+        doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
+        doc.text(q, M + 3, y + 5.6);
+        if (dl.length) {
+          doc.setFont('helvetica','normal'); doc.setFontSize(7.2); doc.setTextColor(...C.inkLight);
+          doc.text(dl, M + 3, y + 9.4, { lineHeightFactor: 1.25 });
+        }
+        const [col, bg] = TONE[tone] || TONE.none;
+        doc.setFillColor(...bg); doc.roundedRect(chipX, y + 1.8, chipW, 5.6, 1, 1, 'F');
+        doc.setFillColor(...col); doc.rect(chipX, y + 1.8, 1.2, 5.6, 'F');
+        doc.setFont('helvetica','bold'); doc.setTextColor(...col);
+        doc.setFontSize(7.5);
+        if (doc.getTextWidth(answer) > chipW - 3) doc.setFontSize(7.5 * (chipW - 3) / doc.getTextWidth(answer));
+        doc.text(answer, chipX + chipW / 2 + 0.6, y + 5.6, { align: 'center' });
+        doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+        doc.text(`See Section ${section}`, W - M - 2, y + 5.6, { align: 'right' });
+        y += h;
+      });
+      y += 5;
     });
-    y = ty + 5;
 
-    function summaryList(title, items) {
-      if (!items.length) return;
+    if (next.length) {
       if (y + 14 > 270) newPage();
       doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-      doc.text(title, M, y); y += 2.5;
+      doc.text('WHAT TO DO NEXT', M, y); y += 2.5;
       doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 5;
-      items.forEach((item, i) => {
+      next.forEach((item, i) => {
         const lines = doc.splitTextToSize(item, CW - 8);
         if (y + lines.length * 4.3 > 276) newPage();
         doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
@@ -9633,141 +9802,77 @@ async function buildReportPdf() {
       });
       y += 4;
     }
-    summaryList('AREAS NOT FULLY INSPECTED', limited);
-    summaryList('WHAT TO DO NEXT', next);
-
-    disclaimer('This summary highlights the main results only. Read the full report, including the areas not inspected, the limitations and the terms, before relying on it.');
+    disclaimer('This summary gives the main results only. Read the full report, including the areas that could not be inspected, the limitations and the terms, before relying on it.');
   }
 
-  startPart('Client & Property Details', true);
-
-  sectionTitle('CLIENT & JOB DETAILS');
-  const co = getCompanyDetails();
-  if (co.name)    row('Inspecting Company', co.name);
-  if (co.licence) row('Pest Control Licence', co.licence);
-  if (co.phone)   row('Company Phone', co.phone);
-  if (co.abn)     row('ABN', co.abn);
-  if (co.email)   row('Company Email', co.email);
-  // Address and client name are always required
-  row('Property Inspected', address);
-  row('Client Name', client);
-  // Optional client contact fields — only print if filled
-  const clientPhone = reportData.jobClientPhone || document.getElementById('jobClientPhone')?.value?.trim();
-  const clientEmail = reportData.jobClientEmail || document.getElementById('jobClientEmail')?.value?.trim();
-  if (clientPhone) row('Client Phone', clientPhone);
-  if (clientEmail) row('Client Email', clientEmail);
-  // Inspector and date always print
-  row('Inspection Date', inspectionDate);
-  const inspectionTime = reportData.jobInspectionTime || document.getElementById('jobInspectionTime')?.value?.trim();
-  if (inspectionTime) row('Inspection Time', inspectionTime);
-  // Optional job tracking fields
-  const orderId    = reportData.jobOrderId    || document.getElementById('jobOrderId')?.value?.trim();
-  const invoiceNo  = reportData.jobInvoiceNo  || document.getElementById('jobInvoiceNo')?.value?.trim();
-  const inspType   = reportData.jobInspectionType || document.getElementById('jobInspectionType')?.value?.trim();
-  const fee        = reportData.jobFee        || document.getElementById('jobFee')?.value?.trim();
-  if (inspType)   row('Inspection Type', inspType);
-  if (orderId)    row('Order / Job ID', orderId);
-  if (invoiceNo)  row('Invoice No.', invoiceNo);
-  if (fee)        row('Inspection Fee', /^\s*\$?\s*[\d,]+(\.\d+)?\s*$/.test(fee) ? '$' + parseFeeToNumber(fee).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : fee);
-  startPart('Property Details');
-
-  sectionTitle('PROPERTY DETAILS');
-  row('Structure Type', reportData.structureType); row('Wall Construction', reportData.wallConstruction);
-  row('Floor Type', reportData.floorType); row('Roof Type', reportData.roofType);
-  row('Height', reportData.height); row('Orientation', reportData.facadeDirection);
-  row('Occupancy Status', reportData.occupancyStatus); row('Weather Conditions', reportData.weatherConditions);
-  row('Year / Period of Construction', reportData.constructionEra); row('Applicable Standard', reportData.standard);
-  if (reportData.existingSystem) {
-    gap(3);
-    row('Existing Termite Management System', reportData.existingSystem);
-    if (reportData.existingSystemOther) row('Specific System Name', reportData.existingSystemOther);
+  // ─────────────────────────────────────────────────────────────────────
+  // 3. ABOUT THE PROPERTY, with the limits that come with how it's built
+  // and used printed beside the rows they belong to.
+  // ─────────────────────────────────────────────────────────────────────
+  startPart('About the Property', true);
+  sectionTitle('ABOUT THE PROPERTY', REPORT_PARTS.property);
+  row('Structure Type', reportData.structureType);
+  row('Height', reportData.height);
+  row('Wall Construction', reportData.wallConstruction);
+  row('Floor Type', reportData.floorType);
+  if (/slab/i.test(reportData.floorType || '')) {
+    gap(1.5);
+    disclaimer('Termites can enter a slab-on-ground building through cracks, joints and service pipes in the slab, and over its edge, where they cannot be seen. Keep the slab edge exposed and have the building inspected regularly.');
+    resetRowShade();
   }
+  row('Roof Type', reportData.roofType);
+  row('Orientation', reportData.facadeDirection);
+  row('Year / Period of Construction', reportData.constructionEra);
   // Asbestos is outside a timber pest inspection, so this is a general note
   // for buildings of the period, not a rating of this property.
   if (['1920s-1940s', '1945-1965', '1965-1985', '1985-2003'].includes(reportData.constructionEra)) {
-    gap(3);
+    gap(1.5);
     disclaimer('Buildings from this period may contain asbestos-containing materials. This is not an asbestos inspection: nothing was tested or disturbed, and no opinion is given on whether asbestos is present. Have a licensed asbestos assessor check before any work that disturbs building materials.');
+    resetRowShade();
+  }
+  row('Occupancy Status', reportData.occupancyStatus);
+  if (/occupied|tenanted|owner/i.test(reportData.occupancyStatus || '')) {
+    gap(1.5);
+    disclaimer('The property was occupied and furnished at the time of inspection. Furniture, stored goods and floor coverings hid parts of the walls and floors, and timber pest activity or damage may be concealed behind them.');
+    resetRowShade();
+  }
+
+  // The termite management system, and whether it can still be inspected.
+  subhead('TERMITE MANAGEMENT SYSTEM');
+  row('Existing System', reportData.existingSystem || 'None recorded');
+  if (reportData.existingSystemOther) row('Specific System Name', reportData.existingSystemOther);
+  row('Durable Notice Present (Meter Box)', reportData.durableNoticePresent, true);
+  if (hasIdentifiedSystem(reportData.existingSystem)) {
+    row('Hard Landscaping Adjacent', reportData.hardLandscaping);
+    row('25mm Inspection Zone Visible', reportData.zone25mmVisible, true);
+    row('Soft Landscaping Adjacent', reportData.softLandscaping);
+    row('75mm Inspection Zone Visible', reportData.zone75mmVisible, true);
+    row('Ant Cap / Strip Shield Joins Soldered', reportData.antCapSoldered, true);
+    const concerns = [];
+    if (reportData.durableNoticePresent === 'NO') concerns.push('Durable notice sticker not found in meter box');
+    if (reportData.hardLandscaping === 'YES' && reportData.zone25mmVisible === 'NO') concerns.push('25mm inspection zone not visible against hard landscaping');
+    if (reportData.softLandscaping === 'YES' && reportData.zone75mmVisible === 'NO') concerns.push('75mm inspection zone not visible against soft landscaping');
+    if (reportData.antCapSoldered === 'NO') concerns.push('Ant cap / strip shield joins not soldered');
+    if (concerns.length > 0) {
+      gap(3);
+      callout('System verification concern', concerns.join('. ') + '. These checks confirm the system can still be inspected, not that it works. Rectification and re-inspection are recommended.', 'bad');
+    }
   }
   notesBlock('property');
   gap(4);
   renderSectionPhotosInPDF('general', 'Property');
 
   // ─────────────────────────────────────────────────────────────────────
-  // PAGE 3 — SCOPE, RISK & FINDINGS
+  // 4. AREAS INSPECTED: every area, how much of it was inspected, and
+  // what was found there.
   // ─────────────────────────────────────────────────────────────────────
-  startPart('Scope, Risk & Findings');
-
-  // ── UNDETECTED TIMBER PEST RISK ASSESSMENT ──────────────────────────
-  // Per AS 4349.3 — rate overall risk of undetected activity given
-  // access limitations, obstructions and restrictions noted
-  sectionTitle('UNDETECTED TIMBER PEST RISK ASSESSMENT');
-  resetRowShade();
-
-  const hasObstruction = areasNotFullyInspected().length > 0;
-  const hasRestriction = hasRestrictedAreas();
-  const hasActivity    = (reportData.findings || []).some(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
-  const risk           = reportData.riskLevel || 'NOT ASSESSED';
-
-  const areasRecorded  = Object.keys(OBS_ZONES).some(z => areaStatusOf(z));
-  const undetectedRisk = !areasRecorded && !hasActivity ? 'NOT ASSESSED' :
-                         hasActivity && hasObstruction ? 'HIGH' :
-                         hasObstruction || (hasActivity && hasRestriction) ? 'MODERATE-HIGH' :
-                         hasRestriction ? 'MODERATE' : 'LOW-MODERATE';
-
-  const undetectedCol = undetectedRisk === 'HIGH' ? C.danger :
-                        undetectedRisk === 'MODERATE-HIGH' ? C.warn :
-                        undetectedRisk === 'MODERATE' ? [160, 100, 20] :
-                        undetectedRisk === 'NOT ASSESSED' ? C.inkMuted : C.safe;
-  const undetectedBg  = undetectedRisk === 'HIGH' ? [253,242,240] :
-                        undetectedRisk.includes('MODERATE') ? [253,247,234] :
-                        undetectedRisk === 'NOT ASSESSED' ? [248,246,243] : [239,249,237];
-
-  const undetectedNote = undetectedRisk === 'HIGH'
-    ? 'Active or inactive termites found with uninspected areas. Further invasive inspection strongly recommended.'
-    : undetectedRisk === 'MODERATE-HIGH'
-    ? 'Access was limited or obstructed. Concealed activity cannot be ruled out in uninspected areas.'
-    : undetectedRisk === 'MODERATE'
-    ? 'Some areas were restricted. Regular monitoring and follow-up inspection recommended.'
-    : undetectedRisk === 'NOT ASSESSED'
-    ? 'The areas inspected were not recorded, so this risk could not be assessed.'
-    : 'All readily accessible areas were inspected. Regular inspection programme should continue.';
-  // Risk box: label, rating, then what it means underneath.
-  doc.setFont('helvetica','normal'); doc.setFontSize(8);
-  const noteLines = doc.splitTextToSize(undetectedNote, CW - 16);
-  const boxH = 23 + noteLines.length * 4;
-  if (y + boxH > 278) newPage();
-  doc.setFillColor(...undetectedBg); doc.roundedRect(M, y, CW, boxH, 2, 2, 'F');
-  doc.setFillColor(...undetectedCol); doc.rect(M, y, 1.5, boxH, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-  doc.text('RISK OF UNDETECTED TIMBER PEST ACTIVITY', M+7, y+7);
-  doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...undetectedCol);
-  doc.text(undetectedRisk, M+7, y+15.5);
-  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
-  doc.text(noteLines, M+7, y+21.5);
-  y += boxH + 5;
-  gap(4);
-  disclaimer('This rating reflects the risk of timber pest activity existing but not being detected at the time of inspection, due to access limitations. It is not an assessment of pest pressure or building susceptibility.');
-  gap(6);
-
-  // ── AREAS INSPECTED, ACCESS, OBSTRUCTIONS & RESTRICTIONS ───────────────
-  // Laid out under the headings AS 4349.3 reports use: areas inspected; areas
-  // to which reasonable access was not available; areas in which the visual
-  // inspection was obstructed or restricted; and high risk areas to which
-  // access should be gained. An area that couldn't be entered at all (a
-  // locked room, a blocked manhole) is a no-access area; one that was entered
-  // but not fully seen is obstructed (something in the way) or restricted
-  // (access within it was limited).
   startPart('Areas Inspected');
-  sectionTitle('AREAS INSPECTED, ACCESS & RESTRICTIONS');
+  sectionTitle('AREAS INSPECTED', REPORT_PARTS.areas);
   resetRowShade();
   const AREA_STATUS_TEXT = { INSPECTED:'Inspected', PARTIAL:'Partly inspected', NOT:'NOT INSPECTED', NA:'Not present' };
   const anyStatus = Object.keys(OBS_ZONES).some(z => areaStatusOf(z));
-  const allMarked = Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
-  const reasonsOf = z => (reportData.areaReasons || {})[z] || [];
   const noneRow = complete => row('Result', complete ? 'None' : 'Not recorded');
-
-  // Each area entered also says what was found there.
-  subhead('AREAS INSPECTED');
+  para(`Each area of the property, how much of it could be inspected, and whether timber pest evidence was found there. Why an area could not be fully inspected is set out in Section ${REPORT_PARTS.access}.`);
   Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
     const st = areaStatusOf(zoneId);
     if (!st) return;
@@ -9778,66 +9883,55 @@ async function buildReportPdf() {
     row(zone.label, AREA_STATUS_TEXT[st] + (areaWasEntered(zoneId) ? `. ${resultText}.` : ''));
   });
   if (!anyStatus) noneRow(false);
+  notesBlock('obstructions');
+  renderSectionPhotosInPDF('obstructions', 'Areas Inspected');
+
+  // ─────────────────────────────────────────────────────────────────────
+  // 5. AREAS UNABLE TO BE INSPECTED, AND WHY: hindered access (temporary
+  // obstructions), restricted access (permanent or locked), the high risk
+  // areas to which access should be gained, and whether an invasive
+  // inspection is recommended because of them. See accessLimits().
+  // ─────────────────────────────────────────────────────────────────────
+  startPart('Areas Unable to Be Inspected');
+  sectionTitle('AREAS UNABLE TO BE INSPECTED, AND WHY', REPORT_PARTS.access);
+  const acc = accessLimits();
+  const noLimits = !areasNotFullyInspected().length;
+
+  subhead('HINDERED ACCESS: TEMPORARY OBSTRUCTIONS AT THE TIME OF INSPECTION');
+  acc.hindered.forEach(([label, text]) => row(label, text));
+  if (!acc.hindered.length) noneRow(hinderedAnswer() === 'NO' || (acc.allMarked && noLimits));
   gap(3);
 
-  subhead('AREAS TO WHICH REASONABLE ACCESS WAS NOT AVAILABLE, AND WHY');
-  let noAccessRows = 0;
-  Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
-    const st = areaStatusOf(zoneId);
-    const why = reasonsOf(zoneId).filter(i => NO_ACCESS_REASONS.has(i));
-    // A part of an area that wasn't accessed is better told by the
-    // inspector's own where-and-why, when they gave one.
-    if (st === 'NOT' || (why.length && isBlankValue(reportData.noAccessAreas))) {
-      row(zone.label, (st === 'NOT' ? 'Not inspected' : 'Part not accessed') + (why.length ? ': ' + why.join(', ') : ''));
-      noAccessRows++;
-    }
-  });
-  if (!isBlankValue(reportData.noAccessAreas)) { row('Where and why', reportData.noAccessAreas); noAccessRows++; }
-  if (!noAccessRows) noneRow(allMarked);
-  gap(3);
-
-  subhead('AREAS IN WHICH THE VISUAL INSPECTION WAS OBSTRUCTED OR RESTRICTED, AND WHY');
-  let obsRows = 0;
-  Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
-    if (!['PARTIAL', 'NOT'].includes(areaStatusOf(zoneId))) return;
-    const items = reasonsOf(zoneId).filter(i => !NO_ACCESS_REASONS.has(i));
-    const obstructed = items.filter(i => !RESTRICTION_REASONS.has(i));
-    const restricted = items.filter(i => RESTRICTION_REASONS.has(i));
-    const parts = [];
-    if (obstructed.length) parts.push('Obstructed by ' + obstructed.join(', ').toLowerCase());
-    if (restricted.length) parts.push('Restricted by ' + restricted.join(', ').toLowerCase());
-    if (!parts.length && areaStatusOf(zoneId) === 'PARTIAL') parts.push('Partly inspected, reason not recorded');
-    if (parts.length) { row(zone.label, parts.join('. ')); obsRows++; }
-  });
-  const resAnswer = restrictionsAnswer();
-  if (resAnswer === 'YES') {
-    row('Restricted areas', reportData.hinderedAreas);
-    row('Nature of restriction', reportData.hinderedAreasDetail);
-    obsRows++;
-  }
-  if (!obsRows) noneRow(allMarked && resAnswer === 'NO');
+  subhead('RESTRICTED ACCESS: PERMANENT RESTRICTION OR LOCKED ENTRY');
+  acc.restricted.forEach(([label, text]) => row(label, text));
+  if (!acc.restricted.length) noneRow(acc.allMarked);
   gap(3);
 
   subhead('HIGH RISK AREAS TO WHICH ACCESS SHOULD BE GAINED, OR FULLY GAINED');
-  const limited = areasNotFullyInspected();
-  const highRisk = !isBlankValue(reportData.highRiskAreas) ? reportData.highRiskAreas
-    : [!isBlankValue(reportData.noAccessAreas) ? reportData.noAccessAreas : '', ...limited.map(z => OBS_ZONES[z].label)].filter(Boolean).join('; ');
-  if (highRisk) {
-    row('Access should be gained to', highRisk);
+  if (acc.highRisk) {
+    row('Access should be gained to', acc.highRisk);
     gap(3);
     disclaimer('These areas may show evidence of timber pest activity or damage. Access should be gained, or fully gained, and a further inspection carried out. Until then it must be assumed that timber pest activity or damage may exist in them.');
   } else {
-    noneRow(allMarked && resAnswer === 'NO');
+    noneRow(acc.allMarked);
   }
-  notesBlock('obstructions');
-  renderSectionPhotosInPDF('obstructions', 'Obstructions');
-  notesBlock('restrictions');
-  renderSectionPhotosInPDF('restrictions', 'Restrictions');
-  gap(8);
+  gap(3);
 
-  // ── TIMBER PEST FINDINGS ─────────────────────────────────────────────
-  startPart('Timber Pest Findings');
-  sectionTitle('TIMBER PEST FINDINGS');
+  subhead('INVASIVE INSPECTION');
+  row('Invasive Inspection Recommended', reportData.invasiveInspection || 'Not recorded');
+  if (reportData.invasiveInspectionDetails) row('Where, Why & When', reportData.invasiveInspectionDetails);
+  if (reportData.invasiveInspection === 'YES') {
+    gap(3);
+    disclaimer('An invasive inspection may involve cutting, drilling or removing linings, floor coverings or timbers to see inside them. It needs the owner\'s written permission and a separate agreement.');
+  }
+  notesBlock('restrictions');
+  renderSectionPhotosInPDF('restrictions', 'Areas Unable to Be Inspected');
+
+  // ─────────────────────────────────────────────────────────────────────
+  // 6. FINDINGS
+  // ─────────────────────────────────────────────────────────────────────
+  startPart('Findings');
+  sectionTitle('FINDINGS', REPORT_PARTS.findings);
 
   const findings = (reportData.findings && reportData.findings.length > 0)
     ? reportData.findings
@@ -9931,11 +10025,12 @@ async function buildReportPdf() {
     y += 8;
   }
 
+  subhead('TERMITES');
   findings.forEach((f, idx) => findingCard(f, idx));
 
-  // Borers and wood decay: the other timber pests AS 4349.3 covers. Always
-  // printed, so an unanswered field reads "Not recorded" rather than
-  // silently implying "none found" (row() drops empty values).
+  // Borers, decay and delignification: the other timber pests AS 4349.3
+  // covers. Always printed, so an unanswered field reads "Not recorded"
+  // rather than silently implying "none found" (row() drops empty values).
   subhead('BORERS, WOOD DECAY & CHEMICAL DELIGNIFICATION');
   row('Borers of Seasoned Timber', reportData.borerActivity || 'Not recorded');
   if (reportData.borerDetails) row('Borer Type, Location & Evidence', reportData.borerDetails);
@@ -9943,29 +10038,58 @@ async function buildReportPdf() {
   if (reportData.decayDetails) row('Wood Decay Location & Evidence', reportData.decayDetails);
   row('Chemical Delignification', reportData.delignification || 'Not recorded');
   if (reportData.delignificationDetails) row('Delignification Location & Evidence', reportData.delignificationDetails);
-  gap(4);
+  gap(3);
 
-  gap(2);
+  subhead('PREVIOUS TERMITE TREATMENT');
+  row('Evidence of Previous Treatment', reportData.previousTreatment || 'Not recorded');
+  if (reportData.previousTreatmentDetails) row('What Was Seen & Where', reportData.previousTreatmentDetails);
+  gap(5);
+
   disclaimer('This inspection describes the location and visible extent of timber pest activity only. It does not assess structural damage severity — a licensed builder or structural engineer must be engaged for that purpose. Where live termites are found, concealed activity must be assumed in all areas not inspected.');
   notesBlock('findings');
   gap(4);
-  renderSectionPhotosInPDF('findings', 'Timber Pest Findings');
+  renderSectionPhotosInPDF('findings', 'Findings');
 
   // ─────────────────────────────────────────────────────────────────────
-  // PAGE 4 — CONDUCIVE CONDITIONS, RECOMMENDATIONS, SIGN-OFF
+  // 7. CONDUCIVE CONDITIONS. A condition that was found carries a line on
+  // why it matters.
   // ─────────────────────────────────────────────────────────────────────
   startPart('Conducive Conditions');
-
-  sectionTitle('CONDUCIVE CONDITIONS');
+  sectionTitle('CONDUCIVE CONDITIONS', REPORT_PARTS.conducive);
   resetRowShade();
+  para('Conditions that make timber pest attack more likely. Each one found is explained, and should be fixed.');
+  const WHY_IT_MATTERS = {
+    waterLeaks: 'Leaking water keeps timber and soil damp, which attracts termites and lets wood decay start.',
+    moistureReadings: 'Damp timber and building elements attract termites and let wood decay start.',
+    siteDrainage: 'Water lying around the building keeps the soil damp, which attracts termites.',
+    subfloorDrainage: 'Water lying in the subfloor keeps it damp, which attracts termites and lets wood decay start.',
+    subfloorVentilation: 'A poorly ventilated subfloor stays damp, which attracts termites and lets wood decay start.',
+    timberSoil: 'Timber touching the soil gives termites a hidden way into the timber, and from there into the building.',
+    slabEdge: 'A covered slab edge lets termites enter the building out of sight. Keep the slab edge exposed so it can be inspected.',
+    weepHoles: 'Weep holes covered by soil, paving or garden beds give termites a hidden way into the wall cavity.',
+    antCapping: 'Ant caps do not stop termites, but make them build their mud leads in the open where they can be seen. Gaps or missing caps let them pass unseen.',
+    nonDurableTimber: 'Untreated or non-durable timber in damp areas is readily attacked by termites and wood decay.',
+  };
+  const ADVERSE = { waterLeaks: ['YES'], moistureReadings: ['YES'], siteDrainage: ['POOR'], subfloorDrainage: ['POOR'], subfloorVentilation: ['POOR'],
+    timberSoil: ['YES'], slabEdge: ['OBSTRUCTED'], weepHoles: ['BRIDGED'], antCapping: ['GAPS', 'NONE'], nonDurableTimber: ['YES'] };
+  function condRow(label, key, shown) {
+    const v = reportData[key];
+    row(label, shown || v);
+    if (v && (ADVERSE[key] || []).includes(v) && WHY_IT_MATTERS[key]) {
+      doc.setFont('helvetica','italic'); doc.setFontSize(7.3);
+      const lines = doc.splitTextToSize(WHY_IT_MATTERS[key], CW - 8);
+      if (y + lines.length * 3.6 + 3 > 280) newPage();
+      doc.setTextColor(...C.inkLight);
+      doc.text(lines, M + 3, y + 3.6); y += lines.length * 3.6 + 2.5;
+      doc.setFont('helvetica','normal');
+      resetRowShade();
+    }
+  }
 
   // ── Moisture group ─────────────────────────────────────────────────────
   const meterReadings = (reportData.moistureTable || []).filter(r => r.location || r.reading);
-  const hasMoisture = reportData.waterLeaks || reportData.moistureReadings || reportData.leakLocation || meterReadings.length;
-  if (hasMoisture) subhead('MOISTURE & DRAINAGE');
-  row('Water Leaks', reportData.waterLeaks);
-  row('Moisture Detected', reportData.moistureReadings);
-  meterReadings.forEach(r => row('Moisture Meter Reading', [r.reading, r.location].filter(Boolean).join(' — ')));
+  subhead('MOISTURE, DRAINAGE & VENTILATION');
+  condRow('Water Leaks', 'waterLeaks');
   if (reportData.waterLeaks === 'YES' || reportData.leakLocation) {
     row('Location of Moisture Ingress', reportData.leakLocation);
     if (isAboveGroundLeak(reportData.leakLocation)) {
@@ -9973,64 +10097,42 @@ async function buildReportPdf() {
       callout('Above-ground leak', 'Subterranean termites can establish a secondary moisture-dependent colony in roof voids and wall cavities with no soil contact. Timbers next to this leak should be checked specifically.', 'warn');
     }
   }
+  condRow('Moisture Detected', 'moistureReadings');
+  meterReadings.forEach(r => row('Moisture Meter Reading', [r.reading, r.location].filter(Boolean).join(' — ')));
+  condRow('Site Drainage', 'siteDrainage');
+  condRow('Subfloor Drainage', 'subfloorDrainage');
+  condRow('Subfloor Ventilation', 'subfloorVentilation');
   gap(4);
 
-  // ── Physical barriers group ────────────────────────────────────────────
-  // Areas not inspected are printed once, in section 4, not repeated here.
-  const hasBarriers = reportData.timberSoil || reportData.slabEdge || reportData.weepHoles || reportData.antCapping || reportData.subfloorVentilation || reportData.nonDurableTimber;
-  if (hasBarriers) subhead('PHYSICAL BARRIERS & CONSTRUCTION');
-  row('Timber-to-Soil Contact', reportData.timberSoil);
-  row('Slab Edge Concealed', reportData.slabEdge);
-  row('Weep Holes', reportData.weepHoles);
-  row('Ant Capping', reportData.antCapping);
+  // ── Construction group ─────────────────────────────────────────────────
+  subhead('CONSTRUCTION & PHYSICAL BARRIERS');
+  condRow('Timber-to-Soil Contact', 'timberSoil');
+  condRow('Slab Edge Concealed', 'slabEdge');
+  condRow('Weep Holes', 'weepHoles', reportData.weepHoles === 'NONE' ? 'None located' : '');
+  condRow('Ant Capping', 'antCapping');
   if (reportData.antCappingDetails) row('Ant Capping: Where & What', reportData.antCappingDetails);
-  row('Subfloor Ventilation', reportData.subfloorVentilation);
-  row('Non-durable Timber in Damp Areas', reportData.nonDurableTimber);
+  condRow('Non-durable Timber in Damp Areas', 'nonDurableTimber');
   if (reportData.nonDurableTimberDetails) row('Non-durable Timber: What & Where', reportData.nonDurableTimberDetails);
   gap(4);
-
-  // ── Existing system group ──────────────────────────────────────────────
-  if (reportData.existingSystem) {
-    subhead('EXISTING TERMITE MANAGEMENT SYSTEM');
-    row('Existing System — Type', reportData.existingSystem);
-    if (reportData.existingSystemOther) row('Specific System Name', reportData.existingSystemOther);
-
-    if (hasIdentifiedSystem(reportData.existingSystem)) {
-      row('Durable Notice Present (Meter Box)', reportData.durableNoticePresent, true);
-      row('Hard Landscaping Adjacent', reportData.hardLandscaping);
-      row('25mm Inspection Zone Visible', reportData.zone25mmVisible, true);
-      row('Soft Landscaping Adjacent', reportData.softLandscaping);
-      row('75mm Inspection Zone Visible', reportData.zone75mmVisible, true);
-      row('Ant Cap / Strip Shield Joins Soldered', reportData.antCapSoldered, true);
-
-      const concerns = [];
-      if (reportData.durableNoticePresent === 'NO') concerns.push('Durable notice sticker not found in meter box');
-      if (reportData.hardLandscaping === 'YES' && reportData.zone25mmVisible === 'NO') concerns.push('25mm inspection zone not visible against hard landscaping');
-      if (reportData.softLandscaping === 'YES' && reportData.zone75mmVisible === 'NO') concerns.push('75mm inspection zone not visible against soft landscaping');
-      if (reportData.antCapSoldered === 'NO') concerns.push('Ant cap / strip shield joins not soldered');
-
-      if (concerns.length > 0) {
-        gap(3);
-        callout('System verification concern', concerns.join('. ') + '. These checks confirm the system can still be inspected, not that it works. Rectification and re-inspection are recommended.', 'bad');
-      }
-    }
-    gap(4);
-  }
 
   notesBlock('conducive');
   gap(4);
   renderSectionPhotosInPDF('conducive', 'Conducive Conditions');
 
-  startPart('Recommendations');
-
-  sectionTitle('RECOMMENDATIONS');
+  // ─────────────────────────────────────────────────────────────────────
+  // 8. RECOMMENDATIONS & RISK: the one risk opinion, and what to do.
+  // ─────────────────────────────────────────────────────────────────────
+  startPart('Recommendations & Risk');
+  sectionTitle('RECOMMENDATIONS & RISK', REPORT_PARTS.recommendations);
   resetRowShade();
-  row('Risk of Termite Attack', reportData.riskLevel);
+  if (reportData.riskLevel) { riskBanner(reportData.riskLevel); y -= 2; }
+  disclaimer('The risk of termite attack is the inspector\'s opinion of how susceptible the property is to termite attack, from what was found, the conducive conditions and the areas that could not be inspected. It is not a rating of any termites found.');
+  gap(2);
+  if (!reportData.riskLevel) row('Risk of Termite Attack', 'Not recorded');
   row('Treatment Recommended', reportData.treatmentRecommended);
   row('Treatment Type', reportData.treatmentType);
   row('Re-inspection Interval', reportData.inspectionFrequency);
-  if (reportData.invasiveInspection) row('Invasive Inspection Recommended', reportData.invasiveInspection);
-  if (reportData.invasiveInspectionDetails) row('Invasive Inspection: Where, Why & When', reportData.invasiveInspectionDetails);
+  if (reportData.invasiveInspection === 'YES') row('Invasive Inspection', `Recommended, see Section ${REPORT_PARTS.access}`);
   if (reportData.otherRecommendations) row('Other Recommendations', reportData.otherRecommendations);
   notesBlock('recommendations');
   renderSectionPhotosInPDF('recommendations', 'Recommendations');
@@ -10038,16 +10140,14 @@ async function buildReportPdf() {
   disclaimer('Note: standard home and contents insurance policies in Australia typically do not cover damage caused by termites or other timber pests. Treatment and any resulting repairs are generally the responsibility of the property owner.');
   gap(8);
 
+  // 9. PHOTOGRAPHS
   photoGallery();
 
   // ─────────────────────────────────────────────────────────────────────
-  // CONCLUSION + TERMS & CONDITIONS
+  // 10. SCOPE, LIMITATIONS, DEFINITIONS & TERMS
   // ─────────────────────────────────────────────────────────────────────
-  startPart('Scope of Inspection & Definitions', true);
-
-  // ── WHAT IS A TIMBER PEST INSPECTION? ───────────────────────────────────
-  sectionTitle('WHAT IS A TIMBER PEST INSPECTION?', false);
-  gap(2);
+  startPart('Scope, Limitations, Definitions & Terms', true);
+  sectionTitle('SCOPE, LIMITATIONS, DEFINITIONS & TERMS', REPORT_PARTS.terms);
 
   function infoPara(text) {
     doc.setFont('helvetica','normal'); doc.setFontSize(8);
@@ -10060,11 +10160,21 @@ async function buildReportPdf() {
     doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
     doc.text(text, M, y); y += 6;
   }
+  // A heading for each of the three parts of this section.
+  function partHeading(text) {
+    if (y > 250) newPage();
+    gap(2);
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...C.accentDark);
+    doc.text(text.toUpperCase(), M, y);
+    doc.setFillColor(...C.ruleLight); doc.rect(M, y + 2.2, CW, 0.4, 'F');
+    y += 9;
+  }
 
-  infoPara('A timber pest inspection is a visual, non-invasive inspection of a property for evidence of timber pest activity, damage, and conditions conducive to timber pest attack. The inspection is carried out by a qualified timber pest inspector in accordance with the applicable Australian Standard and is limited to those areas and sections of the property that are safely and reasonably accessible at the time of inspection.');
+  partHeading('Scope and limitations');
+  infoPara('This was a visual, non-invasive inspection of the property for evidence of timber pest activity, damage, and conditions conducive to timber pest attack. It was carried out by a licensed timber pest inspector with reference to the applicable Australian Standard, and is limited to those areas and sections of the property that were safely and reasonably accessible at the time of inspection.');
 
   infoHeading('What timber pests are covered?');
-  infoPara('This inspection covers subterranean termites (white ants), drywood termites, wood borers, and wood decay fungi (rot) where evidence is observable in accessible areas. These are the timber pests defined in AS 4349.3-2010.');
+  infoPara('This inspection covers subterranean termites (white ants), drywood termites, wood borers, wood decay fungi (rot) and chemical delignification where evidence is observable in accessible areas. These are the timber pests defined in AS 4349.3-2010.');
 
   infoHeading('What does "non-invasive" mean?');
   infoPara('This inspection does not involve moving furniture, lifting floor coverings, cutting into walls, removing ceiling linings, dismantling built-in cabinetry, or any other action that could cause damage to the property or its contents. The inspector uses visual observation, a probe or screwdriver for tapping and sounding, and a moisture meter where appropriate. Splinter testing of structural timbers in the subfloor or roof void may be carried out where it can be done safely and with the property owner\'s consent.');
@@ -10072,16 +10182,12 @@ async function buildReportPdf() {
   infoHeading('What is "Reasonable Access"?');
   infoPara('Reasonable access is defined in AS 4349.3-2010 as access to areas of the property that can be inspected without the need to remove, move, or dismantle any fixed or stored items, and which can be reached using a 3.6m ladder or less from the ground. Subfloor areas require a minimum clearance of 400mm under the lowest bearer, and roof voids require an access opening of at least 450mm x 400mm. Areas not meeting these criteria are outside the scope of this inspection.');
 
-  infoHeading('What are "Readily Accessible Areas"?');
-  infoPara('Readily accessible areas are those parts of the property that can be reached and observed without the need to remove or disturb furniture, stored goods, floor coverings, wall or ceiling linings, insulation, or fixed cabinetry. The inspector is not required — and does not — move or displace any items during this inspection.');
-
   infoHeading('Does this inspection guarantee the property is free of termites?');
   infoPara('No. A visual, non-invasive inspection of this type cannot detect timber pest activity or damage concealed within walls, under floors, inside structural timbers, or in any area that was not accessible at the time of inspection. Termites frequently operate within concealed spaces without external evidence. This report reflects the observable condition of the property at the specific date and time of inspection only. Regular professional re-inspections are the most effective ongoing protection available.');
 
   // ── DEFINITIONS ──────────────────────────────────────────────────────────
-  gap(6);
-  sectionTitle('DEFINITIONS', false);
-  gap(2);
+  gap(4);
+  partHeading('Definitions');
 
   const defs = [
     ['Timber Pests', 'Subterranean termites, drywood termites, borers of seasoned timber, wood decay fungi (rot) and chemical delignification, as defined in AS 4349.3-2010.'],
@@ -10089,12 +10195,14 @@ async function buildReportPdf() {
     ['Visual Inspection', 'An inspection conducted by an inspector who uses their unaided visual faculties, and may use a probe, screwdriver, or moisture meter, to observe accessible areas of the property for evidence of timber pest activity, damage, and conducive conditions.'],
     ['Reasonable Access', 'Access to areas of a building that are safe, accessible, and do not require any removal, dismantling, or disturbance of fixed or stored items. Access is via a standard 3.6m ladder from ground level. Subfloor access requires minimum 400mm clearance; roof void access requires minimum 450mm x 400mm opening.'],
     ['Readily Accessible Area', 'An area that can be inspected without moving furniture, stored goods, floor coverings, wall or ceiling linings, insulation, or personal possessions.'],
-    ['Reasonable Access Not Available', 'An area, room or space the inspector could not enter or reach at all, such as a locked room, a blocked or missing manhole, or a subfloor or roof space below the minimum access dimensions. No inspection was made of these areas.'],
-    ['Obstructions', 'Physical items that block the view of part of an area the inspector entered, such as furniture, stored goods, floor coverings, fixtures, insulation and vegetation. The inspector is not required to move obstructions.'],
-    ['Restrictions', 'Conditions that limit the inspector\'s access within an area that was entered, such as low clearance, height beyond safe reach, or unsafe sections. The parts of the area that could not be seen or reached may contain timber pest activity or damage.'],
-    ['Conducive Conditions', 'Conditions that may attract termites or provide conditions favourable to timber pest activity, including moisture, timber-to-soil contact, inadequate drainage, and conditions that compromise the integrity of an existing termite management system.'],
+    ['Hindered Access', 'An area, or part of one, that could not be fully inspected because of temporary obstructions at the time of inspection, such as furniture, stored goods, floor coverings, insulation, vegetation, or low clearance in the subfloor or roof void. The inspector is not required to move obstructions.'],
+    ['Restricted Access', 'An area that could not be inspected because of a permanent restriction or locked entry, such as a locked room, a subfloor with no access opening, a roof with no roof void, or a part of the building beyond safe reach.'],
+    ['High Risk Areas', 'Areas to which access was not available, or not fully available, that are considered at high risk of concealed timber pest activity. Access should be gained and these areas inspected.'],
+    ['Invasive Inspection', 'A further inspection in which linings, floor coverings or timbers may be cut, drilled or removed to look inside them. It needs the owner\'s written permission and a separate agreement.'],
+    ['Conducive Conditions', 'Conditions that may attract termites or provide conditions favourable to timber pest activity, including moisture, timber-to-soil contact, inadequate drainage and ventilation, and conditions that compromise the integrity of an existing termite management system.'],
     ['Active Termites', 'Live termites sighted by the inspector during the inspection.'],
     ['Inactive / Evidence Only', 'Evidence of termite activity, such as workings, mudding, damaged timber or galleries, where no live termites were seen at the time of inspection. It does not show when the activity happened or whether termites are still present in concealed areas, so it should be investigated further and the recommendations in this report followed.'],
+    ['Previous Treatment', 'Signs that the property has been treated for termites before, such as drill holes in slabs or paving, dusting residue, or bait or monitoring stations. It does not show whether that treatment is still working.'],
   ];
 
   defs.forEach(([term, def]) => {
@@ -10119,12 +10227,11 @@ async function buildReportPdf() {
   doc.text(noticeLines, M+7, y+13);
   y += 34;
 
-  startPart('Terms & Conditions of Inspection', true);
-
-  sectionTitle('TERMS & CONDITIONS OF INSPECTION');
+  pageLabel = 'Terms & Conditions of Inspection';
+  newPage();
+  partHeading('Terms and conditions of inspection');
 
   const TC = { font:'helvetica', size:8, color:[50,44,38], leading:4.4 };
-  const TCH = [28,24,20];
 
   function tcHeading(text) {
     if (y > 262) newPage();
@@ -10146,8 +10253,8 @@ async function buildReportPdf() {
   tcHeading('2. Scope of Inspection');
   tcPara('The inspection was confined to areas that were safely and reasonably accessible at the time of the inspection. Readily accessible areas are defined in AS 4349.3-2010 as those that can be inspected without moving furniture, lifting or removing floor coverings or wall linings, breaking apart building elements, exposing concealed spaces, or causing damage to the structure or its contents. The inspector did not move, displace, or remove any floor coverings, insulation, wall linings, ceiling materials, fixed cabinetry, furniture, stored items, or personal belongings. Subfloor and roof void areas were inspected only where safe and reasonable access was available and where minimum clearance dimensions prescribed in the relevant Standard were satisfied.');
 
-  tcHeading('3. Areas Not Inspected — Obstructions and Restrictions');
-  tcPara('Certain areas of the property were not inspected due to physical obstructions, access restrictions, safety limitations, or structural design, as recorded in the body of this report. It is acknowledged that timber pest activity or damage may exist within any area that could not be inspected. Where high-risk areas have been identified or further investigation recommended, a follow-up inspection should be carried out once access is available. The absence of recorded findings in any area is not a representation that those areas are free of timber pest activity or damage.');
+  tcHeading('3. Areas Not Inspected — Hindered and Restricted Access');
+  tcPara(`Certain areas of the property could not be inspected, or fully inspected, because access was hindered by temporary obstructions or restricted by a permanent restriction or locked entry, as recorded in Section ${REPORT_PARTS.access}. It is acknowledged that timber pest activity or damage may exist within any area that could not be inspected. Where high risk areas have been identified or further investigation recommended, a follow-up inspection should be carried out once access is available. The absence of recorded findings in any area is not a representation that those areas are free of timber pest activity or damage.`);
 
   tcHeading('4. Limitations of a Visual Non-Invasive Inspection');
   tcPara('A visual, non-invasive inspection of the type described in AS 4349.3-2010 cannot detect activity or damage concealed within wall cavities, structural timber members, beneath floor slabs or coverings, inside hollow trees or stumps, behind fixed linings, or in any area that cannot be directly observed without causing damage. Subterranean termites are frequently active inside walls, flooring, and structural framing without any external indicators being visible. The findings of this report reflect observable conditions in accessible areas at the time of inspection only. No inspection of this nature can conclusively establish that a property is free of timber pest infestation, activity, or damage.');
@@ -10184,21 +10291,11 @@ async function buildReportPdf() {
   doc.text('This report must be read in its entirety, including these Terms and Conditions, before any reliance is placed upon its contents.', M + CW/2, y + 7.5, { align:'center', maxWidth: CW - 8 });
   y += 18;
 
-  // The acknowledgement and signatures stay together on one page.
-  startPart('Inspection Agreement & Acknowledgement', y > 150);
-
-  sectionTitle('INSPECTION AGREEMENT & ACKNOWLEDGEMENT');
-  gap(2);
-  disclaimer('This report relates to the condition of the property in respect of timber pest activity at the time of inspection, limited to those areas that were reasonably accessible. It is not a warranty, guarantee, or certificate of compliance with any law, insurance policy, or building standard, and does not guarantee the property is, or will remain, free of termites or other timber pests. Conditions affecting the property may change after the inspection date, and concealed or inaccessible areas may contain damage or activity that could not be identified.');
-  gap(3);
-  if (!prePurchase) {
-    disclaimer('This report is for the sole use of the client named above and is not intended for use by third parties. It is not suitable for use where the property is being bought or sold — a Prior-to-Purchase inspection with reference to AS 4349.3-2010 should be obtained for that purpose.');
-    gap(3);
-  }
-  disclaimer('The client acknowledges the contents of this report and that the inspection has limitations. This report does not conclusively determine that the property is free of termites.');
-  gap(8);
-
-  // ── Inspector block ─────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────
+  // 11. INSPECTOR DETAILS and 12. CLIENT ACKNOWLEDGEMENT, kept together.
+  // ─────────────────────────────────────────────────────────────────────
+  startPart('Inspector Details', y > 120);
+  sectionTitle('INSPECTOR DETAILS', REPORT_PARTS.inspector);
   // Signature blocks: the value sits on the line, its caption under it.
   const sigColW = (CW - 16) / 3;
   const onSigLine = (text, x) => {
@@ -10206,14 +10303,12 @@ async function buildReportPdf() {
     doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...C.ink);
     doc.text(doc.splitTextToSize(String(text), sigColW - 2)[0], x + 1, y - 2);
   };
-  function sigHeading(label) {
-    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.ink);
-    pdfTracked(doc, label, M, y, { cs: 0.6 });
-    doc.setFillColor(...C.accent); doc.rect(M, y + 2, CW, 0.5, 'F');
-    y += 21;
+  const provider = [co.name, co.phone, co.email].filter(Boolean).join('  ·  ');
+  if (provider) {
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...C.inkLight);
+    doc.text(provider, M, y); y += 4;
   }
-  if (y + 60 > 278) newPage();
-  sigHeading('INSPECTOR DETAILS');
+  y += 14;
   onSigLine(inspector || 'Not specified', M);
   drawPdfSignature(doc, { x: M, y, w: sigColW, caption: 'Inspector name' });
   onSigLine(reportData.inspectorLicence, M + sigColW + 8);
@@ -10222,15 +10317,24 @@ async function buildReportPdf() {
   drawPdfSignature(doc, { x: M + (sigColW + 8) * 2, y, w: sigColW, caption: 'Date' });
   y += 22;
   drawPdfSignature(doc, { x: M, y, w: sigColW * 2 + 8, caption: 'Inspector signature', image: reportData.inspectorSignature });
-  y += 14;
+  y += 12;
 
-  // ── Client agreement block ───────────────────────────────────────────────
+  startPart('Client Acknowledgement', y > 175);
+  sectionTitle('CLIENT ACKNOWLEDGEMENT', REPORT_PARTS.acknowledgement);
+  disclaimer('This report relates to the condition of the property in respect of timber pest activity at the time of inspection, limited to those areas that were reasonably accessible. It is not a warranty, guarantee, or certificate of compliance with any law, insurance policy, or building standard, and does not guarantee the property is, or will remain, free of termites or other timber pests. Conditions affecting the property may change after the inspection date, and concealed or inaccessible areas may contain damage or activity that could not be identified.');
+  gap(2);
+  if (!prePurchase) {
+    disclaimer('This report is for the sole use of the client named above and is not intended for use by third parties. It is not suitable for use where the property is being bought or sold — a Prior-to-Purchase inspection with reference to AS 4349.3-2010 should be obtained for that purpose.');
+    gap(2);
+  }
+  disclaimer('The client acknowledges the contents of this report and that the inspection has limitations. This report does not conclusively determine that the property is free of termites.');
+
   // The client signs the pre-inspection agreement before the job; its full
-  // wording follows on the next page. Reports from before that change have
-  // a client signature captured at sign-off instead, printed as it was.
+  // wording is the appendix. Reports from before that change have a client
+  // signature captured at sign-off instead, printed as it was.
   const agreement = reportData.agreement;
-  if (y + 40 > 278) newPage();
-  sigHeading(agreement ? 'PRE-INSPECTION AGREEMENT' : 'CLIENT ACKNOWLEDGEMENT');
+  if (y + 36 > 278) newPage();
+  y += agreement ? 18 : 24;
   if (agreement) {
     onSigLine(agreement.signerName, M);
     drawPdfSignature(doc, { x: M, y, w: sigColW, caption: 'Agreed by' });
@@ -10238,11 +10342,14 @@ async function buildReportPdf() {
       image: agreement.signature, note: agreement.signature ? '' : agreement.otherNote });
     onSigLine(formatAgreementSignedAt(agreement.signedAt), M + (sigColW + 8) * 2);
     drawPdfSignature(doc, { x: M + (sigColW + 8) * 2, y, w: sigColW, caption: agreement.method === 'other' ? 'Signed' : 'Signed, before the inspection' });
-    y += 14;
+    y += 9;
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.inkMuted);
+    doc.text('Signed as the pre-inspection agreement. Its full wording is the appendix to this report.', M, y);
+    y += 6;
   } else {
     if (!reportData.clientSignature) {
       doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...C.warn);
-      doc.text('No pre-inspection agreement was recorded for this inspection.', M, y - 12);
+      doc.text('No pre-inspection agreement was recorded for this inspection.', M, y - 14);
     }
     drawPdfSignature(doc, { x: M, y, w: sigColW, caption: 'Client name' });
     drawPdfSignature(doc, { x: M + sigColW + 8, y, w: sigColW, caption: 'Client signature', image: reportData.clientSignature });
@@ -10289,10 +10396,49 @@ async function buildReportPdf() {
   doc.text(`Content fingerprint: ${formatFingerprint(fingerprint)}  ·  changes to the report change this code`, M+7, y+13);
 
   if (agreement) {
-    startPart('Pre-Inspection Agreement', true);
-    sectionTitle('PRE-INSPECTION AGREEMENT');
+    startPart('Appendix: Pre-Inspection Agreement', true);
+    sectionTitle('APPENDIX: PRE-INSPECTION AGREEMENT', 'A');
     gap(2);
-    y = drawAgreementBody(doc, agreement, y, { M, CW, onNewPage: () => { compactHeader('Pre-Inspection Agreement'); return 22; } });
+    y = drawAgreementBody(doc, agreement, y, { M, CW, onNewPage: () => { compactHeader('Appendix: Pre-Inspection Agreement'); return 22; } });
+  }
+
+  // ── CONTENTS ── every numbered section, what it holds, and its page.
+  {
+    doc.setPage(contentsPageNo);
+    y = 26;
+    doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(...C.ink);
+    doc.text('Contents', M, y + 6);
+    doc.setFillColor(...C.accent); doc.rect(M, y + 10, 22, 1.2, 'F');
+    y += 22;
+    const CONTENTS = [
+      [REPORT_PARTS.client, 'Client & Inspection Details', 'Who the report is for, the property, and who inspected it.'],
+      [REPORT_PARTS.summary, 'Summary', 'The main results under access, activity and safety & risk, with where to read more.'],
+      [REPORT_PARTS.property, 'About the Property', 'How the building is built and used, and its termite management system.'],
+      [REPORT_PARTS.areas, 'Areas Inspected', 'Each area, how much of it was inspected, and what was found there.'],
+      [REPORT_PARTS.access, 'Areas Unable to Be Inspected, and Why', 'Hindered access, restricted access, high risk areas and invasive inspection.'],
+      [REPORT_PARTS.findings, 'Findings', 'Termites, borers, wood decay, chemical delignification and previous treatment.'],
+      [REPORT_PARTS.conducive, 'Conducive Conditions', 'Conditions that make timber pest attack more likely, and why each matters.'],
+      [REPORT_PARTS.recommendations, 'Recommendations & Risk', 'The risk of termite attack, treatment and when to inspect again.'],
+      [REPORT_PARTS.photos, 'Photographs', 'Photos taken during the inspection.'],
+      [REPORT_PARTS.terms, 'Scope, Limitations, Definitions & Terms', 'What this inspection covers, the terms used, and the terms and conditions.'],
+      [REPORT_PARTS.inspector, 'Inspector Details', 'The inspector, their licence and signature.'],
+      [REPORT_PARTS.acknowledgement, 'Client Acknowledgement', 'The client\'s acknowledgement of the report and its limits.'],
+      ...(agreement ? [['A', 'Appendix: Pre-Inspection Agreement', 'The agreement the client signed before the inspection.']] : []),
+    ];
+    CONTENTS.forEach(([no, title, desc]) => {
+      const pg = partPages[no] ? partPages[no] - 1 : '';
+      doc.setFillColor(...C.accent); doc.roundedRect(M, y - 4.6, 7, 7, 1, 1, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.white);
+      doc.text(String(no), M + 3.5, y + 0.6, { align: 'center' });
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...C.ink);
+      doc.text(title, M + 11, y);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.8); doc.setTextColor(...C.inkLight);
+      doc.text(desc, M + 11, y + 4.6);
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(...C.accentDark);
+      doc.text(String(pg), W - M, y, { align: 'right' });
+      doc.setDrawColor(...C.ruleLight); doc.setLineWidth(0.25); doc.line(M, y + 8.5, W - M, y + 8.5);
+      y += 15.5;
+    });
   }
 
   // ── PAGE FOOTERS ──────────────────────────────────────────────────────────
@@ -10314,8 +10460,8 @@ async function buildReportPdf() {
 async function _buildAndDownloadPDF() {
   const { blob, fname } = await buildReportPdf();
   await deliverPdfBlob(blob, fname, {
-    title: 'Timber Pest Inspection Report',
-    text: `Timber Pest Inspection Report — ${getFullAddress() || 'Property'}`,
+    title: reportKindTitle(),
+    text: `${reportKindTitle()} — ${getFullAddress() || 'Property'}`,
     readyToast: 'Report ready — choose where to save or send it',
   });
 }
