@@ -1164,11 +1164,11 @@
             <span class="sec-badge empty" id="sts-obstructions">Not started</span>
           </div>
 
-          <!-- Area-by-area record: every area gets a status; partly / not
-               inspected areas show their obstruction reasons. Rendered by
-               renderAreaChecklist(). -->
+          <!-- Area-by-area record: every area is Inspected, Not inspected or
+               Not present, and any hindered or restricted reason is ticked
+               under it. Rendered by renderAreaChecklist(). -->
           <div style="padding:10px 14px 4px">
-            <div class="obs-zone-label">Mark every area and what was found there. For an area not fully inspected, tick why: hindered (in the way today) or restricted (permanent or locked).</div>
+            <div class="obs-zone-label">Mark every area and what was found there. If something limited the inspection, tick why: hindered (in the way today) or restricted (permanent or locked).</div>
             <button class="access-clear-btn" onclick="markRemainingAreasInspected()">Mark all unmarked areas as Inspected</button>
           </div>
           <div class="obs-panels-wrap" id="areaChecklist" style="padding:4px 14px 8px"></div>

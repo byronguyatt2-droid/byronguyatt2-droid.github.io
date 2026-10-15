@@ -329,6 +329,7 @@ const OBS_ZONES = {
     label: 'Outbuildings',
     items: [
       'Stored Articles',
+      'Locked, no access',
     ],
   },
   site: {
@@ -381,13 +382,21 @@ const OBS_ZONES = {
 //   restricted access: a permanent restriction or locked entry (a locked
 //     room, no subfloor hatch, no roof void, beyond safe height).
 // Labels in RESTRICTED_REASONS are restricted; every other label hinders.
-const RESTRICTED_REASONS = new Set(['Locked room and storage to garage', 'No access to subfloor', 'Height Restrictions', 'Skillion Roof Design (no void)']);
+const RESTRICTED_REASONS = new Set(['Locked room and storage to garage', 'Locked, no access', 'No access to subfloor', 'Height Restrictions', 'Skillion Roof Design (no void)']);
+// Every status an area can hold. PARTIAL is still stored (older reports
+// and the AI use it), but the inspector never picks it: an area is
+// Inspected, Not inspected or Not present, and an inspected area with a
+// hindered or restricted reason ticked is held as PARTIAL, "inspected with
+// limits".
 const AREA_STATUSES = [
   ['INSPECTED', 'Inspected'],
-  ['PARTIAL',   'Partly'],
+  ['PARTIAL',   'Inspected with limits'],
   ['NOT',       'Not inspected'],
-  ['NA',        'N/A'],
+  ['NA',        'Not present'],
 ];
+const AREA_STATUS_BUTTONS = [['INSPECTED', 'Inspected'], ['NOT', 'Not inspected'], ['NA', 'Not present']];
+// Inspected areas whose reason list has been opened with "Add a limit".
+const areaLimitsOpen = new Set();
 
 // Other ways inspectors name an area, for matching dictated text.
 const AREA_ALIASES = {
@@ -511,6 +520,9 @@ function areasNotFullyInspected() {
 }
 
 function setAreaStatus(zoneId, status) {
+  // Inspected is already lit for an area inspected with limits; tapping it
+  // again keeps the limits.
+  if (status === 'INSPECTED' && areaStatusOf(zoneId) === 'PARTIAL') return;
   if (!reportData.areaStatus) reportData.areaStatus = {};
   reportData.areaStatus[zoneId] = status;
   if (!['PARTIAL', 'NOT'].includes(status) && reportData.areaReasons) delete reportData.areaReasons[zoneId];
@@ -528,6 +540,11 @@ function toggleObsItem(zoneId, item) {
   const list = reportData.areaReasons[zoneId] || (reportData.areaReasons[zoneId] = []);
   const idx = list.indexOf(item);
   if (idx >= 0) list.splice(idx, 1); else list.push(item);
+  // On an inspected area, a ticked reason means inspected with limits, and
+  // unticking the last one makes it plainly inspected again.
+  if (!reportData.areaStatus) reportData.areaStatus = {};
+  if (areaStatusOf(zoneId) === 'INSPECTED' && list.length) reportData.areaStatus[zoneId] = 'PARTIAL';
+  else if (areaStatusOf(zoneId) === 'PARTIAL' && !list.length) { reportData.areaStatus[zoneId] = 'INSPECTED'; areaLimitsOpen.add(zoneId); }
   syncObstructionData();
 }
 
@@ -537,11 +554,14 @@ function renderAreaChecklist() {
   migrateLegacyObstructions();
   wrap.innerHTML = Object.entries(OBS_ZONES).map(([zoneId, zone]) => {
     const status = areaStatusOf(zoneId);
-    const statusBtns = AREA_STATUSES.map(([val, label]) =>
-      `<button class="obs-zone-btn area-status-btn${status === val ? ' active status-' + val.toLowerCase() : ''}"
+    const lit = status === 'PARTIAL' ? 'INSPECTED' : status;
+    const statusBtns = AREA_STATUS_BUTTONS.map(([val, label]) =>
+      `<button class="obs-zone-btn area-status-btn${lit === val ? ' active status-' + status.toLowerCase() : ''}"
         onclick="setAreaStatus('${zoneId}','${val}')">${label}</button>`).join('');
     let reasons = '';
-    if (status === 'PARTIAL' || status === 'NOT') {
+    if (status === 'INSPECTED' && !areaLimitsOpen.has(zoneId)) {
+      reasons = `<button class="link-btn area-add-limit" onclick="areaLimitsOpen.add('${zoneId}');renderAreaChecklist()">+ Add a hindered or restricted reason</button>`;
+    } else if (['INSPECTED', 'PARTIAL', 'NOT'].includes(status)) {
       const selected = (reportData.areaReasons || {})[zoneId] || [];
       const btn = item => {
         const safe = item.replace(/'/g, '&#39;');
@@ -575,7 +595,7 @@ function renderAreaChecklist() {
 function syncObstructionData() {
   const notFull = areasNotFullyInspected();
   const reasons = reportData.areaReasons || {};
-  reportData.obstructions = notFull.map(z => OBS_ZONES[z].label + (areaStatusOf(z) === 'PARTIAL' ? ' (partly inspected)' : '')).join(', ');
+  reportData.obstructions = notFull.map(z => OBS_ZONES[z].label + (areaStatusOf(z) === 'PARTIAL' ? ' (inspected with limits)' : '')).join(', ');
   reportData.restrictedAccess = notFull.map(z => {
     const items = reasons[z] || [];
     return items.length ? `${OBS_ZONES[z].label}: ${items.join(', ')}` : OBS_ZONES[z].label;
@@ -617,7 +637,7 @@ const OBS_REASON_SYNONYMS = {
   'Vegetation': ['vegetation', 'shrubs', 'shrubbery', 'overgrown', 'plants', 'garden growth'],
   'Low Clearance': ['low clearance', 'clearance too low', 'not enough clearance', 'tight clearance'],
   'Low clearance in roof void': ['low clearance in the roof', 'low clearance in roof void', 'low pitch'],
-  'Low clearance to the outside edges of roof void': ['low clearance to the outer edges', 'low clearance at the outer edges', 'low clearance to the edges', 'low clearance at the edges', 'low clearance at the eaves', 'low clearance to the eaves', 'low clearance at the outer sides', 'low clearance to the outer sides'],
+  'Low clearance to the outside edges of roof void': ['outer edges low clearance', 'outside edges low clearance', 'edges low clearance', 'low clearance to the outer edges', 'low clearance at the outer edges', 'low clearance to the edges', 'low clearance at the edges', 'low clearance at the eaves', 'low clearance to the eaves', 'low clearance at the outer sides', 'low clearance to the outer sides'],
   'Ducting': ['ducting', 'ducts'],
   'Air conditioning ducting': ['ducting', 'ducts', 'air con'],
   'Air Conditioner Ducting': ['ducting', 'ducts', 'air con'],
@@ -627,6 +647,9 @@ const OBS_REASON_SYNONYMS = {
   'Skillion Roof Design (no void)': ['skillion', 'no roof void', 'no void'],
   'Item blocking access to manhole': ['manhole blocked', 'blocking the manhole', 'blocking access to manhole', 'manhole'],
   'Water Tanks': ['water tank', 'rainwater tank', 'tank'],
+  'Items/belongings stored to cupboards': ['stored items in cupboards', 'stored items in the cupboards', 'cupboards with stored items', 'stored in cupboards', 'stored in the cupboards', 'items in cupboards', 'items in the cupboards', 'cupboards full'],
+  'Locked room and storage to garage': ['locked room', 'locked bedroom', 'room was locked', 'room locked', 'bedroom was locked', 'bedroom locked', 'locked door'],
+  'Locked, no access': ['locked', 'no key', 'couldn\'t get in', 'could not get in'],
   'Back Fill': ['backfill', 'back fill', 'soil built up', 'soil against'],
   'Abutting Timbers': ['abutting timber', 'timbers against', 'timber against'],
   'No access to subfloor': ['no access to subfloor', 'no access to the subfloor', 'no subfloor access', 'could not access the subfloor', 'couldn\'t get into the subfloor', 'subfloor not accessible', 'subfloor not entered', 'hatch too small', 'no subfloor hatch'],
@@ -645,12 +668,27 @@ const OBS_REASON_SYNONYMS = {
 // "no" ("No access to subfloor") needs that "no" in the phrase too, so a
 // subfloor the inspector was in is never reported as not accessed. Every
 // button stays a normal toggle the technician can correct.
-function applyObstructionExtraction(data) {
+//
+// An area an earlier note marked partly or not inspected keeps that, with
+// its reasons, when a later note calls it inspected, unless the later note
+// says the inspector got in after all ("got into the back of the subfloor
+// now"). A note about a finding or a leak in the kitchen is not a note
+// about access, and must not drop the interior's access limits from the
+// report.
+const ACCESS_GAINED_RE = /\b(got|get|went|go|gone|crawled)\s+(in|into|under|up|through|back)\b|\baccessed\b|\bnow\s+(accessible|inspected|clear|open)\b|\b(fully|completely)\s+inspected\b|\binspected\s+(it|the rest|all|fully)\b|\bthe rest of\b|\ball of (the|it)\b|\bfull access\b|\b(moved|cleared|unlocked)\b|\bopened (it|up the|the)\b/i;
+function noteSaysAccessGained(transcript, zoneId) {
+  if (!transcript) return false;
+  const names = [OBS_ZONES[zoneId].label.replace(/^the /i, ''), ...(AREA_ALIASES[zoneId] || [])].map(n => n.toLowerCase());
+  return String(transcript).toLowerCase().split(/[.!?\n]+/).some(sentence => names.some(n => sentence.includes(n)) && ACCESS_GAINED_RE.test(sentence));
+}
+
+function applyObstructionExtraction(data, transcript) {
   const VALID = new Set(AREA_STATUSES.map(([v]) => v));
   let changed = false;
   const aiStatus = (data.areaStatus && typeof data.areaStatus === 'object') ? data.areaStatus : {};
   Object.entries(aiStatus).forEach(([z, st]) => {
     if (!OBS_ZONES[z] || !VALID.has(st)) return;
+    if (st === 'INSPECTED' && ['PARTIAL', 'NOT'].includes(areaStatusOf(z)) && !noteSaysAccessGained(transcript, z)) return;
     if (!reportData.areaStatus) reportData.areaStatus = {};
     reportData.areaStatus[z] = st;
     if (!['PARTIAL', 'NOT'].includes(st) && reportData.areaReasons) delete reportData.areaReasons[z];
@@ -781,10 +819,10 @@ function accessLimits() {
     const st = areaStatusOf(z);
     if (!['PARTIAL', 'NOT'].includes(st)) return;
     const items = (reportData.areaReasons || {})[z] || [];
-    const status = st === 'NOT' ? 'Not inspected' : 'Partly inspected';
+    const status = st === 'NOT' ? 'Not inspected' : 'Inspected';
     const h = items.filter(i => !RESTRICTED_REASONS.has(i)), r = items.filter(i => RESTRICTED_REASONS.has(i));
     if (h.length) hindered.push([zone.label, `${status}, hindered by ${h.join(', ').toLowerCase()}`]);
-    if (r.length) restricted.push([zone.label, `${status}: ${r.join(', ').toLowerCase()}`]);
+    if (r.length) restricted.push([zone.label, `${st === 'NOT' ? 'Not inspected:' : 'Inspected, restricted by'} ${r.join(', ').toLowerCase()}`]);
     if (!items.length) hindered.push([zone.label, `${status}, reason not recorded`]);
   });
   if (hasHinderedAreas()) {
@@ -1398,7 +1436,7 @@ HINDERED AND RESTRICTED ACCESS: five fields, each with one meaning. The report s
   Exterior: Vegetation | Stored Articles | Air Conditioner Ducting | Storage to garage walls | Water Tanks
   Subfloor: Low Clearance | Stored Articles | Ducting | Plumbing | No access to subfloor | Insulation
   Roof void: Insulation | Sarking | Air conditioning ducting | Stored articles | Low clearance to the outside edges of roof void | Low clearance in roof void | Item blocking access to manhole | Height Restrictions | Skillion Roof Design (no void)
-  Outbuildings / Site / Fences: Vegetation | Stored Articles.  Retaining walls / Landscaping timbers: Back Fill | Abutting Timbers | Vegetation | Stored Articles
+  Outbuildings: Stored Articles | Locked, no access.  Site / Fences: Vegetation | Stored Articles.  Retaining walls / Landscaping timbers: Back Fill | Abutting Timbers | Vegetation | Stored Articles
   Stored items, boxes, goods or belongings are "Stored Articles". Use "No access to subfloor" ONLY when the subfloor was not entered at all; a subfloor the inspector was in but could not fully reach gets "Stored Articles" or "Low Clearance", never any phrase with the word "access". When no label fits, write the reason in a few plain words after the area name. Null when nothing was in the way.
 - noAccessAreas: RESTRICTED access: every room, area or space the inspector could not inspect because of a permanent restriction or locked entry, where and why, in their words, e.g. "Front left bedroom, north-east side: locked. Subfloor: no access hatch". Null when the note names no such place. A place that was blocked only by something movable (a manhole blocked by stored boxes) is hinderedAreas, not this.
 - hinderedAreas: HINDERED access: the areas or parts the inspector could not fully inspect because of temporary obstructions or low clearance, whether they got in or not. Name only the limited areas and parts ("Roof void: outer edges and corners, low clearance. Subfloor: back section behind stored items. Bedrooms: walls behind furniture"). It is NOT a list of what was inspected, and it never names an area that was fully inspected. Null when the note states nothing was in the way, and also null when the note simply does not raise the subject.
@@ -3203,7 +3241,7 @@ async function processTranscript() {
       try { await processPendingNotes(true); } finally { extractSummaryOwned = false; }
       extracted = !getPendingNotes().length;
     } else {
-      await populateFields(await requestExtraction(currentTranscript));
+      await populateFields(await requestExtraction(currentTranscript), currentTranscript);
       extracted = true;
       pendingNotesProblem = null;
       setAI('ready', 'Data extracted');
@@ -3360,7 +3398,7 @@ async function processPendingNotes(manual) {
       pendingNotesProblem = null;
       if (reportData !== target) break;
       // Wait for the staggered field writes, so the saves below hold them.
-      await populateFields(extracted);
+      await populateFields(extracted, note.text);
       if (reportData !== target) break;
       reportData.pendingNotes = getPendingNotes().filter(n => n.id !== note.id);
       filled++;
@@ -3731,6 +3769,12 @@ const NIL_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'noAccess
 const isNilText = v => /^\s*(nil|none|no|n\/a|na|not applicable|nothing|not stated|not mentioned|unknown)\s*[.!]?\s*$/i.test(String(v));
 const hasRealFinding = list => list.some(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
 const findingHasData = f => !!(f.termiteActivity || f.species || f.damageDescription || f.activityLocation || f.nestLocated || f.structuralConcern);
+// The words that identify a place or an observation, for telling whether a
+// later note is only repeating an earlier one ("kitchen skirting board"
+// after "skirting board, kitchen, east wall").
+const KEY_WORD_SKIP = new Set(['the', 'from', 'with', 'leak', 'leaks', 'there', 'that', 'this', 'into', 'along']);
+const keyWords = t => String(t || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !KEY_WORD_SKIP.has(w));
+const repeatsText = (have, val) => { const h = new Set(keyWords(have)), v = keyWords(val); return v.length > 0 && v.every(w => h.has(w)); };
 
 // Writes one extracted note into the report. Every value the note gives
 // replaces what was there (the inspector's later word wins), with these
@@ -3743,7 +3787,7 @@ const findingHasData = f => !!(f.termiteActivity || f.species || f.damageDescrip
 //   - the system type doesn't clear a brand a plate scan read unless the
 //     type itself changed
 // Resolves once the staggered field writes are done, so a caller can save.
-function populateFields(data) {
+function populateFields(data, transcript) {
   if (!data || typeof data !== 'object') return Promise.resolve();
   // Handle findings array from AI extraction
   if (data.findings && Array.isArray(data.findings) && data.findings.length > 0) {
@@ -3768,6 +3812,17 @@ function populateFields(data) {
     const existingReal = existing.filter(f => f.termiteActivity === 'ACTIVE' || f.termiteActivity === 'INACTIVE');
     if (hasRealFinding(incoming) || existingReal.length) incoming = incoming.filter(f => f.termiteActivity !== 'NONE');
     const kept = hasRealFinding(incoming) ? existing.filter(f => f.termiteActivity !== 'NONE' && findingHasData(f)) : existing.filter(findingHasData);
+    // A note that only mentions a finding again (a recommendation to treat
+    // "the live termites in the kitchen skirting") isn't a new finding: it
+    // fills any blanks on the one already recorded instead of adding a card.
+    let merged = false;
+    incoming = incoming.filter(f => {
+      if (!f.activityLocation) return true;
+      const same = kept.find(k => k.activityLocation && (k.termiteActivity || null) === f.termiteActivity && repeatsText(k.activityLocation, f.activityLocation));
+      if (!same) return true;
+      ['species', 'damageDescription', 'nestLocated', 'structuralConcern'].forEach(k => { if (!same[k] && f[k]) { same[k] = f[k]; merged = true; } });
+      return false;
+    });
 
     if (incoming.length) {
       const combined = [...kept, ...incoming];
@@ -3775,7 +3830,7 @@ function populateFields(data) {
       if (combined.length > MAX_FINDINGS) {
         showToast(`Only ${MAX_FINDINGS} findings can be tracked per report — some new ones weren't added. Review and merge manually if needed.`, 'info');
       }
-    } else if (kept.length !== existing.length) {
+    } else if (kept.length !== existing.length || merged) {
       reportData.findings = kept;
     }
     renderFindingsUI();
@@ -3799,7 +3854,7 @@ function populateFields(data) {
   // per-area status buttons (reportData.areaStatus / areaReasons). The
   // generic field loop below only writes into 'f-'+key elements, so they
   // are applied here instead.
-  applyObstructionExtraction(data);
+  applyObstructionExtraction(data, transcript);
 
   // Moisture meter readings spoken by the technician are added as rows.
   if (Array.isArray(data.moistureMeterReadings)) {
@@ -3878,7 +3933,7 @@ function populateFields(data) {
       const prev = reportData[key];
       if (APPEND_TEXT_KEYS.has(key) && typeof prev === 'string' && prev.trim() && !prev.startsWith('NIL')) {
         const have = prev.toLowerCase();
-        if (have.includes(val.toLowerCase())) val = prev;
+        if (have.includes(val.toLowerCase()) || repeatsText(prev, val)) val = prev;
         else if (!val.toLowerCase().includes(have)) val = prev.replace(/[.;,\s]+$/, '') + '; ' + val;
       }
       reportData[key] = val;
@@ -7585,7 +7640,7 @@ function isFieldFilled(key) {
       reportData.findings.some(f => f && (f.termiteActivity || f.species || f.damageDescription || f.activityLocation));
   }
   if (key === 'areaStatus') {
-    // Every area needs a status (Inspected / Partly / Not inspected / N/A).
+    // Every area needs a status (Inspected / Not inspected / Not present).
     return Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
   }
   if (key === 'standard') {
@@ -8495,7 +8550,7 @@ function reportSummary() {
   // Areas the inspector couldn't fully see, and why.
   const limited = limitedZones.map(z => {
     const why = ((reportData.areaReasons || {})[z] || []).join(', ');
-    return `${OBS_ZONES[z].label}: ${areaStatusOf(z) === 'NOT' ? 'not inspected' : 'partly inspected'}${why ? ` (${why})` : ''}`;
+    return `${OBS_ZONES[z].label}: ${areaStatusOf(z) === 'NOT' ? 'not inspected' : 'inspected with limits'}${why ? ` (${why})` : ''}`;
   });
   const next = [];
   if (live.length || reportData.treatmentRecommended === 'YES') {
@@ -8530,7 +8585,7 @@ function reportPrepGaps() {
   const unmarked = Object.keys(OBS_ZONES).filter(z => !areaStatusOf(z));
   if (unmarked.length) push(`${unmarked.length} area${unmarked.length === 1 ? ' has' : 's have'} no inspection status (${unmarked.map(z => OBS_ZONES[z].label).join(', ')})`,
     `<button class="link-btn" onclick="fixSendGap('inspected')">Mark the rest as inspected</button>` +
-    `<button class="link-btn" onclick="fixSendGap('na')">Not applicable</button>`);
+    `<button class="link-btn" onclick="fixSendGap('na')">Not present</button>`);
   const noResult = areasMissingResult();
   if (noResult.length) push(`${noResult.length} area${noResult.length === 1 ? ' has' : 's have'} no result for what was found there (${noResult.map(z => OBS_ZONES[z].label).join(', ')})`,
     `<button class="link-btn" onclick="fixSendGap('clear')">Mark the rest as nothing found</button>`);
@@ -9869,13 +9924,14 @@ async function buildReportPdf() {
   startPart('Areas Inspected');
   sectionTitle('AREAS INSPECTED', REPORT_PARTS.areas);
   resetRowShade();
-  const AREA_STATUS_TEXT = { INSPECTED:'Inspected', PARTIAL:'Partly inspected', NOT:'NOT INSPECTED', NA:'Not present' };
+  const AREA_STATUS_TEXT = { INSPECTED:'Inspected', PARTIAL:`Inspected with limits (see Section ${REPORT_PARTS.access})`, NOT:'NOT INSPECTED' };
   const anyStatus = Object.keys(OBS_ZONES).some(z => areaStatusOf(z));
   const noneRow = complete => row('Result', complete ? 'None' : 'Not recorded');
   para(`Each area of the property, how much of it could be inspected, and whether timber pest evidence was found there. Why an area could not be fully inspected is set out in Section ${REPORT_PARTS.access}.`);
   Object.entries(OBS_ZONES).forEach(([zoneId, zone]) => {
     const st = areaStatusOf(zoneId);
-    if (!st) return;
+    // An area the property doesn't have isn't listed.
+    if (!st || st === 'NA') return;
     const result = areaResultOf(zoneId);
     const ev = result === 'FOUND' ? areaEvidence(zoneId) : [];
     const resultText = !result ? 'Result not recorded'
