@@ -329,6 +329,7 @@ const OBS_ZONES = {
     label: 'Outbuildings',
     items: [
       'Stored Articles',
+      'Locked, no access',
     ],
   },
   site: {
@@ -381,7 +382,7 @@ const OBS_ZONES = {
 //   restricted access: a permanent restriction or locked entry (a locked
 //     room, no subfloor hatch, no roof void, beyond safe height).
 // Labels in RESTRICTED_REASONS are restricted; every other label hinders.
-const RESTRICTED_REASONS = new Set(['Locked room and storage to garage', 'No access to subfloor', 'Height Restrictions', 'Skillion Roof Design (no void)']);
+const RESTRICTED_REASONS = new Set(['Locked room and storage to garage', 'Locked, no access', 'No access to subfloor', 'Height Restrictions', 'Skillion Roof Design (no void)']);
 const AREA_STATUSES = [
   ['INSPECTED', 'Inspected'],
   ['PARTIAL',   'Partly'],
@@ -627,6 +628,7 @@ const OBS_REASON_SYNONYMS = {
   'Skillion Roof Design (no void)': ['skillion', 'no roof void', 'no void'],
   'Item blocking access to manhole': ['manhole blocked', 'blocking the manhole', 'blocking access to manhole', 'manhole'],
   'Water Tanks': ['water tank', 'rainwater tank', 'tank'],
+  'Locked, no access': ['locked', 'no key', 'couldn\'t get in', 'could not get in'],
   'Back Fill': ['backfill', 'back fill', 'soil built up', 'soil against'],
   'Abutting Timbers': ['abutting timber', 'timbers against', 'timber against'],
   'No access to subfloor': ['no access to subfloor', 'no access to the subfloor', 'no subfloor access', 'could not access the subfloor', 'couldn\'t get into the subfloor', 'subfloor not accessible', 'subfloor not entered', 'hatch too small', 'no subfloor hatch'],
@@ -1398,7 +1400,7 @@ HINDERED AND RESTRICTED ACCESS: five fields, each with one meaning. The report s
   Exterior: Vegetation | Stored Articles | Air Conditioner Ducting | Storage to garage walls | Water Tanks
   Subfloor: Low Clearance | Stored Articles | Ducting | Plumbing | No access to subfloor | Insulation
   Roof void: Insulation | Sarking | Air conditioning ducting | Stored articles | Low clearance to the outside edges of roof void | Low clearance in roof void | Item blocking access to manhole | Height Restrictions | Skillion Roof Design (no void)
-  Outbuildings / Site / Fences: Vegetation | Stored Articles.  Retaining walls / Landscaping timbers: Back Fill | Abutting Timbers | Vegetation | Stored Articles
+  Outbuildings: Stored Articles | Locked, no access.  Site / Fences: Vegetation | Stored Articles.  Retaining walls / Landscaping timbers: Back Fill | Abutting Timbers | Vegetation | Stored Articles
   Stored items, boxes, goods or belongings are "Stored Articles". Use "No access to subfloor" ONLY when the subfloor was not entered at all; a subfloor the inspector was in but could not fully reach gets "Stored Articles" or "Low Clearance", never any phrase with the word "access". When no label fits, write the reason in a few plain words after the area name. Null when nothing was in the way.
 - noAccessAreas: RESTRICTED access: every room, area or space the inspector could not inspect because of a permanent restriction or locked entry, where and why, in their words, e.g. "Front left bedroom, north-east side: locked. Subfloor: no access hatch". Null when the note names no such place. A place that was blocked only by something movable (a manhole blocked by stored boxes) is hinderedAreas, not this.
 - hinderedAreas: HINDERED access: the areas or parts the inspector could not fully inspect because of temporary obstructions or low clearance, whether they got in or not. Name only the limited areas and parts ("Roof void: outer edges and corners, low clearance. Subfloor: back section behind stored items. Bedrooms: walls behind furniture"). It is NOT a list of what was inspected, and it never names an area that was fully inspected. Null when the note states nothing was in the way, and also null when the note simply does not raise the subject.
