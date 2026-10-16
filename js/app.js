@@ -287,7 +287,7 @@ const OBS_ZONES = {
       'Items/belongings stored to cupboards',
       'Limited access to skirting boards',
       'Limited access to skirting boards due to stored items in garage',
-      'Locked room and storage to garage',
+      'Locked room',
     ],
   },
   exterior: {
@@ -382,7 +382,7 @@ const OBS_ZONES = {
 //   restricted access: a permanent restriction or locked entry (a locked
 //     room, no subfloor hatch, no roof void, beyond safe height).
 // Labels in RESTRICTED_REASONS are restricted; every other label hinders.
-const RESTRICTED_REASONS = new Set(['Locked room and storage to garage', 'Locked, no access', 'No access to subfloor', 'Height Restrictions', 'Skillion Roof Design (no void)']);
+const RESTRICTED_REASONS = new Set(['Locked room', 'Locked, no access', 'No access to subfloor', 'Height Restrictions', 'Skillion Roof Design (no void)']);
 // Every status an area can hold. PARTIAL is still stored (older reports
 // and the AI use it), but the inspector never picks it: an area is
 // Inspected, Not inspected or Not present, and an inspected area with a
@@ -609,6 +609,10 @@ function syncObstructionData() {
 // Those zones become "Not inspected" with the same reasons; the rest are
 // left for the inspector to mark.
 function migrateLegacyObstructions() {
+  // "Locked room and storage to garage" was renamed "Locked room".
+  Object.values(reportData.areaReasons || {}).forEach(list => list.forEach((r, i) => {
+    if (r === 'Locked room and storage to garage') list[i] = 'Locked room';
+  }));
   if (reportData.areaStatus || !reportData.obstructions) return;
   reportData.areaStatus = {};
   reportData.areaReasons = {};
@@ -648,7 +652,7 @@ const OBS_REASON_SYNONYMS = {
   'Item blocking access to manhole': ['manhole blocked', 'blocking the manhole', 'blocking access to manhole', 'manhole'],
   'Water Tanks': ['water tank', 'rainwater tank', 'tank'],
   'Items/belongings stored to cupboards': ['stored items in cupboards', 'stored items in the cupboards', 'cupboards with stored items', 'stored in cupboards', 'stored in the cupboards', 'items in cupboards', 'items in the cupboards', 'cupboards full'],
-  'Locked room and storage to garage': ['locked room', 'locked bedroom', 'room was locked', 'room locked', 'bedroom was locked', 'bedroom locked', 'locked door'],
+  'Locked room': ['locked room', 'locked bedroom', 'room was locked', 'room locked', 'bedroom was locked', 'bedroom locked', 'locked door'],
   'Locked, no access': ['locked', 'no key', 'couldn\'t get in', 'could not get in'],
   'Back Fill': ['backfill', 'back fill', 'soil built up', 'soil against'],
   'Abutting Timbers': ['abutting timber', 'timbers against', 'timber against'],
@@ -1433,7 +1437,7 @@ AREAS INSPECTED (areaStatus): one key per area the note actually covers; leave o
 HINDERED AND RESTRICTED ACCESS: five fields, each with one meaning. The report sorts every access limit into two kinds. HINDERED access is a temporary obstruction at the time of the inspection: furniture, stored goods, floor coverings, insulation, vegetation, a manhole blocked by stored items, or low clearance in the subfloor or roof void. RESTRICTED access is a permanent restriction or locked entry: a locked room, a subfloor with no access hatch, a roof with no void, or a part beyond safe height.
 - obstructions: which areas were not fully inspected and roughly where, e.g. "Subfloor: back section behind stored items. Roof void: outer edges and corners". Only PARTIAL or NOT areas appear here. Null when nothing was in the way.
 - restrictedAccess: WHY, as "Area: reason" pairs separated by ". ", using the app's reason labels where one fits, because the app ticks them from these exact words:
-  Interior: Furniture | Flooring | Fixtures | Items/belongings stored against wall | Items/belongings stored to cupboards | Limited access to skirting boards | Locked room and storage to garage
+  Interior: Furniture | Flooring | Fixtures | Items/belongings stored against wall | Items/belongings stored to cupboards | Limited access to skirting boards | Locked room
   Exterior: Vegetation | Stored Articles | Air Conditioner Ducting | Storage to garage walls | Water Tanks
   Subfloor: Low Clearance | Stored Articles | Ducting | Plumbing | No access to subfloor | Insulation
   Roof void: Insulation | Sarking | Air conditioning ducting | Stored articles | Low clearance to the outside edges of roof void | Low clearance in roof void | Item blocking access to manhole | Height Restrictions | Skillion Roof Design (no void)
