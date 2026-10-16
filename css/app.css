@@ -3500,6 +3500,7 @@ body.ai-busy:has(#app[style*="flex"]) .ai-busy-bar { display: block; }
 .profile-dropdown-item.profile-signout:hover { color: var(--risk); background: rgba(192,57,43,0.08); }
 
 /* ── SECTION PHOTO WIDGET ── */
+.section-photo-hint { font-size: 12px; color: var(--text3); padding: 8px 12px 0; }
 .section-photo-widget {
   margin: 8px 14px 4px;
   border: 1px solid #B8CDE0;
