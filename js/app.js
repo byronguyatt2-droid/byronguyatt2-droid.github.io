@@ -706,7 +706,8 @@ function applyObstructionExtraction(data, transcript) {
     changed = true;
   });
 
-  const combinedText = [data.obstructions, data.restrictedAccess].map(t => (t || '').trim()).filter(Boolean).join('. ');
+  // Brackets are dropped so "outer edges (low clearance)" reads as one phrase.
+  const combinedText = [data.obstructions, data.restrictedAccess].map(t => (t || '').replace(/[()]/g, ' ').trim()).filter(Boolean).join('. ');
   if (combinedText && !/^\s*(nil|none|no obstructions|no restrictions|n\/a|nothing)\b/i.test(combinedText)) {
     const words = t => t.toLowerCase().split(/[^a-z/]+/).filter(Boolean);
     // The words that identify a reason label: anything 4+ letters, plus a
@@ -3763,7 +3764,7 @@ function renderField(el, key, val) {
 // Text fields that hold a list of places or observations. A later note
 // adds to them instead of replacing them, so "borer holes in the subfloor"
 // survives a second note about rot in a fascia.
-const APPEND_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'noAccessAreas', 'highRiskAreas', 'borerDetails', 'decayDetails', 'delignificationDetails', 'nonDurableTimberDetails', 'previousTreatmentDetails', 'leakLocation']);
+const APPEND_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'noAccessAreas', 'highRiskAreas', 'borerDetails', 'decayDetails', 'delignificationDetails', 'nonDurableTimberDetails', 'previousTreatmentDetails', 'leakLocation', 'otherRecommendations', 'invasiveInspectionDetails']);
 // Free-text fields where "None", "Nil" or "N/A" means nothing to record.
 const NIL_TEXT_KEYS = new Set(['hinderedAreas', 'hinderedAreasDetail', 'noAccessAreas', 'highRiskAreas', 'borerDetails', 'decayDetails', 'delignificationDetails', 'nonDurableTimberDetails', 'previousTreatmentDetails', 'leakLocation', 'treatmentType', 'existingSystemOther']);
 const isNilText = v => /^\s*(nil|none|no|n\/a|na|not applicable|nothing|not stated|not mentioned|unknown)\s*[.!]?\s*$/i.test(String(v));
@@ -3781,7 +3782,8 @@ const repeatsText = (have, val) => { const h = new Set(keyWords(have)), v = keyW
 // exceptions so that one note can't wipe what another recorded:
 //   - findings are appended; a NONE card never sits beside a real finding
 //   - list-like text (restricted areas, high-risk areas, borer and decay
-//     details, leak locations) is added to, not replaced
+//     details, leak locations, other recommendations, invasive inspection
+//     details) is added to, not replaced
 //   - a note that says "no moisture" without mentioning leaks leaves a
 //     recorded leak alone, and a leak always counts as moisture
 //   - the system type doesn't clear a brand a plate scan read unless the
@@ -5744,7 +5746,7 @@ function backUpNewPhotos() {
 // The old reportData.photos array is kept for backward compatibility (general photos tab)
 
 const MAX_SECTION_PHOTOS = 30;
-const SECTION_PHOTO_KEYS = ['obstructions','restrictions','findings','conducive','recommendations'];
+const SECTION_PHOTO_KEYS = ['general','obstructions','restrictions','findings','conducive','recommendations'];
 
 function getSectionPhotos(section) {
   if (!reportData.photosBySection) reportData.photosBySection = {};
