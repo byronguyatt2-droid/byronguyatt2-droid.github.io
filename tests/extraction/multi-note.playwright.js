@@ -95,7 +95,7 @@ const noteFor = key => `MARKER_${key} ${NOTE_TEXT[key] || 'note text'}`;
     moistureRows: (reportData.moistureTable || []).map(r => r.location + ' ' + r.reading), moisture: reportData.moistureReadings, leaks: reportData.waterLeaks,
     borer: reportData.borerActivity, borerDetails: reportData.borerDetails, decay: reportData.decayFound, decayDetails: reportData.decayDetails,
     pending: (reportData.pendingNotes || []).map(n => n.text.slice(0, 20) + (n.problem ? ' [' + n.problem.slice(0, 30) + ']' : '')),
-    resYes: document.getElementById('resYesBtn').classList.contains('active'), resDetailShown: document.getElementById('resDetailWrap').style.display !== 'none',
+    resYes: hinderedAnswer() === 'YES', resDetailShown: /YES/.test(document.getElementById('accessHinderedBox').textContent),
   }));
   const report = {};
 

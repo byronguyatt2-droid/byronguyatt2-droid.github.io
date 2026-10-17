@@ -602,7 +602,7 @@ function renderAreaChecklist() {
         if (ev.length) result += `<div class="area-evidence">See ${escapeHtml(ev.join('; '))}</div>`;
       }
     }
-    return `<details class="obs-zone-panel"${areaOpen.has(zoneId) ? ' open' : ''} ontoggle="onAreaToggle('${zoneId}', this.open)">
+    return `<details class="obs-zone-panel" data-zone="${zoneId}"${areaOpen.has(zoneId) ? ' open' : ''} ontoggle="onAreaToggle('${zoneId}', this.open)">
       <summary class="obs-zone-panel-header area-summary">${areaSummary(zoneId, zone.label.replace(/^The /, ''))}</summary>
       <div class="area-status">${statusBtns}</div>${result}${reasons}</details>`;
   }).join('');
@@ -636,6 +636,7 @@ function syncObstructionData() {
   }).join('. ');
   renderAreaChecklist();
   renderAreaFindingPrompts();
+  renderAccessSummary();
   updateProgress(); flushDraftSave();
 }
 
@@ -814,42 +815,86 @@ function applyObstructionExtraction(data, transcript) {
   if (changed) syncObstructionData();
 }
 
-function setHinderedAccess(hasRestrictions) {
-  const yesBtn  = document.getElementById('resYesBtn');
-  const noBtn   = document.getElementById('resNoBtn');
-  const detail  = document.getElementById('resDetailWrap');
+// Section 5 doesn't ask again what Section 4 already holds: hindered and
+// restricted access are the reasons ticked against each area, shown here
+// as a summary with a way back to the area. The inspector can add exact
+// spots in their own words (hinderedAreas, noAccessAreas); those print
+// under the area rows.
+//
+// hinderedAreas may also hold 'NIL — …' (or 'N/A') from older reports,
+// where a No button answered the question. That still counts as No.
+function hinderedTextIsNil() {
+  const v = (reportData.hinderedAreas || '').trim();
+  return v.startsWith('NIL') || v.includes('N/A');
+}
+function hasHinderedAreas() {
+  return !!(reportData.hinderedAreas || '').trim() && !hinderedTextIsNil();
+}
 
-  if (hasRestrictions) {
-    yesBtn.classList.add('active'); noBtn.classList.remove('active');
-    if (detail) detail.style.display = '';
-    if (!reportData.hinderedAreas) reportData.hinderedAreas = '';
-  } else {
-    noBtn.classList.add('active'); yesBtn.classList.remove('active');
-    if (detail) detail.style.display = 'none';
-    reportData.hinderedAreas      = 'NIL — No hindered access areas at time of inspection.';
-    reportData.hinderedAreasDetail = '';
-    const elA = document.getElementById('f-hinderedAreas');
-    const elB = document.getElementById('f-hinderedAreasDetail');
-    if (elA) { elA.textContent = '—'; elA.classList.remove('filled'); }
-    if (elB) { elB.textContent = '—'; elB.classList.remove('filled'); }
-  }
+// 'YES', 'NO', or null while it can't be told yet. YES when an area has a
+// hindered reason (or one not inspected without a reason) or exact spots
+// were written; NO once every area is marked and none was limited, or an
+// older report answered No. An unanswered question is never printed as NO.
+function hinderedAnswer() {
+  if (accessLimits().hindered.length) return 'YES';
+  const allMarked = Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
+  if (allMarked || hinderedTextIsNil()) return 'NO';
+  return null;
+}
+
+// Kept for the voice path: a note that says nothing was in the way.
+function setHinderedAccess(hindered) {
+  if (!hindered && !hasHinderedAreas()) reportData.hinderedAreas = 'NIL — No hindered access areas at time of inspection.';
+  renderAccessSummary();
   updateProgress(); flushDraftSave();
 }
 
-// The "access hindered?" answer: YES only when hindered areas were recorded.
-// Tapping No stores the 'NIL — …' text above, and older reports hold 'N/A'.
-// (Before the hindered / restricted split this question asked about
-// "restricted" areas: low clearance and the like, which are hindered now.)
-function hasHinderedAreas() {
-  const v = (reportData.hinderedAreas || '').trim();
-  return !!v && !v.startsWith('NIL') && !v.includes('N/A');
+// Opens one area in Section 4, from the summary in Section 5.
+function openAreaRow(zoneId) {
+  areaOpen.add(zoneId);
+  showSection('obstructions');
+  renderAreaChecklist();
+  const row = document.querySelector(`#areaChecklist details[data-zone="${zoneId}"]`);
+  if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
-// 'YES', 'NO', or null when the question hasn't been answered yet. An
-// unanswered question is never printed as NO.
-function hinderedAnswer() {
-  if (!(reportData.hinderedAreas || '').trim()) return null;
-  return hasHinderedAreas() ? 'YES' : 'NO';
+function renderAccessSummary() {
+  const hBox = document.getElementById('accessHinderedBox');
+  const rBox = document.getElementById('accessRestrictedBox');
+  if (!hBox || !rBox) return;
+  const reasons = reportData.areaReasons || {};
+  const limited = areasNotFullyInspected();
+  const allMarked = Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
+  const rows = restricted => limited.map(z => {
+    const items = (reasons[z] || []).filter(i => RESTRICTED_REASONS.has(i) === restricted);
+    // An area limited with no reason ticked shows under hindered, so it
+    // isn't missed: that's how the report prints it too.
+    const noReason = !restricted && !(reasons[z] || []).length;
+    if (!items.length && !noReason) return '';
+    const what = noReason ? '<span class="access-row-missing">Tick why in Areas</span>' : escapeHtml(items.join(', '));
+    const status = areaStatusOf(z) === 'NOT' ? 'Not inspected' : 'Inspected with limits';
+    return `<button type="button" class="access-row" onclick="openAreaRow('${z}')">
+      <span class="access-row-area">${OBS_ZONES[z].label.replace(/^The /, '')}<small>${status}</small></span>
+      <span class="access-row-what">${what}</span><span class="access-row-go">›</span></button>`;
+  }).join('');
+  const empty = (label) => allMarked
+    ? `<div class="access-none"><span class="access-answer good">NO</span>${label}</div>`
+    : `<div class="access-none"><span class="access-answer">Not yet</span>Mark every area in Section ${REPORT_PARTS.areas} and this fills itself in.
+        <button type="button" class="link-btn" onclick="showSection('obstructions')">Go to Areas</button></div>`;
+  const h = rows(false), r = rows(true);
+  hBox.innerHTML = h ? `<div class="access-answer-line"><span class="access-answer warn">YES</span>From the reasons ticked in Areas. Tap one to change it.</div>${h}`
+    : (hinderedTextIsNil() && !allMarked ? `<div class="access-none"><span class="access-answer good">NO</span>Nothing was in the way.</div>` : empty('Nothing was in the way.'));
+  rBox.innerHTML = r ? `<div class="access-answer-line"><span class="access-answer warn">YES</span>From the reasons ticked in Areas. Tap one to change it.</div>${r}`
+    : empty('No locked or permanently restricted areas.');
+  // An older report's "No" answer isn't an exact spot.
+  const spots = document.getElementById('f-hinderedAreas');
+  if (spots && hinderedTextIsNil()) { spots.textContent = '—'; spots.classList.remove('filled'); }
+  const hint = document.getElementById('accessHighRiskHint');
+  if (hint) {
+    const fallback = accessLimits().highRisk;
+    hint.textContent = isBlankValue(reportData.highRiskAreas) && fallback ? `Left blank, the report lists: ${fallback}` : '';
+    hint.hidden = !hint.textContent;
+  }
 }
 
 // Every access limit the report prints, as [label, text] rows: hindered
@@ -869,9 +914,12 @@ function accessLimits() {
     if (r.length) restricted.push([zone.label, `${st === 'NOT' ? 'Not inspected:' : 'Inspected, restricted by'} ${r.join(', ').toLowerCase()}`]);
     if (!items.length) hindered.push([zone.label, `${status}, reason not recorded`]);
   });
+  // The inspector's exact spots follow the area rows. 'What hindered it'
+  // (older reports, or a note) only prints when no area gives a reason.
+  const areaRows = hindered.length;
   if (hasHinderedAreas()) {
-    hindered.push(['Where', reportData.hinderedAreas]);
-    if (!isBlankValue(reportData.hinderedAreasDetail)) hindered.push(['What hindered it', reportData.hinderedAreasDetail]);
+    hindered.push([areaRows ? 'Exact spots' : 'Where', reportData.hinderedAreas]);
+    if (!areaRows && !isBlankValue(reportData.hinderedAreasDetail)) hindered.push(['What hindered it', reportData.hinderedAreasDetail]);
   }
   if (!isBlankValue(reportData.noAccessAreas)) restricted.push(['Where and why', reportData.noAccessAreas]);
   const limited = areasNotFullyInspected();
@@ -881,16 +929,7 @@ function accessLimits() {
   return { hindered, restricted, highRisk, allMarked };
 }
 
-function restoreResState() {
-  const answer = hinderedAnswer();
-  if (!answer) {
-    ['resYesBtn', 'resNoBtn'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.remove('active'); });
-    const detail = document.getElementById('resDetailWrap');
-    if (detail) detail.style.display = 'none';
-    return;
-  }
-  setHinderedAccess(answer === 'YES');
-}
+function restoreResState() { renderAccessSummary(); }
 
 // Findings with termite activity or evidence where "Refer to a builder or
 // engineer?" has no answer. A blank is never read as "no referral".
@@ -3512,7 +3551,6 @@ function extractBlanks() {
   if (blank('structureType')) blanks.push({ label: 'structure type', target: 'f-structureType' });
   if (blank('height')) blanks.push({ label: 'height', target: 'f-height' });
   if (blank('existingSystem')) blanks.push({ label: 'termite management system', target: 'f-existingSystem' });
-  if (!hinderedAnswer()) blanks.push({ label: 'hindered access', target: 'resYesNo' });
   const missing = findingsMissingReferral();
   if (missing.length) {
     const f = reportData.findings[missing[0] - 1];
@@ -4001,11 +4039,9 @@ function populateFields(data, transcript) {
     const el = document.getElementById('f-' + key);
     setTimeout(() => {
       let val = typeof rawVal === 'string' ? rawVal.trim() : String(rawVal);
-      if (key === 'hinderedAreas') {
-        // The "access hindered?" question: a named limit answers YES and
-        // shows the detail; an explicit "none" answers NO.
-        if (!val) { setHinderedAccess(false); updateProgress(); return; }
-        setHinderedAccess(true);
+      if (key === 'hinderedAreas' && !val) {
+        // "Nothing was in the way": No, unless an area says otherwise.
+        setHinderedAccess(false); return;
       }
       let prev = reportData[key];
       // The same note extracted again replaces what it added last time
@@ -7768,6 +7804,8 @@ function jobFeeOf(data) {
 // special case) also makes it the obvious place to extend if another
 // field ever needs more than a bare presence check.
 function isFieldFilled(key) {
+  // Answered from the areas in Section 4 (see hinderedAnswer).
+  if (key === 'hinderedAreas') return !!hinderedAnswer();
   if (reportData[key] === undefined || reportData[key] === null) return false;
   if (key === 'findings') {
     return Array.isArray(reportData.findings) &&
@@ -8745,7 +8783,6 @@ function reportPrepGaps() {
     `<button class="link-btn" onclick="fixSendGap('clear')">Mark the rest as nothing found</button>`);
   areasEvidenceUnlinked().forEach(z => push(`${OBS_ZONES[z].label}: marked "evidence found", but no finding mentions it`,
     `<button class="link-btn" onclick="closeSendReview(); addFindingForArea('${z}')">Add finding</button>`));
-  if (!hinderedAnswer()) push(`Section ${REPORT_PARTS.access}: "was access hindered?" isn't answered`);
   findingsMissingReferral().forEach(n => push(`Finding ${n}: "refer to a builder or engineer?" isn't answered`));
   const pending = (reportData.pendingNotes || []).length;
   if (pending) push(`${pending} voice note${pending === 1 ? ' is' : 's are'} still waiting to be filled in`);
