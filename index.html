@@ -408,6 +408,20 @@
   </div>
 </div>
 
+<!-- ADD A PHOTO: camera, photo library or files. Outside #app so it also
+     shows over the treatment record. -->
+<div class="page-sheet-overlay did-it-send-overlay" id="photoSourceOverlay" onclick="if (event.target === this) closePhotoSource()">
+  <div class="did-it-send" role="dialog" aria-modal="true" aria-labelledby="photoSourceTitle">
+    <div class="did-it-send-title" id="photoSourceTitle">Add a photo</div>
+    <div class="did-it-send-btns photo-source-btns">
+      <button class="extract-btn" onclick="pickPhotoSource('camera')">Take a photo</button>
+      <button class="extract-btn" onclick="pickPhotoSource('library')">Photo library</button>
+      <button class="extract-btn" onclick="pickPhotoSource('files')">Files</button>
+      <button class="link-btn" onclick="closePhotoSource()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="page-sheet-overlay" id="treatmentOverlay">
   <div class="page-sheet" role="dialog" aria-modal="true" aria-labelledby="treatmentTitle">
     <div class="page-sheet-header">
@@ -1137,7 +1151,7 @@
                   <span class="section-photo-count" id="sectionPhotoCount-durable">0/30</span>
                 </div>
                 <button class="section-photo-add-btn" id="sectionPhotoBtn-durable"
-                  onclick="document.getElementById('sectionPhotoInput-durable').click()">
+                  onclick="choosePhotoSource('sectionPhotoInput-durable')">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                   Add Photo
                 </button>
@@ -1183,7 +1197,7 @@
                 <span class="section-photo-count" id="sectionPhotoCount-general">0/30</span>
               </div>
               <button class="section-photo-add-btn" id="sectionPhotoBtn-general"
-                onclick="document.getElementById('sectionPhotoInput-general').click()">
+                onclick="choosePhotoSource('sectionPhotoInput-general')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                 Add Photo
               </button>
@@ -1225,7 +1239,7 @@
                 <span class="section-photo-count" id="sectionPhotoCount-obstructions">0/30</span>
               </div>
               <button class="section-photo-add-btn" id="sectionPhotoBtn-obstructions"
-                onclick="document.getElementById('sectionPhotoInput-obstructions').click()">
+                onclick="choosePhotoSource('sectionPhotoInput-obstructions')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                 Add Photo
               </button>
@@ -1298,7 +1312,7 @@
                 <span class="section-photo-count" id="sectionPhotoCount-restrictions">0/30</span>
               </div>
               <button class="section-photo-add-btn" id="sectionPhotoBtn-restrictions"
-                onclick="document.getElementById('sectionPhotoInput-restrictions').click()">
+                onclick="choosePhotoSource('sectionPhotoInput-restrictions')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                 Add Photo
               </button>
@@ -1414,7 +1428,7 @@
                 <span class="section-photo-count" id="sectionPhotoCount-findings">0/30</span>
               </div>
               <button class="section-photo-add-btn" id="sectionPhotoBtn-findings"
-                onclick="document.getElementById('sectionPhotoInput-findings').click()">
+                onclick="choosePhotoSource('sectionPhotoInput-findings')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                 Add Photo
               </button>
@@ -1479,7 +1493,7 @@
                 <span class="section-photo-count" id="sectionPhotoCount-conducive">0/30</span>
               </div>
               <button class="section-photo-add-btn" id="sectionPhotoBtn-conducive"
-                onclick="document.getElementById('sectionPhotoInput-conducive').click()">
+                onclick="choosePhotoSource('sectionPhotoInput-conducive')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                 Add Photo
               </button>
@@ -1526,7 +1540,7 @@
                 <span class="section-photo-count" id="sectionPhotoCount-recommendations">0/30</span>
               </div>
               <button class="section-photo-add-btn" id="sectionPhotoBtn-recommendations"
-                onclick="document.getElementById('sectionPhotoInput-recommendations').click()">
+                onclick="choosePhotoSource('sectionPhotoInput-recommendations')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                 Add Photo
               </button>
@@ -1552,7 +1566,7 @@
           <input type="file" id="photoFileInput" accept="image/*" multiple style="display:none" onchange="handlePhotoFiles(this.files)">
           <div class="photo-toolbar">
             <span class="photo-count" id="photoCount">0 of 100 photos attached</span>
-            <button class="add-photo-btn" id="addPhotoBtn" onclick="document.getElementById('photoFileInput').click()">
+            <button class="add-photo-btn" id="addPhotoBtn" onclick="choosePhotoSource('photoFileInput')">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></svg>
               Add Photos
             </button>

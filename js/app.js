@@ -5801,6 +5801,31 @@ async function handleSectionPhotoFiles(fileList, section) {
   backUpNewPhotos();
 }
 
+// "Add Photo" asks where the photo comes from, because a plain photo input
+// lets the phone decide and some phones only offer the camera. The chosen
+// file input keeps its own onchange handler.
+let photoSourceInput = null;
+function choosePhotoSource(input) {
+  photoSourceInput = typeof input === 'string' ? document.getElementById(input) : input;
+  if (!photoSourceInput) return;
+  document.getElementById('photoSourceOverlay').classList.add('open');
+}
+function closePhotoSource() {
+  document.getElementById('photoSourceOverlay').classList.remove('open');
+}
+function pickPhotoSource(kind) {
+  closePhotoSource();
+  const input = photoSourceInput;
+  photoSourceInput = null;
+  if (!input) return;
+  // Listing file types without image/* makes Android open its file browser
+  // instead of the photo picker; iPhone offers Choose File either way.
+  input.accept = kind === 'files' ? '.jpg,.jpeg,.png,.webp,.heic,.heif' : 'image/*';
+  if (kind === 'camera') input.setAttribute('capture', 'environment');
+  else input.removeAttribute('capture');
+  input.click();
+}
+
 function removeSectionPhoto(id, section) {
   if (!reportData.photosBySection?.[section]) return;
   reportData.photosBySection[section] = reportData.photosBySection[section].filter(p => p.id !== id);
