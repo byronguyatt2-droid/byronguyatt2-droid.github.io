@@ -164,7 +164,7 @@
       </div>
       <div class="auth-field">
         <label class="auth-label" for="ob-phone">Business Phone</label>
-        <input class="auth-input" id="ob-phone" type="tel" placeholder="e.g. 0400 000 000">
+        <input class="auth-input" id="ob-phone" type="tel" onchange="tidyPhoneInput(this)" placeholder="e.g. 0400 000 000">
       </div>
       <div class="auth-field">
         <label class="auth-label" for="ob-email">Business Email</label>
@@ -293,7 +293,7 @@
           <div class="quote-card-title">Customer</div>
           <div class="quote-grid">
             <label class="quote-field"><span>Client</span><input class="quote-input" id="qClient" oninput="onQuoteFieldInput()"></label>
-            <label class="quote-field"><span>Phone</span><input class="quote-input" id="qClientPhone" inputmode="tel" oninput="onQuoteFieldInput()"></label>
+            <label class="quote-field"><span>Phone</span><input class="quote-input" id="qClientPhone" type="tel" inputmode="tel" onchange="tidyPhoneInput(this)" oninput="onQuoteFieldInput()"></label>
             <label class="quote-field"><span>Email</span><input class="quote-input" id="qClientEmail" type="email" oninput="onQuoteFieldInput()"></label>
             <label class="quote-field wide"><span>Property address</span><input class="quote-input" id="qAddress" oninput="onQuoteFieldInput()"></label>
             <label class="quote-field"><span>Quote no.</span><input class="quote-input" id="qNumber" oninput="onQuoteFieldInput()"></label>
@@ -691,7 +691,7 @@
             </div>
             <div class="job-field">
               <div class="job-field-label">Client Phone</div>
-              <input class="job-input" id="jobClientPhone" placeholder="0400 000 000" oninput="saveJobInfo()">
+              <input class="job-input" id="jobClientPhone" type="tel" inputmode="tel" onchange="tidyPhoneInput(this)" placeholder="0400 000 000" oninput="saveJobInfo()">
             </div>
           </div>
           <div class="job-field">
@@ -1263,40 +1263,33 @@
             <span class="sec-badge empty" id="sts-restrictions">Not started</span>
           </div>
 
+          <!-- Hindered and restricted access come from the reasons ticked in
+               Section 4, so nothing is entered twice. Rendered by
+               renderAccessSummary(); the exact-spots fields are optional. -->
           <div class="section-fields">
-            <!-- YES/NO question -->
             <div class="field field-wide">
-              <div class="field-label">Hindered access: was anything in the way today? <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">Temporary obstructions such as furniture, stored goods, insulation, or low clearance in the subfloor or roof void.</span></div>
-              <div class="choice-panel" id="resYesNo"><div class="choice-grid" style="--cols:2">
-                <button type="button" class="choice-card tone-bad" id="resYesBtn" onclick="setHinderedAccess(true)"><span class="choice-card-code">YES</span></button>
-                <button type="button" class="choice-card tone-good" id="resNoBtn" onclick="setHinderedAccess(false)"><span class="choice-card-code">NO</span></button>
-              </div></div>
+              <div class="field-label">Hindered access <span class="field-hint">in the way today: furniture, stored goods, insulation, low clearance</span></div>
+              <div class="access-summary" id="accessHinderedBox"></div>
             </div>
-          </div>
-          <!-- Detail fields — shown when YES -->
-          <div id="resDetailWrap" style="display:none">
-            <div class="section-fields">
-              <div class="field field-wide">
-                <div class="field-label">Where access was hindered</div>
-                <div class="field-val" id="f-hinderedAreas" onclick="startEdit(this,'hinderedAreas','text')">—</div>
-              </div>
-              <div class="field field-wide">
-                <div class="field-label">What hindered it</div>
-                <div class="field-val" id="f-hinderedAreasDetail" onclick="startEdit(this,'hinderedAreasDetail','text')">—</div>
-              </div>
+            <div class="field field-wide">
+              <div class="field-label">Restricted access <span class="field-hint">permanent or locked: a locked room, no hatch, no roof void</span></div>
+              <div class="access-summary" id="accessRestrictedBox"></div>
+            </div>
+            <div class="field field-wide">
+              <div class="field-label">Exact spots (optional) <span class="field-hint">e.g. "Roof void: outer edges and corners. Subfloor: back section under the kitchen"</span></div>
+              <div class="field-val" id="f-hinderedAreas" onclick="startEdit(this,'hinderedAreas','text')">—</div>
+            </div>
+            <div class="field field-wide">
+              <div class="field-label">Locked spots, in your words (optional) <span class="field-hint">e.g. "Front left bedroom: locked, no key"</span></div>
+              <div class="field-val" id="f-noAccessAreas" onclick="startEdit(this,'noAccessAreas','text')">—</div>
             </div>
             <div class="res-disclaimer">
               The parts of these areas that could not be seen or reached may contain termite activity or damage.
             </div>
-          </div>
-          <div class="section-fields">
-            <div class="field field-wide">
-              <div class="field-label">Restricted Access <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">— permanent restriction or locked entry, where and why (e.g. locked bedroom, no subfloor hatch). Leave empty if none.</span></div>
-              <div class="field-val" id="f-noAccessAreas" onclick="startEdit(this,'noAccessAreas','text')">—</div>
-            </div>
             <div class="field field-wide">
               <div class="field-label">High Risk Areas <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">— areas to which access should be gained, or fully gained, for a further inspection</span></div>
               <div class="field-val" id="f-highRiskAreas" onclick="startEdit(this,'highRiskAreas','text')">—</div>
+              <div class="access-hint" id="accessHighRiskHint" hidden></div>
             </div>
             <div class="field"><div class="field-label">Invasive Inspection Recommended</div><div class="field-val" id="f-invasiveInspection" onclick="startEdit(this,'invasiveInspection','yesno')">—</div></div>
             <div class="field field-wide"><div class="field-label">Invasive Inspection: Where, Why &amp; When</div><div class="field-val" id="f-invasiveInspectionDetails" onclick="startEdit(this,'invasiveInspectionDetails','text')">—</div></div>
@@ -1348,6 +1341,7 @@
               <button onclick="dismissHighRiskPrompt()">Dismiss</button>
             </div>
           </div>
+          <div class="area-finding-prompts" id="findingsFromAreas" hidden></div>
           <!-- Dynamic finding cards rendered by renderFindingsUI() -->
           <div class="findings-list" id="findingsList"></div>
 
