@@ -683,7 +683,11 @@
           <!-- Property address -->
           <div class="job-field">
             <div class="job-field-label">Street Address</div>
-            <input class="job-input" id="jobAddress" placeholder="e.g. 12 Smith Street" oninput="updateJob()">
+            <div class="addr-wrap">
+              <input class="job-input" id="jobAddress" placeholder="Start typing the address" autocomplete="off"
+                oninput="updateJob(); onAddressTyped(this.value)" onblur="setTimeout(hideAddressSuggestions, 200)">
+              <div class="addr-suggest" id="addrSuggest" role="listbox"></div>
+            </div>
           </div>
           <div class="job-row job-row-suburb">
             <div class="job-field">
