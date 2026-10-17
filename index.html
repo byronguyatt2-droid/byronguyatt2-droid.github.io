@@ -1129,6 +1129,26 @@
                 <span>Choose a saved photo or file</span>
               </button>
             </div>
+            <div class="section-photo-widget field-wide">
+              <div class="section-photo-header">
+                <div class="section-photo-header-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                  Durable notice photo
+                  <span class="section-photo-count" id="sectionPhotoCount-durable">0/30</span>
+                </div>
+                <button class="section-photo-add-btn" id="sectionPhotoBtn-durable"
+                  onclick="document.getElementById('sectionPhotoInput-durable').click()">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                  Add Photo
+                </button>
+                <input type="file" id="sectionPhotoInput-durable" accept="image/*" multiple style="display:none"
+                  onchange="handleSectionPhotoFiles(this.files,'durable')">
+              </div>
+              <div class="section-photo-hint">Photos read with the buttons above are kept here and printed in the report.</div>
+              <div class="section-photo-grid" id="sectionPhotoGrid-durable">
+                <div class="section-photo-empty">No photos added</div>
+              </div>
+            </div>
           </div>
           <!-- Existing System Verification - revealed only when existingSystem has a value -->
           <div class="system-verify" id="systemVerify" style="display:none">
