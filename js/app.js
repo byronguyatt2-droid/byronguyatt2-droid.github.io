@@ -3575,6 +3575,12 @@ async function scanCompliancePlate(fromFile) {
     return;
   }
 
+  // Keep the photo for the report, whether or not the plate can be read.
+  try {
+    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    await handleSectionPhotoFiles([new File([bytes], 'durable-notice', { type: mediaType })], 'durable');
+  } catch (e) { console.warn('Could not keep the durable notice photo:', e); }
+
   if (btn) btn.disabled = true;
   if (fileBtn) fileBtn.disabled = true;
   if (btnText) btnText.textContent = 'Reading plate…';
@@ -5760,7 +5766,7 @@ function backUpNewPhotos() {
 // The old reportData.photos array is kept for backward compatibility (general photos tab)
 
 const MAX_SECTION_PHOTOS = 30;
-const SECTION_PHOTO_KEYS = ['general','obstructions','restrictions','findings','conducive','recommendations'];
+const SECTION_PHOTO_KEYS = ['general','durable','obstructions','restrictions','findings','conducive','recommendations'];
 
 function getSectionPhotos(section) {
   if (!reportData.photosBySection) reportData.photosBySection = {};
@@ -9929,6 +9935,7 @@ async function buildReportPdf() {
       callout('System verification concern', concerns.join('. ') + '. These checks confirm the system can still be inspected, not that it works. Rectification and re-inspection are recommended.', 'bad');
     }
   }
+  renderSectionPhotosInPDF('durable', 'Durable Notice');
   notesBlock('property');
   gap(4);
   renderSectionPhotosInPDF('general', 'Property');
