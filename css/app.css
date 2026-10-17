@@ -3643,6 +3643,20 @@ body.ai-busy:has(#app[style*="flex"]) .ai-busy-bar { display: block; }
   color: var(--accent2);
 }
 .obs-panels-wrap { display: flex; flex-direction: column; gap: 8px; }
+.obs-panels-wrap .obs-zone-panel { margin-top: 0; }
+.area-summary { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 10px 12px; cursor: pointer; list-style: none; text-transform: none; letter-spacing: 0; }
+.area-summary::-webkit-details-marker { display: none; }
+.area-summary::after { content: '›'; flex: none; font-size: 20px; line-height: 1; color: var(--text3); transition: transform 0.15s; }
+.obs-zone-panel[open] > .area-summary::after { transform: rotate(90deg); }
+.obs-zone-panel:not([open]) > .area-summary { border-bottom: 0; }
+.area-sum-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.area-sum-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.area-sum-state { flex: none; font-size: 12px; font-weight: 600; color: var(--text3); text-align: right; }
+.area-sum-inspected { color: var(--green); }
+.area-sum-partial { color: var(--yellow-text); }
+.area-sum-not { color: var(--risk); }
+.area-sum-na { color: var(--text2); }
+.area-sum-why { font-size: 12px; font-weight: 500; color: var(--text2); }
 .area-status { display: flex; gap: 6px; padding: 10px 12px; }
 .area-status-btn { flex: 1; padding: 7px 4px; font-size: 11.5px; border-radius: 8px; }
 .area-status-btn.status-partial { background: rgba(245,162,35,0.14); border-color: var(--yellow); color: var(--yellow-text); }

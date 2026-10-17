@@ -298,6 +298,9 @@ const OBS_ZONES = {
       'Air Conditioner Ducting',
       'Storage to garage walls',
       'Water Tanks',
+      'Hot water system',
+      'Air conditioning unit',
+      'Dog or animal in the yard',
     ],
   },
   subfloor: {
@@ -321,6 +324,7 @@ const OBS_ZONES = {
       'Low clearance to the outside edges of roof void',
       'Low clearance in roof void',
       'Item blocking access to manhole',
+      'Manhole sealed or screwed shut',
       'Height Restrictions',
       'Skillion Roof Design (no void)',
     ],
@@ -337,6 +341,7 @@ const OBS_ZONES = {
     items: [
       'Vegetation',
       'Stored Articles',
+      'Dog or animal in the yard',
     ],
   },
   fences: {
@@ -344,6 +349,7 @@ const OBS_ZONES = {
     items: [
       'Vegetation',
       'Stored Articles',
+      'Dog or animal in the yard',
     ],
   },
   retainingwalls: {
@@ -382,7 +388,7 @@ const OBS_ZONES = {
 //   restricted access: a permanent restriction or locked entry (a locked
 //     room, no subfloor hatch, no roof void, beyond safe height).
 // Labels in RESTRICTED_REASONS are restricted; every other label hinders.
-const RESTRICTED_REASONS = new Set(['Locked room', 'Locked, no access', 'No access to subfloor', 'Height Restrictions', 'Skillion Roof Design (no void)']);
+const RESTRICTED_REASONS = new Set(['Locked room', 'Locked, no access', 'No access to subfloor', 'Height Restrictions', 'Skillion Roof Design (no void)', 'Manhole sealed or screwed shut', 'Dog or animal in the yard']);
 // Every status an area can hold. PARTIAL is still stored (older reports
 // and the AI use it), but the inspector never picks it: an area is
 // Inspected, Not inspected or Not present, and an inspected area with a
@@ -587,9 +593,28 @@ function renderAreaChecklist() {
               <button class="link-btn" onclick="addFindingForArea('${zoneId}')">Add finding</button></div>`;
       }
     }
-    return `<div class="obs-zone-panel"><div class="obs-zone-panel-header">${zone.label}</div>
-      <div class="area-status">${statusBtns}</div>${result}${reasons}</div>`;
+    return `<details class="obs-zone-panel"${areaOpen.has(zoneId) ? ' open' : ''} ontoggle="onAreaToggle('${zoneId}', this.open)">
+      <summary class="obs-zone-panel-header area-summary">${areaSummary(zoneId, zone.label.replace(/^The /, ''))}</summary>
+      <div class="area-status">${statusBtns}</div>${result}${reasons}</details>`;
   }).join('');
+}
+
+// Each area is a row that opens when tapped, showing what's recorded so the
+// list reads at a glance. Which rows are open survives the re-render that
+// every tap does.
+const areaOpen = new Set();
+function onAreaToggle(zoneId, open) { if (open) areaOpen.add(zoneId); else areaOpen.delete(zoneId); }
+
+function areaSummary(zoneId, name) {
+  const status = areaStatusOf(zoneId);
+  if (!status) return `<span class="area-sum-text"><span class="area-sum-name">${name}</span></span><span class="area-sum-state">Tap to mark</span>`;
+  const label = (AREA_STATUSES.find(([v]) => v === status) || [])[1] || status;
+  const why = (reportData.areaReasons || {})[zoneId] || [];
+  const found = areaWasEntered(zoneId) && areaResultOf(zoneId) === 'FOUND';
+  const extra = why.length ? why[0] + (why.length > 1 ? ` +${why.length - 1}` : '') : (found ? 'Evidence found' : '');
+  return `<span class="area-sum-text"><span class="area-sum-name">${name}</span>`
+    + (extra ? `<span class="area-sum-why">${escapeHtml(extra)}</span>` : '')
+    + `</span><span class="area-sum-state area-sum-${status.toLowerCase()}">${label}</span>`;
 }
 
 function syncObstructionData() {
@@ -644,12 +669,16 @@ const OBS_REASON_SYNONYMS = {
   'Low clearance to the outside edges of roof void': ['outer edges low clearance', 'outside edges low clearance', 'edges low clearance', 'low clearance to the outer edges', 'low clearance at the outer edges', 'low clearance to the edges', 'low clearance at the edges', 'low clearance at the eaves', 'low clearance to the eaves', 'low clearance at the outer sides', 'low clearance to the outer sides'],
   'Ducting': ['ducting', 'ducts'],
   'Air conditioning ducting': ['ducting', 'ducts', 'air con'],
-  'Air Conditioner Ducting': ['ducting', 'ducts', 'air con'],
+  'Air Conditioner Ducting': ['ducting', 'ducts'],
+  'Air conditioning unit': ['air con unit', 'aircon unit', 'air conditioning unit', 'air conditioner unit', 'air conditioner', 'condenser', 'split system'],
+  'Hot water system': ['hot water system', 'hot water unit', 'hot water heater', 'hot water service', 'hot water tank', 'hws'],
+  'Dog or animal in the yard': ['dog', 'dogs', 'animal', 'animals'],
+  'Manhole sealed or screwed shut': ['screwed shut', 'nailed shut', 'painted shut', 'sealed shut', 'manhole sealed', 'manhole screwed', 'sealed manhole'],
   'Plumbing': ['plumbing', 'pipes', 'pipework'],
   'Sarking': ['sarking', 'foil'],
   'Height Restrictions': ['height restriction', 'too high', 'height'],
   'Skillion Roof Design (no void)': ['skillion', 'no roof void', 'no void'],
-  'Item blocking access to manhole': ['manhole blocked', 'blocking the manhole', 'blocking access to manhole', 'manhole'],
+  'Item blocking access to manhole': ['manhole blocked', 'blocking the manhole', 'blocking access to manhole', 'blocked manhole'],
   'Water Tanks': ['water tank', 'rainwater tank', 'tank'],
   'Items/belongings stored to cupboards': ['stored items in cupboards', 'stored items in the cupboards', 'cupboards with stored items', 'stored in cupboards', 'stored in the cupboards', 'items in cupboards', 'items in the cupboards', 'cupboards full'],
   'Locked room': ['locked room', 'locked bedroom', 'room was locked', 'room locked', 'bedroom was locked', 'bedroom locked', 'locked door'],
@@ -1434,14 +1463,14 @@ AREAS INSPECTED (areaStatus): one key per area the note actually covers; leave o
 - A later note re-covering an area ("got into the back of the subfloor now, all clear") simply states that area's new status.
 - areaResult: what was found in each area the note covers, same keys. "FOUND" when the note records termites or termite evidence (including suspected), borers, wood decay or chemical delignification in that area: workings in a fence post is fences FOUND, a skirting board in a bedroom is interior FOUND, a bearer under the house is subfloor FOUND, a tree in the yard is site FOUND, a sleeper is landscapingtimbers FOUND. "CLEAR" only when the inspector says that area had nothing ("fences all good, no activity", "roof void clear", "no termites or borers in the subfloor"), or says the whole property was clear, which makes every area the note covers CLEAR. A clear remark about one room or part ("no activity in the bathroom") is not the whole area: leave that area out unless they say the rest was clear too. Walking an area without saying what was found gives no areaResult. Moisture, leaks and other conducive conditions are not timber pest evidence.
 
-HINDERED AND RESTRICTED ACCESS: five fields, each with one meaning. The report sorts every access limit into two kinds. HINDERED access is a temporary obstruction at the time of the inspection: furniture, stored goods, floor coverings, insulation, vegetation, a manhole blocked by stored items, or low clearance in the subfloor or roof void. RESTRICTED access is a permanent restriction or locked entry: a locked room, a subfloor with no access hatch, a roof with no void, or a part beyond safe height.
+HINDERED AND RESTRICTED ACCESS: five fields, each with one meaning. The report sorts every access limit into two kinds. HINDERED access is a temporary obstruction at the time of the inspection: furniture, stored goods, floor coverings, insulation, vegetation, a manhole blocked by stored items, or low clearance in the subfloor or roof void. RESTRICTED access is a permanent restriction or locked entry: a locked room, a subfloor with no access hatch, a manhole sealed or screwed shut, a roof with no void, a part beyond safe height, or a yard the inspector could not safely enter because of a dog or other animal.
 - obstructions: which areas were not fully inspected and roughly where, e.g. "Subfloor: back section behind stored items. Roof void: outer edges and corners". Only PARTIAL or NOT areas appear here. Null when nothing was in the way.
 - restrictedAccess: WHY, as "Area: reason" pairs separated by ". ", using the app's reason labels where one fits, because the app ticks them from these exact words:
   Interior: Furniture | Flooring | Fixtures | Items/belongings stored against wall | Items/belongings stored to cupboards | Limited access to skirting boards | Locked room
-  Exterior: Vegetation | Stored Articles | Air Conditioner Ducting | Storage to garage walls | Water Tanks
+  Exterior: Vegetation | Stored Articles | Air Conditioner Ducting | Storage to garage walls | Water Tanks | Hot water system | Air conditioning unit | Dog or animal in the yard
   Subfloor: Low Clearance | Stored Articles | Ducting | Plumbing | No access to subfloor | Insulation
-  Roof void: Insulation | Sarking | Air conditioning ducting | Stored articles | Low clearance to the outside edges of roof void | Low clearance in roof void | Item blocking access to manhole | Height Restrictions | Skillion Roof Design (no void)
-  Outbuildings: Stored Articles | Locked, no access.  Site / Fences: Vegetation | Stored Articles.  Retaining walls / Landscaping timbers: Back Fill | Abutting Timbers | Vegetation | Stored Articles
+  Roof void: Insulation | Sarking | Air conditioning ducting | Stored articles | Low clearance to the outside edges of roof void | Low clearance in roof void | Item blocking access to manhole | Manhole sealed or screwed shut | Height Restrictions | Skillion Roof Design (no void)
+  Outbuildings: Stored Articles | Locked, no access.  Site / Fences: Vegetation | Stored Articles | Dog or animal in the yard.  Retaining walls / Landscaping timbers: Back Fill | Abutting Timbers | Vegetation | Stored Articles
   Stored items, boxes, goods or belongings are "Stored Articles". Use "No access to subfloor" ONLY when the subfloor was not entered at all; a subfloor the inspector was in but could not fully reach gets "Stored Articles" or "Low Clearance", never any phrase with the word "access". When no label fits, write the reason in a few plain words after the area name. Null when nothing was in the way.
 - noAccessAreas: RESTRICTED access: every room, area or space the inspector could not inspect because of a permanent restriction or locked entry, where and why, in their words, e.g. "Front left bedroom, north-east side: locked. Subfloor: no access hatch". Null when the note names no such place. A place that was blocked only by something movable (a manhole blocked by stored boxes) is hinderedAreas, not this.
 - hinderedAreas: HINDERED access: the areas or parts the inspector could not fully inspect because of temporary obstructions or low clearance, whether they got in or not. Name only the limited areas and parts ("Roof void: outer edges and corners, low clearance. Subfloor: back section behind stored items. Bedrooms: walls behind furniture"). It is NOT a list of what was inspected, and it never names an area that was fully inspected. Null when the note states nothing was in the way, and also null when the note simply does not raise the subject.
@@ -3453,7 +3482,7 @@ const isBlankValue = v => v === undefined || v === null || v === '' || (typeof v
 function countExtractFilled(before) {
   let n = 0;
   Object.keys(reportData).forEach(k => {
-    if (k === 'findings' || k === 'pendingNotes' || isBlankValue(reportData[k])) return;
+    if (k === 'findings' || k === 'pendingNotes' || k === 'noteText' || isBlankValue(reportData[k])) return;
     if (JSON.stringify(reportData[k]) !== before.data[k]) n++;
   });
   (reportData.findings || []).forEach(f => {
@@ -3796,6 +3825,21 @@ const findingHasData = f => !!(f.termiteActivity || f.species || f.damageDescrip
 const KEY_WORD_SKIP = new Set(['the', 'from', 'with', 'leak', 'leaks', 'there', 'that', 'this', 'into', 'along']);
 const keyWords = t => String(t || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !KEY_WORD_SKIP.has(w));
 const repeatsText = (have, val) => { const h = new Set(keyWords(have)), v = keyWords(val); return v.length > 0 && v.every(w => h.has(w)); };
+// For a finding's location, words that only say "somewhere in there" don't
+// make it a new place: "garage wall" in a recommendation repeats a finding
+// at "bottom of a timber stud, garage".
+const PLACE_FILLER = new Set(['wall', 'walls', 'area', 'areas', 'side', 'section', 'room', 'part']);
+const repeatsPlace = (have, val) => { const h = new Set(keyWords(have)), v = keyWords(val).filter(w => !PLACE_FILLER.has(w)); return v.length > 0 && v.every(w => h.has(w)); };
+
+// Identifies a note by its words, so extracting the same note again can be
+// told apart from a new one: reportData.noteText { key: { field: text } }
+// holds what each note added to the list-like text fields.
+function noteTextKey(transcript) {
+  const t = String(transcript).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  let h = 5381;
+  for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+  return 'n' + h.toString(36);
+}
 
 // Writes one extracted note into the report. Every value the note gives
 // replaces what was there (the inspector's later word wins), with these
@@ -3811,6 +3855,7 @@ const repeatsText = (have, val) => { const h = new Set(keyWords(have)), v = keyW
 // Resolves once the staggered field writes are done, so a caller can save.
 function populateFields(data, transcript) {
   if (!data || typeof data !== 'object') return Promise.resolve();
+  const noteKey = transcript ? noteTextKey(transcript) : null;
   // Handle findings array from AI extraction
   if (data.findings && Array.isArray(data.findings) && data.findings.length > 0) {
     let incoming = data.findings.filter(f => f && typeof f === 'object').map(f => ({
@@ -3840,7 +3885,7 @@ function populateFields(data, transcript) {
     let merged = false;
     incoming = incoming.filter(f => {
       if (!f.activityLocation) return true;
-      const same = kept.find(k => k.activityLocation && (k.termiteActivity || null) === f.termiteActivity && repeatsText(k.activityLocation, f.activityLocation));
+      const same = kept.find(k => k.activityLocation && (k.termiteActivity || null) === f.termiteActivity && repeatsPlace(k.activityLocation, f.activityLocation));
       if (!same) return true;
       ['species', 'damageDescription', 'nestLocated', 'structuralConcern'].forEach(k => { if (!same[k] && f[k]) { same[k] = f[k]; merged = true; } });
       return false;
@@ -3952,7 +3997,18 @@ function populateFields(data, transcript) {
         if (!val) { setHinderedAccess(false); updateProgress(); return; }
         setHinderedAccess(true);
       }
-      const prev = reportData[key];
+      let prev = reportData[key];
+      // The same note extracted again replaces what it added last time
+      // rather than adding it a second time in other words.
+      const added = APPEND_TEXT_KEYS.has(key) && noteKey ? (reportData.noteText || {})[noteKey] : null;
+      if (added && added[key] && typeof prev === 'string') {
+        const seg = added[key];
+        prev = prev === seg ? '' : prev.replace('; ' + seg, '').replace(seg + '; ', '');
+      }
+      if (APPEND_TEXT_KEYS.has(key) && noteKey && val) {
+        if (!reportData.noteText) reportData.noteText = {};
+        (reportData.noteText[noteKey] = reportData.noteText[noteKey] || {})[key] = val;
+      }
       if (APPEND_TEXT_KEYS.has(key) && typeof prev === 'string' && prev.trim() && !prev.startsWith('NIL')) {
         const have = prev.toLowerCase();
         if (have.includes(val.toLowerCase()) || repeatsText(prev, val)) val = prev;
@@ -8416,7 +8472,7 @@ else installToastScreenWatch();
 //   reportData.amending      { reason, startedAt } - unlocked for an amendment
 //   reportData.noQuoteNeeded true when the job needs no quote
 // The quote's own sent state lives on the quote (see SENT AND LOCKED in js/quote.js).
-const ISSUE_META_KEYS = ['reportNumber', 'sent', 'issue', 'issueHistory', 'amending', 'pendingNotes', 'noQuoteNeeded'];
+const ISSUE_META_KEYS = ['reportNumber', 'sent', 'issue', 'issueHistory', 'amending', 'pendingNotes', 'noQuoteNeeded', 'noteText'];
 const ISSUE_SECTION_NAMES = { job:'Job details', quote:'Quote', property:'Property', obstructions:'Areas inspected', restrictions:'Areas unable to be inspected',
   findings:'Findings', conducive:'Conducive', recommendations:'Recommendations', photos:'Photos', signoff:'Sign-off' };
 
