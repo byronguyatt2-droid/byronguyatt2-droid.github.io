@@ -4125,6 +4125,7 @@ body[data-voice="thinking"] .voice-hud { animation: hudPulse 0.6s ease-in-out in
 .did-it-send-title { font-size: 16px; font-weight: 800; color: var(--text); }
 .did-it-send-text { margin: 8px 0 14px; font-size: 13px; line-height: 1.5; color: var(--text2); }
 .did-it-send-btns { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.photo-source-btns { margin-top: 14px; }
 .doc-sent-lines { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
 .doc-sent { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--text2); }
 .doc-sent strong { font-weight: 700; }
