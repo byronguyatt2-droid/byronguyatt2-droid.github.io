@@ -2360,6 +2360,7 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
 }
 .scan-plate-btn:hover { color: var(--accent2); border-color: var(--accent); background: rgba(var(--accent-rgb),0.06); }
 .scan-plate-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.scan-plate-file-btn { margin-top: 8px; }
 
 .field-val {
   font-size: 15px;

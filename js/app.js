@@ -3536,11 +3536,13 @@ function goToExtractBlank(i) {
 // the AI to read it, then fills existingSystem/existingSystemOther/
 // durableNoticePresent the same way populateFields() already does for
 // voice extraction — same "AI drafts, technician can always edit" model,
-// just a photo instead of a transcript as the input.
-async function scanCompliancePlate() {
+// just a photo instead of a transcript as the input. fromFile skips the
+// camera and opens the photo library or files instead.
+async function scanCompliancePlate(fromFile) {
   const btn = document.getElementById('scanPlateBtn');
+  const fileBtn = document.getElementById('scanPlateFileBtn');
   const btnText = document.getElementById('scanPlateBtnText');
-  if (btn && btn.disabled) return; // already running
+  if ((btn && btn.disabled) || (fileBtn && fileBtn.disabled)) return; // already running
 
   let base64 = null;
   let mediaType = 'image/jpeg';
@@ -3554,15 +3556,16 @@ async function scanCompliancePlate() {
         quality: 70,
         allowEditing: false,
         resultType: 'base64',
-        source: 'PROMPT', // lets the technician choose Camera or an existing photo
+        source: fromFile ? 'PHOTOS' : 'PROMPT', // PROMPT lets the technician choose Camera or an existing photo
         direction: 'REAR',
       });
       if (!photo || !photo.base64String) return; // cancelled
       base64 = photo.base64String;
       mediaType = photo.format === 'png' ? 'image/png' : 'image/jpeg';
     } else {
-      base64 = await pickImageFileAsBase64();
-      if (!base64) return; // cancelled
+      const picked = await pickImageFileAsBase64(!fromFile);
+      if (!picked) return; // cancelled
+      ({ base64, mediaType } = picked);
     }
   } catch (e) {
     const msg = ((e && e.message) || '') + '';
@@ -3573,6 +3576,7 @@ async function scanCompliancePlate() {
   }
 
   if (btn) btn.disabled = true;
+  if (fileBtn) fileBtn.disabled = true;
   if (btnText) btnText.textContent = 'Reading plate…';
   setAI('thinking', 'Reading compliance plate...');
 
@@ -3635,24 +3639,30 @@ async function scanCompliancePlate() {
     setAI('ready', 'Ready');
   } finally {
     if (btn) btn.disabled = false;
+    if (fileBtn) fileBtn.disabled = false;
     if (btnText) btnText.textContent = 'Take a photo of the durable notice';
   }
 }
 
 // Web/PWA fallback for scanCompliancePlate() — no native Camera plugin there.
-function pickImageFileAsBase64() {
+// useCamera opens the camera straight away; without it the phone offers the
+// photo library and files. Resolves { base64, mediaType } or null.
+function pickImageFileAsBase64(useCamera) {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.capture = 'environment';
+    if (useCamera) input.capture = 'environment';
     input.onchange = () => {
       const file = input.files && input.files[0];
       if (!file) { resolve(null); return; }
       const reader = new FileReader();
       reader.onload = () => {
         const result = String(reader.result || '');
-        resolve(result.split(',')[1] || null);
+        const base64 = result.split(',')[1];
+        const type = (result.match(/^data:([^;]+);/) || [])[1];
+        const mediaType = ['image/png', 'image/webp', 'image/gif'].includes(type) ? type : 'image/jpeg';
+        resolve(base64 ? { base64, mediaType } : null);
       };
       reader.onerror = () => resolve(null);
       reader.readAsDataURL(file);
