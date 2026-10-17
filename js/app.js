@@ -6468,6 +6468,123 @@ function updateJob() {
   saveDraft();
 }
 
+// ── ADDRESS SUGGESTIONS ──────────────────────────────────────────────────
+// As the street address is typed, real addresses are listed under it; tapping
+// one fills street, suburb, state and postcode. lookupAddresses() is the only
+// part that talks to an address service. Offline or on any error the list
+// just stays empty and the fields work as plain text boxes.
+const AU_STATES = { 'new south wales': 'NSW', 'victoria': 'VIC', 'queensland': 'QLD', 'western australia': 'WA',
+  'south australia': 'SA', 'tasmania': 'TAS', 'australian capital territory': 'ACT', 'northern territory': 'NT' };
+function auStateCode(name) {
+  const n = String(name || '').trim();
+  return AU_STATES[n.toLowerCase()] || (Object.values(AU_STATES).includes(n.toUpperCase()) ? n.toUpperCase() : '');
+}
+
+// Google Places, through the Maps JavaScript API. The key is public by
+// design: it only works from the SAYON site addresses set on it in Google
+// Cloud (HTTP referrer restriction), and only for Maps JavaScript and Places.
+// Empty key: no suggestions, the address boxes work as plain text.
+const GOOGLE_MAPS_KEY = '';
+let googlePlacesLib = null;
+let addressSessionToken = null;
+function loadGooglePlaces() {
+  if (googlePlacesLib) return googlePlacesLib;
+  googlePlacesLib = new Promise((resolve, reject) => {
+    window.__sayonMapsReady = () => resolve();
+    const sc = document.createElement('script');
+    sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(GOOGLE_MAPS_KEY)
+      + '&loading=async&callback=__sayonMapsReady';
+    sc.async = true;
+    sc.onerror = () => { googlePlacesLib = null; reject(new Error('Maps did not load')); };
+    document.head.appendChild(sc);
+  }).then(() => google.maps.importLibrary('places'));
+  return googlePlacesLib;
+}
+
+// Resolves [{ label, area, prediction }] for the typed text.
+async function lookupAddresses(query) {
+  if (!GOOGLE_MAPS_KEY) return [];
+  const places = await loadGooglePlaces();
+  if (!addressSessionToken) addressSessionToken = new places.AutocompleteSessionToken();
+  const { suggestions } = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+    input: query, includedRegionCodes: ['au'], sessionToken: addressSessionToken,
+  });
+  return (suggestions || []).map(s => s.placePrediction).filter(Boolean).map(p => ({
+    label: p.mainText ? p.mainText.text : p.text.text,
+    area: p.secondaryText ? p.secondaryText.text : '',
+    prediction: p,
+  }));
+}
+
+// The picked suggestion's street, suburb, state and postcode.
+async function addressParts(prediction) {
+  const place = prediction.toPlace();
+  await place.fetchFields({ fields: ['addressComponents'] });
+  addressSessionToken = null; // a pick ends the billing session
+  const part = (type, short) => {
+    const c = (place.addressComponents || []).find(x => (x.types || []).includes(type));
+    return c ? (short ? c.shortText : c.longText) : '';
+  };
+  const unit = part('subpremise', true);
+  const number = part('street_number', true);
+  return {
+    street: [unit && number ? unit + '/' + number : number, part('route')].filter(Boolean).join(' '),
+    suburb: part('locality') || part('sublocality') || part('postal_town'),
+    state: auStateCode(part('administrative_area_level_1', true)),
+    postcode: part('postal_code', true),
+  };
+}
+
+let addressSuggestTimer = null;
+let addressSuggestions = [];
+function onAddressTyped(value) {
+  clearTimeout(addressSuggestTimer);
+  const q = String(value || '').trim();
+  if (q.length < 4 || !navigator.onLine) { hideAddressSuggestions(); return; }
+  addressSuggestTimer = setTimeout(async () => {
+    try {
+      const list = await lookupAddresses(q);
+      if (document.getElementById('jobAddress').value.trim() !== q) return; // typed on since
+      showAddressSuggestions(list);
+    } catch (e) {
+      hideAddressSuggestions();
+    }
+  }, 300);
+}
+
+function showAddressSuggestions(list) {
+  const box = document.getElementById('addrSuggest');
+  if (!box) return;
+  addressSuggestions = list;
+  if (!list.length) { hideAddressSuggestions(); return; }
+  box.innerHTML = list.map((a, i) => `<button type="button" class="addr-suggest-item" role="option"
+      onmousedown="event.preventDefault()" onclick="pickAddressSuggestion(${i})">
+      <span class="addr-suggest-street">${escapeHtml(a.label)}</span>
+      <span class="addr-suggest-area">${escapeHtml(a.area)}</span>
+    </button>`).join('') + '<div class="addr-suggest-credit">Powered by Google</div>';
+  box.classList.add('open');
+}
+
+function hideAddressSuggestions() {
+  const box = document.getElementById('addrSuggest');
+  if (box) { box.classList.remove('open'); box.innerHTML = ''; }
+}
+
+async function pickAddressSuggestion(i) {
+  const pick = addressSuggestions[i];
+  hideAddressSuggestions();
+  if (!pick) return;
+  let a;
+  try { a = await addressParts(pick.prediction); }
+  catch (e) { showToast('Could not fetch that address, type it in instead', 'error'); return; }
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  set('jobAddress', a.street);
+  set('jobSuburb', a.suburb);
+  set('jobState', a.state);
+  set('jobPostcode', a.postcode);
+  updateJob();
+}
+
 // ── APPLICABLE STANDARD ──────────────────────────────────────────────────
 // (updateStandard() removed — dead code, no #standardSelect element exists
 // and nothing called it; setStandard() below is the real active path)
