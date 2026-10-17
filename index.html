@@ -164,7 +164,7 @@
       </div>
       <div class="auth-field">
         <label class="auth-label" for="ob-phone">Business Phone</label>
-        <input class="auth-input" id="ob-phone" type="tel" placeholder="e.g. 0400 000 000">
+        <input class="auth-input" id="ob-phone" type="tel" onchange="tidyPhoneInput(this)" placeholder="e.g. 0400 000 000">
       </div>
       <div class="auth-field">
         <label class="auth-label" for="ob-email">Business Email</label>
@@ -293,7 +293,7 @@
           <div class="quote-card-title">Customer</div>
           <div class="quote-grid">
             <label class="quote-field"><span>Client</span><input class="quote-input" id="qClient" oninput="onQuoteFieldInput()"></label>
-            <label class="quote-field"><span>Phone</span><input class="quote-input" id="qClientPhone" inputmode="tel" oninput="onQuoteFieldInput()"></label>
+            <label class="quote-field"><span>Phone</span><input class="quote-input" id="qClientPhone" type="tel" inputmode="tel" onchange="tidyPhoneInput(this)" oninput="onQuoteFieldInput()"></label>
             <label class="quote-field"><span>Email</span><input class="quote-input" id="qClientEmail" type="email" oninput="onQuoteFieldInput()"></label>
             <label class="quote-field wide"><span>Property address</span><input class="quote-input" id="qAddress" oninput="onQuoteFieldInput()"></label>
             <label class="quote-field"><span>Quote no.</span><input class="quote-input" id="qNumber" oninput="onQuoteFieldInput()"></label>
@@ -691,7 +691,7 @@
             </div>
             <div class="job-field">
               <div class="job-field-label">Client Phone</div>
-              <input class="job-input" id="jobClientPhone" placeholder="0400 000 000" oninput="saveJobInfo()">
+              <input class="job-input" id="jobClientPhone" type="tel" inputmode="tel" onchange="tidyPhoneInput(this)" placeholder="0400 000 000" oninput="saveJobInfo()">
             </div>
           </div>
           <div class="job-field">
@@ -1348,6 +1348,7 @@
               <button onclick="dismissHighRiskPrompt()">Dismiss</button>
             </div>
           </div>
+          <div class="area-finding-prompts" id="findingsFromAreas" hidden></div>
           <!-- Dynamic finding cards rendered by renderFindingsUI() -->
           <div class="findings-list" id="findingsList"></div>
 

@@ -509,10 +509,20 @@ function setAreaResult(zoneId, result) {
   if (reportData.areaResult[zoneId] === result) delete reportData.areaResult[zoneId];
   else reportData.areaResult[zoneId] = result;
   syncObstructionData();
-  if (reportData.areaResult[zoneId] === 'FOUND' && !areaEvidence(zoneId).length) {
-    showToast(`Nothing recorded mentions ${OBS_ZONES[zoneId].label.replace(/^The /, '')} yet`, 'info',
-      { label: 'Add finding', run: () => addFindingForArea(zoneId) });
-  }
+}
+
+// Areas marked "evidence found" that nothing in Findings describes yet,
+// shown at the top of Findings as the next thing to write up.
+function renderAreaFindingPrompts() {
+  const el = document.getElementById('findingsFromAreas');
+  if (!el) return;
+  const zones = areasEvidenceUnlinked();
+  el.innerHTML = zones.map(z => {
+    const where = OBS_ZONES[z].label.replace(/^The /, '');
+    return `<div class="area-finding-prompt"><span>Evidence found in <strong>${where}</strong>. Describe it here.</span>
+      <button class="link-btn" onclick="addFindingForArea('${z}')">Add finding</button></div>`;
+  }).join('');
+  el.hidden = !zones.length;
 }
 function markRemainingAreasClear() {
   if (!reportData.areaResult) reportData.areaResult = {};
@@ -587,10 +597,9 @@ function renderAreaChecklist() {
           onclick="setAreaResult('${zoneId}','${val}')">${label}</button>`).join('') + '</div>';
       if (picked === 'FOUND') {
         const ev = areaEvidence(zoneId);
-        result += ev.length
-          ? `<div class="area-evidence">See ${escapeHtml(ev.join('; '))}</div>`
-          : `<div class="area-evidence area-evidence-missing">Nothing recorded mentions this area yet. Add a termite finding, or name it in the borer, decay or delignification details.
-              <button class="link-btn" onclick="addFindingForArea('${zoneId}')">Add finding</button></div>`;
+        // Evidence not yet written up is picked up in Findings, not flagged
+        // here, so the area doesn't read as a mistake.
+        if (ev.length) result += `<div class="area-evidence">See ${escapeHtml(ev.join('; '))}</div>`;
       }
     }
     return `<details class="obs-zone-panel"${areaOpen.has(zoneId) ? ' open' : ''} ontoggle="onAreaToggle('${zoneId}', this.open)">
@@ -626,6 +635,7 @@ function syncObstructionData() {
     return items.length ? `${OBS_ZONES[z].label}: ${items.join(', ')}` : OBS_ZONES[z].label;
   }).join('. ');
   renderAreaChecklist();
+  renderAreaFindingPrompts();
   updateProgress(); flushDraftSave();
 }
 
@@ -4293,6 +4303,7 @@ function renderFindingsUI() {
 
   const findings = getFindings();
   list.innerHTML = findings.map((f, i) => findingCardHTML(f, i, findings.length)).join('');
+  renderAreaFindingPrompts();
 
   if (addBtn) {
     const atCap = findings.length >= MAX_FINDINGS;
@@ -6090,6 +6101,25 @@ function getFullAddress() {
     document.getElementById('jobPostcode').value.trim());
 }
 
+// An Australian phone number spaced the way it's written here: mobiles
+// 0412 345 678, landlines 02 1234 5678, 1300/1800 numbers 1300 123 456,
+// 13 numbers 13 12 34. +61 becomes a leading 0. Anything else (an
+// overseas number, an extension) is left as typed.
+function formatPhoneAU(value) {
+  const raw = String(value || '').trim();
+  let d = raw.replace(/[^\d+]/g, '');
+  if (/^\+?61\d{9}$/.test(d)) d = '0' + d.replace(/^\+?61/, '');
+  if (/\D/.test(d)) return raw;
+  if (/^04\d{8}$/.test(d) || /^1[38]00\d{6}$/.test(d)) return d.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 $2 $3');
+  if (/^0[2378]\d{8}$/.test(d)) return d.replace(/^(\d{2})(\d{4})(\d{4})$/, '$1 $2 $3');
+  if (/^13\d{4}$/.test(d)) return d.replace(/^(\d{2})(\d{2})(\d{2})$/, '$1 $2 $3');
+  return raw;
+}
+function tidyPhoneInput(el) {
+  const v = formatPhoneAU(el.value);
+  if (v !== el.value) { el.value = v; el.dispatchEvent(new Event('input')); }
+}
+
 function formatAddress(street, suburb, state, postcode) {
   const line2 = [suburb, [state, postcode].filter(Boolean).join(' ')].filter(Boolean).join(' ');
   return [street, line2].filter(Boolean).join(', ');
@@ -7539,6 +7569,7 @@ function flushDraftSave() {
     saveDraftFailureNotified = false; // a later successful save clears the throttle
     lastLocalSaveAt = Date.now();
     updateSyncStatus('saved');
+    scheduleReportAutosave();
   } catch (e) {
     // Previously a silent fail. Now surfaced once per failure episode so the
     // technician knows in-progress work (including a just-captured signature)
@@ -7760,6 +7791,24 @@ function isFieldFilled(key) {
 }
 
 // quiet: no toast, for saves the app makes on its own (see processPendingNotes)
+// A report with an address saves itself to Saved Reports (and the
+// account) a few seconds after each change, so nobody has to dig through
+// the menu for Save Report. reportSig() spots when nothing has changed, so
+// opening a report or the save's own draft write doesn't save it again.
+const REPORT_AUTOSAVE_MS = 4000;
+let reportAutosaveTimer = null, lastReportSig = null;
+function reportSig() {
+  return JSON.stringify([JOB_SUMMARY_FIELDS.map(id => (document.getElementById(id) || {}).value || ''), reportData, fieldNotes]);
+}
+function scheduleReportAutosave() {
+  if (reportAutosaveTimer) clearTimeout(reportAutosaveTimer);
+  reportAutosaveTimer = setTimeout(() => {
+    reportAutosaveTimer = null;
+    if (!document.getElementById('jobAddress').value.trim() || reportSig() === lastReportSig) return;
+    saveCurrentReport(true);
+  }, REPORT_AUTOSAVE_MS);
+}
+
 function saveCurrentReport(quiet) {
   const street = document.getElementById('jobAddress').value.trim();
   if (!street) {
@@ -7801,6 +7850,7 @@ function saveCurrentReport(quiet) {
 
   if (setSavedReports(reports)) {
     currentReportId = id;
+    lastReportSig = reportSig();
     if (!quiet) showToast('Report saved', 'success');
     renderSavedList();
     saveDraft();
@@ -7862,6 +7912,7 @@ function loadReport(id) {
     if (count > bestCount) { bestCount = count; bestSection = sec; }
   });
   showSection(bestSection);
+  lastReportSig = reportSig();
   saveDraft();
 
   showToast(`Loaded: ${entry.address}`, 'info');
@@ -8312,7 +8363,7 @@ function recordTreatmentFromDashboard(id) {
 }
 
 const SAVED_EMPTY_HTML = `<div class="empty-state">
-    <p>No saved reports yet. Fill in a job, then tap Save Report in Job details and it appears here.</p>
+    <p>No saved reports yet. A report saves itself here once it has an address.</p>
     <button class="job-action-btn" onclick="toggleDrawer()">Back to the report</button>
   </div>`;
 
