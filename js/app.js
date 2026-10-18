@@ -817,9 +817,9 @@ function applyObstructionExtraction(data, transcript) {
 
 // Section 5 doesn't ask again what Section 4 already holds: hindered and
 // restricted access are the reasons ticked against each area, shown here
-// as a summary with a way back to the area. The inspector can add exact
-// spots in their own words (hinderedAreas, noAccessAreas); those print
-// under the area rows.
+// as a summary with a way back to the area. Each area row also takes the
+// exact spot in the inspector's words (see ACCESS SPOTS below); those
+// print with the area's row.
 //
 // hinderedAreas may also hold 'NIL — …' (or 'N/A') from older reports,
 // where a No button answered the question. That still counts as No.
@@ -858,6 +858,102 @@ function openAreaRow(zoneId) {
   if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
+// ── ACCESS SPOTS ─────────────────────────────────────────────────────────
+// Where exactly, per area, typed on the area's row in Section 5:
+// reportData.accessSpots = { hindered: { zoneId: text }, restricted: {…} }.
+// Voice notes still fill the free text (hinderedAreas, noAccessAreas), so a
+// sentence there that opens with an area ("Roof void: outer edges") is
+// shown on that area's row; anything else shows as "Other spots" (key
+// '_other'). A typed spot, even a blank one, wins over the voice text.
+const ACCESS_SPOT_TEXT = { hindered: 'hinderedAreas', restricted: 'noAccessAreas' };
+const ZONE_SPOT_ALIASES = {
+  interior: ['the interior', 'interior', 'inside'],
+  exterior: ['the exterior', 'exterior', 'outside'],
+  subfloor: ['subfloor', 'sub-floor', 'sub floor', 'underfloor', 'under the house'],
+  roofvoid: ['roof void', 'roof space', 'ceiling space', 'roof cavity'],
+  outbuildings: ['outbuildings', 'outbuilding', 'garage', 'shed', 'carport'],
+  site: ['the site', 'site', 'yard', 'grounds'],
+  fences: ['fences', 'fence', 'fencing'],
+  retainingwalls: ['retaining walls', 'retaining wall'],
+  landscapingtimbers: ['landscaping timbers', 'landscaping timber', 'sleepers'],
+};
+
+// The voice text split into sentences, each tied to the area it opens
+// with, if that area is one of zones.
+function voiceAccessSpots(kind, zones) {
+  const text = (reportData[ACCESS_SPOT_TEXT[kind]] || '').trim();
+  const out = { _other: [] };
+  if (!text || (kind === 'hindered' && hinderedTextIsNil())) return out;
+  text.split(/(?<=[.;])\s+|\n+/).map(t => t.trim()).filter(Boolean).forEach(seg => {
+    const low = seg.toLowerCase();
+    const z = zones.find(z => (ZONE_SPOT_ALIASES[z] || []).some(a => low.startsWith(a) && !/[a-z]/.test(low.charAt(a.length))));
+    if (!z) { out._other.push(seg); return; }
+    const alias = ZONE_SPOT_ALIASES[z].find(a => low.startsWith(a));
+    const rest = seg.slice(alias.length).replace(/^[\s:,–—-]+/, '').replace(/[.;]$/, '').trim();
+    (out[z] = out[z] || []).push(rest ? rest.charAt(0).toUpperCase() + rest.slice(1) : seg);
+  });
+  return out;
+}
+
+// The exact spot shown and printed for one area (or '_other').
+function accessSpot(kind, key, zones) {
+  const typed = ((reportData.accessSpots || {})[kind] || {})[key];
+  if (typed !== undefined) return typed;
+  const voice = voiceAccessSpots(kind, zones)[key] || [];
+  return voice.join(key === '_other' ? ' ' : '; ');
+}
+
+// The zones listed in each card, the same split renderAccessSummary shows.
+function accessZones(kind) {
+  const reasons = reportData.areaReasons || {};
+  return areasNotFullyInspected().filter(z => {
+    const items = reasons[z] || [];
+    return kind === 'restricted' ? items.some(i => RESTRICTED_REASONS.has(i))
+      : !items.length || items.some(i => !RESTRICTED_REASONS.has(i));
+  });
+}
+
+function setAccessSpot(kind, key, value) {
+  if (!reportData.accessSpots) reportData.accessSpots = {};
+  if (!reportData.accessSpots[kind]) reportData.accessSpots[kind] = {};
+  reportData.accessSpots[kind][key] = value.trim();
+  closeAccessSpotEditor();
+  updateProgress(); flushDraftSave();
+}
+
+function closeAccessSpotEditor() {
+  const el = document.activeElement;
+  if (el && el.classList.contains('access-spot-input')) el.blur();
+  renderAccessSummary();
+}
+
+// Swaps a row's spot line for a text box, with the same Confirm and Cancel
+// as the other report fields.
+function editAccessSpot(kind, key) {
+  const btn = document.querySelector(`.access-spot[data-kind="${kind}"][data-key="${key}"]`);
+  if (!btn) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'field-edit-input access-spot-input';
+  input.value = accessSpot(kind, key, accessZones(kind));
+  input.placeholder = key === '_other' ? 'Anything not tied to one area' : (kind === 'restricted' ? 'e.g. Front left bedroom, locked, no key' : 'e.g. Outer edges and corners, low clearance');
+  const actions = document.createElement('div');
+  actions.className = 'edit-actions';
+  actions.innerHTML = '<button type="button" class="edit-confirm-btn">✓ Confirm</button><button type="button" class="edit-cancel-btn">Cancel</button>';
+  const [ok, cancel] = actions.querySelectorAll('button');
+  ok.addEventListener('pointerdown', e => { e.preventDefault(); setAccessSpot(kind, key, input.value); });
+  cancel.addEventListener('pointerdown', e => { e.preventDefault(); closeAccessSpotEditor(); });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); setAccessSpot(kind, key, input.value); }
+    if (e.key === 'Escape') closeAccessSpotEditor();
+  });
+  const wrap = document.createElement('div');
+  wrap.className = 'access-spot-editor';
+  wrap.append(input, actions);
+  btn.replaceWith(wrap);
+  input.focus();
+}
+
 const ACCESS_GROUP_ICONS = {
   hindered: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg>',
   restricted: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
@@ -867,6 +963,8 @@ function renderAccessSummary() {
   const hBox = document.getElementById('accessHinderedBox');
   const rBox = document.getElementById('accessRestrictedBox');
   if (!hBox || !rBox) return;
+  // Don't redraw under the inspector's thumb while a spot is being typed.
+  if (document.activeElement && document.activeElement.classList.contains('access-spot-input')) return;
   const reasons = reportData.areaReasons || {};
   const limited = areasNotFullyInspected();
   const allMarked = Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
@@ -879,16 +977,27 @@ function renderAccessSummary() {
     const why = noReason ? '<span class="access-item-why missing">No reason ticked yet</span>'
       : `<span class="access-item-why">${escapeHtml(items.join(', '))}</span>`;
     const status = areaStatusOf(z) === 'NOT' ? 'Not inspected' : 'Inspected with limits';
-    return `<button type="button" class="access-item" onclick="openAreaRow('${z}')">
+    const kind = restricted ? 'restricted' : 'hindered';
+    return `<div class="access-item">
       <span class="access-item-name">${OBS_ZONES[z].label.replace(/^The /, '')}</span>
-      <span class="access-item-state">${status}</span>${why}</button>`;
+      <button type="button" class="access-item-state" onclick="openAreaRow('${z}')" aria-label="${status}. Change in Areas">${status}</button>${why}
+      ${spotLine(kind, z)}</div>`;
   }).filter(Boolean);
+  const spotLine = (kind, key) => {
+    const spot = accessSpot(kind, key, accessZones(kind));
+    return `<button type="button" class="access-spot${spot ? '' : ' empty'}" data-kind="${kind}" data-key="${key}" onclick="editAccessSpot('${kind}','${key}')">${spot ? escapeHtml(spot) : '+ Add exact spot'}</button>`;
+  };
+  // Voice text that names no listed area, under its own row.
+  const other = kind => accessSpot(kind, '_other', accessZones(kind)) ? `<div class="access-item access-item-other">
+      <span class="access-item-name">Other spots</span>${spotLine(kind, '_other')}</div>` : '';
   // One card per kind of limit: a header with the count, then the areas.
   const group = (kind, title, sub, list, none) => {
+    const extra = other(kind);
     const count = list.length ? `<span class="access-count ${kind}">${list.length} area${list.length === 1 ? '' : 's'}</span>`
+      : extra ? `<span class="access-count ${kind}">Noted</span>`
       : none ? '<span class="access-count none">None</span>'
       : '<span class="access-count">Not yet</span>';
-    const body = list.length ? `<div class="access-items">${list.join('')}</div>` : '';
+    const body = list.length || extra ? `<div class="access-items">${list.join('')}${extra}</div>` : '';
     return `<div class="access-group access-${kind}">
       <div class="access-group-head"><span class="access-group-icon">${ACCESS_GROUP_ICONS[kind]}</span>
         <span class="access-group-title">${title}<small>${sub}</small></span>${count}</div>${body}</div>`;
@@ -898,11 +1007,8 @@ function renderAccessSummary() {
   rBox.innerHTML = group('restricted', 'Restricted access', 'Locked or permanent: no key, no hatch, no roof void',
     rows(true), allMarked);
   const intro = document.getElementById('accessIntro');
-  if (intro) intro.innerHTML = allMarked || limited.length ? 'Filled in from your ticks in Areas. Tap an area to change it.'
+  if (intro) intro.innerHTML = allMarked || limited.length ? 'Filled in from your ticks in Areas. Tap a status to change it there, or add where exactly.'
     : `Mark every area in Section ${REPORT_PARTS.areas} and these fill themselves in. <button type="button" class="link-btn" onclick="showSection('obstructions')">Go to Areas</button>`;
-  // An older report's "No" answer isn't an exact spot.
-  const spots = document.getElementById('f-hinderedAreas');
-  if (spots && hinderedTextIsNil()) { spots.textContent = '—'; spots.classList.remove('filled'); }
   const hint = document.getElementById('accessHighRiskHint');
   if (hint) {
     const fallback = accessLimits().highRisk;
@@ -918,24 +1024,28 @@ function renderAccessSummary() {
 // an empty list can be printed as "None".
 function accessLimits() {
   const hindered = [], restricted = [];
+  const hZones = accessZones('hindered'), rZones = accessZones('restricted');
+  const where = (kind, z, zones) => { const s = accessSpot(kind, z, zones); return s ? `. Where: ${s.charAt(0).toUpperCase()}${s.slice(1)}` : ''; };
   Object.entries(OBS_ZONES).forEach(([z, zone]) => {
     const st = areaStatusOf(z);
     if (!['PARTIAL', 'NOT'].includes(st)) return;
     const items = (reportData.areaReasons || {})[z] || [];
     const status = st === 'NOT' ? 'Not inspected' : 'Inspected';
     const h = items.filter(i => !RESTRICTED_REASONS.has(i)), r = items.filter(i => RESTRICTED_REASONS.has(i));
-    if (h.length) hindered.push([zone.label, `${status}, hindered by ${h.join(', ').toLowerCase()}`]);
-    if (r.length) restricted.push([zone.label, `${st === 'NOT' ? 'Not inspected:' : 'Inspected, restricted by'} ${r.join(', ').toLowerCase()}`]);
-    if (!items.length) hindered.push([zone.label, `${status}, reason not recorded`]);
+    if (h.length) hindered.push([zone.label, `${status}, hindered by ${h.join(', ').toLowerCase()}${where('hindered', z, hZones)}`]);
+    if (r.length) restricted.push([zone.label, `${st === 'NOT' ? 'Not inspected:' : 'Inspected, restricted by'} ${r.join(', ').toLowerCase()}${where('restricted', z, rZones)}`]);
+    if (!items.length) hindered.push([zone.label, `${status}, reason not recorded${where('hindered', z, hZones)}`]);
   });
-  // The inspector's exact spots follow the area rows. 'What hindered it'
-  // (older reports, or a note) only prints when no area gives a reason.
+  // Spots tied to no listed area follow the area rows. With no area rows
+  // at all (older reports), the inspector's words print as they were, with
+  // 'What hindered it'.
   const areaRows = hindered.length;
-  if (hasHinderedAreas()) {
-    hindered.push([areaRows ? 'Exact spots' : 'Where', reportData.hinderedAreas]);
+  const hOther = accessSpot('hindered', '_other', hZones), rOther = accessSpot('restricted', '_other', rZones);
+  if (hOther) {
+    hindered.push([areaRows ? 'Other spots' : 'Where', hOther]);
     if (!areaRows && !isBlankValue(reportData.hinderedAreasDetail)) hindered.push(['What hindered it', reportData.hinderedAreasDetail]);
   }
-  if (!isBlankValue(reportData.noAccessAreas)) restricted.push(['Where and why', reportData.noAccessAreas]);
+  if (rOther) restricted.push([restricted.length ? 'Other spots' : 'Where and why', rOther]);
   const limited = areasNotFullyInspected();
   const highRisk = !isBlankValue(reportData.highRiskAreas) ? reportData.highRiskAreas
     : [!isBlankValue(reportData.noAccessAreas) ? reportData.noAccessAreas : '', ...limited.map(z => OBS_ZONES[z].label)].filter(Boolean).join('; ');
