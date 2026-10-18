@@ -927,8 +927,8 @@ function closeAccessSpotEditor() {
   renderAccessSummary();
 }
 
-// Swaps a row's spot line for a text box, with the same Confirm and Cancel
-// as the other report fields.
+// Swaps a row's spot line for a text box that saves the same way as the
+// other report fields.
 function editAccessSpot(kind, key) {
   const btn = document.querySelector(`.access-spot[data-kind="${kind}"][data-key="${key}"]`);
   if (!btn) return;
@@ -937,19 +937,10 @@ function editAccessSpot(kind, key) {
   input.className = 'field-edit-input access-spot-input';
   input.value = accessSpot(kind, key, accessZones(kind));
   input.placeholder = key === '_other' ? 'Anything not tied to one area' : (kind === 'restricted' ? 'e.g. Front left bedroom, locked, no key' : 'e.g. Outer edges and corners, low clearance');
-  const actions = document.createElement('div');
-  actions.className = 'edit-actions';
-  actions.innerHTML = '<button type="button" class="edit-confirm-btn">✓ Confirm</button><button type="button" class="edit-cancel-btn">Cancel</button>';
-  const [ok, cancel] = actions.querySelectorAll('button');
-  ok.addEventListener('pointerdown', e => { e.preventDefault(); setAccessSpot(kind, key, input.value); });
-  cancel.addEventListener('pointerdown', e => { e.preventDefault(); closeAccessSpotEditor(); });
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); setAccessSpot(kind, key, input.value); }
-    if (e.key === 'Escape') closeAccessSpotEditor();
-  });
+  wireInlineTextEdit(input, v => setAccessSpot(kind, key, v), closeAccessSpotEditor);
   const wrap = document.createElement('div');
   wrap.className = 'access-spot-editor';
-  wrap.append(input, actions);
+  wrap.append(input);
   btn.replaceWith(wrap);
   input.focus();
 }
@@ -4521,48 +4512,28 @@ function startFindingEdit(findingId, key, type) {
   ta.value = cur;
   ta.placeholder = 'Type value...';
 
-  const actions = document.createElement('div');
-  actions.className = 'edit-actions';
+  const isThis = () => activeFindingEdit && activeFindingEdit.findingId === findingId && activeFindingEdit.key === key;
+  wireInlineTextEdit(ta,
+    v => { if (isThis()) commitFindingEdit(findingId, key, v.trim()); },
+    () => { if (isThis()) { activeFindingEdit = null; renderFindingsUI(); } },
+    // Tapping away saves without redrawing the cards straight away, so the
+    // tap that moved focus still lands on the field it was aimed at.
+    v => {
+      if (!isThis()) return;
+      if (ta.isConnected) {
+        fieldEl.textContent = v.trim() || '—';
+        fieldEl.classList.toggle('filled', !!v.trim());
+        ta.replaceWith(fieldEl);
+      }
+      commitFindingEdit(findingId, key, v.trim(), true);
+    });
 
-  const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'edit-confirm-btn';
-  confirmBtn.textContent = '✓ Confirm';
-  confirmBtn.type = 'button';
-  confirmBtn.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    commitFindingEdit(findingId, key, ta.value.trim());
-  });
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.className = 'edit-cancel-btn';
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.type = 'button';
-  cancelBtn.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    activeFindingEdit = null;
-    renderFindingsUI();
-  });
-
-  actions.appendChild(confirmBtn);
-  actions.appendChild(cancelBtn);
-
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex;flex-direction:column;width:100%';
-  wrap.appendChild(ta);
-  wrap.appendChild(actions);
-
-  fieldEl.replaceWith(wrap);
+  fieldEl.replaceWith(ta);
   ta.focus();
   ta.select();
-  ta.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); commitFindingEdit(findingId, key, ta.value.trim()); }
-    if (e.key === 'Escape') { activeFindingEdit = null; renderFindingsUI(); }
-  });
 }
 
-function commitFindingEdit(findingId, key, value) {
+function commitFindingEdit(findingId, key, value, deferRender) {
   activeFindingEdit = null;
   const finding = getFindings().find(f => f.id === findingId);
   if (!finding) return;
@@ -4574,7 +4545,8 @@ function commitFindingEdit(findingId, key, value) {
   if (key === 'termiteActivity') {
     setTimeout(() => checkHighRiskPrompt(), 400);
   }
-  renderFindingsUI();
+  if (deferRender) setTimeout(() => { if (!activeFindingEdit) renderFindingsUI(); }, 400);
+  else renderFindingsUI();
   updateProgress();
   saveDraft();
   ensureTreatmentForLiveTermites();
@@ -4828,6 +4800,21 @@ const SPECIES_LIST = [
   'Microcerotermes spp.', 'Species not identified — further investigation required',
 ];
 
+// One-line text editors save on Enter (Done on a phone keyboard) or when
+// the inspector taps away, and Escape backs out. There's no Confirm bar:
+// it could be left behind on screen when focus moved on without it.
+// `onBlur` saves a tap-away differently when given; it defaults to `onSave`.
+function wireInlineTextEdit(input, onSave, onCancel, onBlur) {
+  let done = false;
+  const finish = (fn, ...args) => { if (done) return; done = true; fn(...args); };
+  input.enterKeyHint = 'done';
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(onSave, input.value); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(onCancel); }
+  });
+  input.addEventListener('blur', () => finish(onBlur || onSave, input.value));
+}
+
 function startEdit(el, key, type) {
   if (!editOn) return;
   if (el.classList.contains('editing')) return;
@@ -5061,43 +5048,11 @@ function startEdit(el, key, type) {
     input.type = 'text';
     input.value = cur;
     input.placeholder = 'Type value...';
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter')  { e.preventDefault(); commitEdit(el, key, input.value); }
-      if (e.key === 'Escape') cancelEdit(el, key);
-    });
-    // No blur-to-commit on text fields — use the confirm button instead
-    // (blur fires unpredictably on mobile when keyboard dismisses)
-
-    // Build confirm / cancel action bar
-    const actions = document.createElement('div');
-    actions.className = 'edit-actions';
-
-    const confirmBtn = document.createElement('button');
-    confirmBtn.className = 'edit-confirm-btn';
-    confirmBtn.textContent = '✓ Confirm';
-    confirmBtn.type = 'button';
-    confirmBtn.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      commitEdit(el, key, input.value);
-    });
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'edit-cancel-btn';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.type = 'button';
-    cancelBtn.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      cancelEdit(el, key);
-    });
-
-    actions.appendChild(confirmBtn);
-    actions.appendChild(cancelBtn);
-
+    wireInlineTextEdit(input,
+      v => { if (el.classList.contains('editing')) commitEdit(el, key, v); },
+      () => { if (el.classList.contains('editing')) cancelEdit(el, key); });
     el.innerHTML = '';
     el.appendChild(input);
-    el.appendChild(actions);
     input.focus();
     input.select();
     return; // skip the generic el.innerHTML / appendChild below
