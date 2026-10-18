@@ -1267,27 +1267,26 @@
                Section 4, so nothing is entered twice. Rendered by
                renderAccessSummary(); the exact-spots fields are optional. -->
           <div class="section-fields">
-            <div class="field field-wide">
-              <div class="field-label">Hindered access <span class="field-hint">in the way today: furniture, stored goods, insulation, low clearance</span></div>
-              <div class="access-summary" id="accessHinderedBox"></div>
-            </div>
-            <div class="field field-wide">
-              <div class="field-label">Restricted access <span class="field-hint">permanent or locked: a locked room, no hatch, no roof void</span></div>
-              <div class="access-summary" id="accessRestrictedBox"></div>
-            </div>
-            <div class="field field-wide">
-              <div class="field-label">Exact spots (optional) <span class="field-hint">e.g. "Roof void: outer edges and corners. Subfloor: back section under the kitchen"</span></div>
-              <div class="field-val" id="f-hinderedAreas" onclick="startEdit(this,'hinderedAreas','text')">—</div>
-            </div>
-            <div class="field field-wide">
-              <div class="field-label">Locked spots, in your words (optional) <span class="field-hint">e.g. "Front left bedroom: locked, no key"</span></div>
-              <div class="field-val" id="f-noAccessAreas" onclick="startEdit(this,'noAccessAreas','text')">—</div>
-            </div>
+            <p class="access-intro" id="accessIntro">Filled in from your ticks in Areas. Tap an area to change it.</p>
+            <div class="access-summary" id="accessHinderedBox"></div>
+            <div class="access-summary" id="accessRestrictedBox"></div>
             <div class="res-disclaimer">
               The parts of these areas that could not be seen or reached may contain termite activity or damage.
             </div>
+
+            <div class="sec-group-title">More detail <small>Optional. Printed under the areas above.</small></div>
             <div class="field field-wide">
-              <div class="field-label">High Risk Areas <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">— areas to which access should be gained, or fully gained, for a further inspection</span></div>
+              <div class="field-label">Exact spots <span class="field-hint">e.g. "Roof void: outer edges and corners. Subfloor: back section under the kitchen"</span></div>
+              <div class="field-val" id="f-hinderedAreas" onclick="startEdit(this,'hinderedAreas','text')">—</div>
+            </div>
+            <div class="field field-wide">
+              <div class="field-label">Locked spots, in your words <span class="field-hint">e.g. "Front left bedroom: locked, no key"</span></div>
+              <div class="field-val" id="f-noAccessAreas" onclick="startEdit(this,'noAccessAreas','text')">—</div>
+            </div>
+
+            <div class="sec-group-title">Further inspection</div>
+            <div class="field field-wide">
+              <div class="field-label">High Risk Areas <span class="field-hint">Areas to gain access to, or fuller access, for a further inspection</span></div>
               <div class="field-val" id="f-highRiskAreas" onclick="startEdit(this,'highRiskAreas','text')">—</div>
               <div class="access-hint" id="accessHighRiskHint" hidden></div>
             </div>
