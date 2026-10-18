@@ -4317,7 +4317,7 @@ function findingCardHTML(finding, index, total) {
   return `
     <div class="finding-card" id="finding-card-${id}">
       <div class="finding-card-header">
-        <span class="finding-card-label">${label}</span>
+        <span class="finding-card-label">${finding.activityLocation ? `<span class="finding-card-title">${escapeHtml(finding.activityLocation)}</span><small>${label}</small>` : label}</span>
         <span class="finding-activity-chip ${chipClass}">${act ? act : '—'}</span>
         ${total > 1 ? `<button class="finding-remove-btn" onclick="removeFinding('${id}')" title="Remove this finding">✕</button>` : ''}
       </div>
@@ -4331,14 +4331,14 @@ function findingCardHTML(finding, index, total) {
         ${showDetails ? `
         <div class="findings-details" style="display:block">
           <div class="section-fields">
+            <div class="field field-wide"><div class="field-label">Location of Activity</div>${fv('activityLocation','text')}</div>
+            <div class="field field-wide"><div class="field-label">Damage Description <span class="field-hint">Location, extent and what's visible. No severity opinion.</span></div>${fv('damageDescription','text')}</div>
             <div class="field"><div class="field-label">Species / Genus</div>${fv('species','specieslist')}</div>
-            <div class="field field-wide"><div class="field-label">Damage Description (location, extent, what's visible — no severity opinion)</div>${fv('damageDescription','text')}</div>
-            <div class="field"><div class="field-label">Location of Activity</div>${fv('activityLocation','text')}</div>
             <div class="field choice-field"><div class="field-label">Workings / Nest Located</div>${fv('nestLocated','yesno')}</div>
             <div class="field choice-field"><div class="field-label">Refer to a Builder or Engineer?</div>${fv('structuralConcern','yesno')}</div>
           </div>
           ${act === 'INACTIVE' ? `<div class="inactive-reminder" style="display:flex"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span>Inactive workings can mean termites have temporarily abandoned the area, not that the risk is gone. Continued, regular inspections remain essential.</span></div>` : ''}
-          ${finding.structuralConcern === 'YES' ? `<div class="warn-note" style="margin:0 0 10px"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Referral recorded. The PDF recommends a licensed builder or engineer assess this damage.</div>` : ''}
+          ${finding.structuralConcern === 'YES' ? `<div class="warn-note note-info" style="margin:0 0 10px"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Referral recorded. The PDF recommends a licensed builder or engineer assess this damage.</div>` : ''}
         </div>` : ''}
         ${showNone ? `<div class="findings-none" style="display:flex;margin:8px 0 6px"><span class="findings-none-icon"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span><span>No activity or evidence found at this location.</span></div>` : ''}
       </div>
