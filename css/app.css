@@ -2406,7 +2406,7 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
   border-color: var(--accent) !important;
   background: rgba(var(--accent-rgb), 0.06) !important;
   cursor: text;
-  border-radius: 8px 8px 0 0;
+  border-radius: 8px;
 }
 
 .field-val.editing input,
@@ -2418,45 +2418,25 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
   border: none;
   color: var(--text);
   font-family: 'Inter', sans-serif;
-  font-size: 12.5px;
+  font-size: 16px; /* under 16px makes iOS zoom the page on focus */
+  outline: none;
+}
+
+/* Finding card editors swap the whole field for the input */
+.field-edit-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1.5px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(var(--accent-rgb), 0.06);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
   outline: none;
 }
 
 .field-val.editing select option { background: var(--surface2); }
-
-/* Inline confirm/cancel bar for text field edits */
-.edit-actions {
-  display: flex;
-  gap: 6px;
-  padding: 6px 8px 7px;
-  background: rgba(var(--accent-rgb), 0.04);
-  border-top: 1px solid rgba(var(--accent-rgb), 0.15);
-  border-radius: 0 0 8px 8px;
-}
-.edit-confirm-btn, .edit-cancel-btn {
-  flex: 1;
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s;
-  font-family: 'Inter', sans-serif;
-}
-.edit-confirm-btn {
-  flex: 2;
-  background: var(--accent);
-  color: #fff;
-  border: 1px solid var(--accent3);
-}
-.edit-confirm-btn:hover { opacity: 0.85; }
-.edit-cancel-btn {
-  flex: 1;
-  background: var(--surface2);
-  color: var(--text2);
-  border: 1px solid var(--border);
-}
-.edit-cancel-btn:hover { border-color: var(--accent); color: var(--accent2); }
 
 .edited-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--yellow); flex-shrink: 0; }
 
@@ -3618,8 +3598,7 @@ body.ai-busy:has(#app[style*="flex"]) .ai-busy-bar { display: block; }
 .access-spot { grid-column: 1 / -1; margin-top: 6px; min-height: 40px; padding: 8px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2); color: var(--text); font: inherit; font-size: 14px; line-height: 1.4; text-align: left; cursor: pointer; }
 .access-spot.empty { border-style: dashed; background: transparent; color: var(--accent2); font-weight: 600; }
 .access-spot-editor { grid-column: 1 / -1; margin-top: 6px; display: flex; flex-direction: column; }
-.access-spot-input { width: 100%; min-height: 44px; padding: 10px 11px; border: 1.5px solid var(--accent); border-bottom: 0; border-radius: 8px 8px 0 0; background: var(--surface); color: var(--text); font: inherit; font-size: 16px; outline: none; }
-.access-spot-editor .edit-actions { border: 1.5px solid var(--accent); border-top: 1px solid rgba(var(--accent-rgb), 0.15); }
+.access-spot-input { width: 100%; min-height: 44px; padding: 10px 11px; border: 1.5px solid var(--accent); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 16px; outline: none; }
 .access-item-why.missing { color: var(--yellow-text); font-weight: 600; }
 .sec-group-title { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 15px; font-weight: 700; color: var(--text); }
 .sec-group-title small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--text3); }
