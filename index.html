@@ -1265,7 +1265,7 @@
 
           <!-- Hindered and restricted access come from the reasons ticked in
                Section 4, so nothing is entered twice. Rendered by
-               renderAccessSummary(); the exact-spots fields are optional. -->
+               renderAccessSummary(), with an optional exact spot per area. -->
           <div class="section-fields">
             <p class="access-intro" id="accessIntro">Filled in from your ticks in Areas. Tap an area to change it.</p>
             <div class="access-summary" id="accessHinderedBox"></div>
@@ -1274,14 +1274,11 @@
               The parts of these areas that could not be seen or reached may contain termite activity or damage.
             </div>
 
-            <div class="sec-group-title">More detail <small>Optional. Printed under the areas above.</small></div>
-            <div class="field field-wide">
-              <div class="field-label">Exact spots <span class="field-hint">e.g. "Roof void: outer edges and corners. Subfloor: back section under the kitchen"</span></div>
-              <div class="field-val" id="f-hinderedAreas" onclick="startEdit(this,'hinderedAreas','text')">—</div>
-            </div>
-            <div class="field field-wide">
-              <div class="field-label">Locked spots, in your words <span class="field-hint">e.g. "Front left bedroom: locked, no key"</span></div>
-              <div class="field-val" id="f-noAccessAreas" onclick="startEdit(this,'noAccessAreas','text')">—</div>
+            <!-- Voice notes still write the free text here; Section 5 shows it
+                 on each area's row (ACCESS SPOTS in js/app.js). -->
+            <div hidden>
+              <div class="field-val" id="f-hinderedAreas">—</div>
+              <div class="field-val" id="f-noAccessAreas">—</div>
             </div>
 
             <div class="sec-group-title">Further inspection</div>
