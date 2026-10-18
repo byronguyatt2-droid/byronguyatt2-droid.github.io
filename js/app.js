@@ -858,6 +858,11 @@ function openAreaRow(zoneId) {
   if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
+const ACCESS_GROUP_ICONS = {
+  hindered: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg>',
+  restricted: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+};
+
 function renderAccessSummary() {
   const hBox = document.getElementById('accessHinderedBox');
   const rBox = document.getElementById('accessRestrictedBox');
@@ -871,21 +876,30 @@ function renderAccessSummary() {
     // isn't missed: that's how the report prints it too.
     const noReason = !restricted && !(reasons[z] || []).length;
     if (!items.length && !noReason) return '';
-    const what = noReason ? '<span class="access-row-missing">Tick why in Areas</span>' : escapeHtml(items.join(', '));
+    const why = noReason ? '<span class="access-item-why missing">No reason ticked yet</span>'
+      : `<span class="access-item-why">${escapeHtml(items.join(', '))}</span>`;
     const status = areaStatusOf(z) === 'NOT' ? 'Not inspected' : 'Inspected with limits';
-    return `<button type="button" class="access-row" onclick="openAreaRow('${z}')">
-      <span class="access-row-area">${OBS_ZONES[z].label.replace(/^The /, '')}<small>${status}</small></span>
-      <span class="access-row-what">${what}</span><span class="access-row-go">›</span></button>`;
-  }).join('');
-  const empty = (label) => allMarked
-    ? `<div class="access-none"><span class="access-answer good">NO</span>${label}</div>`
-    : `<div class="access-none"><span class="access-answer">Not yet</span>Mark every area in Section ${REPORT_PARTS.areas} and this fills itself in.
-        <button type="button" class="link-btn" onclick="showSection('obstructions')">Go to Areas</button></div>`;
-  const h = rows(false), r = rows(true);
-  hBox.innerHTML = h ? `<div class="access-answer-line"><span class="access-answer warn">YES</span>From the reasons ticked in Areas. Tap one to change it.</div>${h}`
-    : (hinderedTextIsNil() && !allMarked ? `<div class="access-none"><span class="access-answer good">NO</span>Nothing was in the way.</div>` : empty('Nothing was in the way.'));
-  rBox.innerHTML = r ? `<div class="access-answer-line"><span class="access-answer warn">YES</span>From the reasons ticked in Areas. Tap one to change it.</div>${r}`
-    : empty('No locked or permanently restricted areas.');
+    return `<button type="button" class="access-item" onclick="openAreaRow('${z}')">
+      <span class="access-item-name">${OBS_ZONES[z].label.replace(/^The /, '')}</span>
+      <span class="access-item-state">${status}</span>${why}</button>`;
+  }).filter(Boolean);
+  // One card per kind of limit: a header with the count, then the areas.
+  const group = (kind, title, sub, list, none) => {
+    const count = list.length ? `<span class="access-count ${kind}">${list.length} area${list.length === 1 ? '' : 's'}</span>`
+      : none ? '<span class="access-count none">None</span>'
+      : '<span class="access-count">Not yet</span>';
+    const body = list.length ? `<div class="access-items">${list.join('')}</div>` : '';
+    return `<div class="access-group access-${kind}">
+      <div class="access-group-head"><span class="access-group-icon">${ACCESS_GROUP_ICONS[kind]}</span>
+        <span class="access-group-title">${title}<small>${sub}</small></span>${count}</div>${body}</div>`;
+  };
+  hBox.innerHTML = group('hindered', 'Hindered access', 'In the way on the day: stored goods, furniture, insulation',
+    rows(false), allMarked || hinderedTextIsNil());
+  rBox.innerHTML = group('restricted', 'Restricted access', 'Locked or permanent: no key, no hatch, no roof void',
+    rows(true), allMarked);
+  const intro = document.getElementById('accessIntro');
+  if (intro) intro.innerHTML = allMarked || limited.length ? 'Filled in from your ticks in Areas. Tap an area to change it.'
+    : `Mark every area in Section ${REPORT_PARTS.areas} and these fill themselves in. <button type="button" class="link-btn" onclick="showSection('obstructions')">Go to Areas</button>`;
   // An older report's "No" answer isn't an exact spot.
   const spots = document.getElementById('f-hinderedAreas');
   if (spots && hinderedTextIsNil()) { spots.textContent = '—'; spots.classList.remove('filled'); }
