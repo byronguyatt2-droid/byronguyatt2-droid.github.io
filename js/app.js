@@ -1756,6 +1756,65 @@ function reloadForUpdate() {
   location.reload();
 }
 
+// ── ADDRESS MOVE ──────────────────────────────────────────────────────────
+// The site is moving to sayon-app.github.io, because the GitHub account it
+// lives under is being renamed. Browsers keep a site's saved data per
+// address, so once the new address is up, the copy still cached on a phone
+// at the old one backs the inspector's work up to their account and sends
+// them across. Signing in there brings the reports (with their quotes),
+// photos, company details and prices back.
+const OLD_APP_ORIGIN = 'https://byronguyatt2-droid.github.io';
+const NEW_APP_URL = 'https://sayon-app.github.io/';
+let moveNoticeShown = false;
+
+async function checkAddressMove() {
+  if (moveNoticeShown || location.origin !== OLD_APP_ORIGIN || !authSession) return;
+  try {
+    const res = await fetch(NEW_APP_URL + 'manifest.json', { cache: 'no-store' });
+    if (!res.ok || (await res.json()).name !== 'SAYON') return;
+  } catch (e) { return; }
+  moveNoticeShown = true;
+  document.getElementById('moveOverlay').classList.add('open');
+  backUpForMove();
+}
+
+function closeMoveNotice() {
+  document.getElementById('moveOverlay').classList.remove('open');
+}
+
+// A photo still only on this phone (no cloud path) isn't backed up.
+async function photosBackedUp(entry) {
+  for (const p of allReportPhotos(entry.reportData)) {
+    if (!p.path && await getPhotoImage(p)) return false;
+  }
+  return true;
+}
+
+async function backUpForMove() {
+  const status = document.getElementById('moveStatus');
+  const openBtn = document.getElementById('moveOpenBtn');
+  const retryBtn = document.getElementById('moveRetryBtn');
+  status.textContent = 'Backing up your work to your account…';
+  openBtn.hidden = true;
+  retryBtn.hidden = true;
+  if (document.getElementById('jobAddress').value.trim() && reportSig() !== lastReportSig) saveCurrentReport(true);
+  flushDraftSave();
+  let missing = 0;
+  for (const entry of getSavedReports()) {
+    if (!(await supabaseSave(entry, true)) || !(await photosBackedUp(entry))) missing++;
+  }
+  if (isBusinessOwner()) await pushBusinessSettings();
+  const detailsLeft = isBusinessOwner() && localSettingsAhead(authBusiness.settings || {});
+  if (missing || detailsLeft) {
+    const what = missing ? `${missing} report${missing === 1 ? '' : 's'}` : 'Your company details';
+    status.textContent = `${what} couldn't be backed up yet. Check you have internet, then try again.`;
+    retryBtn.hidden = false;
+    return;
+  }
+  status.textContent = 'Everything is backed up to your account.';
+  openBtn.hidden = false;
+}
+
 // ── SPLASH ────────────────────────────────────────────────────────────────
 window.addEventListener('load', () => {
   // Register service worker for offline support (PWA only — skip inside the
@@ -7387,6 +7446,7 @@ function enterApp() {
   // this device." Calling it here too means every real sign-in restores
   // that account's cloud reports to this device, not just the first one.
   supabaseSyncOnOpen();
+  checkAddressMove();
 
   // New users see onboarding; returning users go straight to the menu
   if (shouldShowOnboarding()) {
@@ -7765,6 +7825,7 @@ document.addEventListener('visibilitychange', async () => {
   if (swRegistration) swRegistration.update().catch(() => {});
   await maybeRefreshAuthSession();
   processPendingNotes();
+  checkAddressMove();
 });
 window.addEventListener('pagehide', flushDraftSave);
 window.addEventListener('beforeunload', flushDraftSave);

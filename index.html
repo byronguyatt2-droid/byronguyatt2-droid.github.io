@@ -408,6 +408,27 @@
   </div>
 </div>
 
+<!-- NEW ADDRESS: shows at the old address once the site has moved (see
+     ADDRESS MOVE in js/app.js). -->
+<div class="page-sheet-overlay did-it-send-overlay" id="moveOverlay">
+  <div class="did-it-send" role="alertdialog" aria-modal="true" aria-labelledby="moveTitle" aria-describedby="moveText">
+    <div class="did-it-send-title" id="moveTitle">SAYON has a new address</div>
+    <p class="did-it-send-text" id="moveText">SAYON now lives at <strong>sayon-app.github.io</strong>. This old copy won't get any more updates.</p>
+    <p class="move-status" id="moveStatus" role="status"></p>
+    <ol class="move-steps">
+      <li>Tap <strong>Open the new address</strong>.</li>
+      <li>Add it to your Home Screen. On an iPhone, tap Share, then Add to Home Screen.</li>
+      <li>Sign in there. Your reports, photos, quotes and company details come back.</li>
+      <li>Delete this old SAYON icon.</li>
+    </ol>
+    <div class="did-it-send-btns">
+      <a class="extract-btn" id="moveOpenBtn" href="https://sayon-app.github.io/" target="_blank" rel="noopener" hidden>Open the new address</a>
+      <button class="extract-btn" id="moveRetryBtn" onclick="backUpForMove()" hidden>Try again</button>
+      <button class="link-btn" onclick="closeMoveNotice()">Not now</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADD A PHOTO: camera, photo library or files. Outside #app so it also
      shows over the treatment record. -->
 <div class="page-sheet-overlay did-it-send-overlay" id="photoSourceOverlay" onclick="if (event.target === this) closePhotoSource()">
