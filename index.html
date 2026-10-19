@@ -1223,11 +1223,11 @@
           </div>
 
           <!-- Area-by-area record: every area is Inspected, Not inspected or
-               Not present, and any hindered or restricted reason is ticked
+               Not applicable, and any hindered or restricted reason is ticked
                under it. Rendered by renderAreaChecklist(). -->
-          <div style="padding:10px 14px 4px">
-            <div class="obs-zone-label">Mark every area and what was found there. If something limited the inspection, tick why: hindered (in the way today) or restricted (permanent or locked).</div>
-            <button class="access-clear-btn" onclick="markRemainingAreasInspected()">Mark all unmarked areas as Inspected</button>
+          <div class="areas-intro">
+            <p class="access-intro">Mark every area and what was found there. If something limited the inspection, tick the kind of reason. You'll say where exactly in Access.</p>
+            <button type="button" class="link-btn areas-mark-all" id="markAllAreasBtn" onclick="markRemainingAreasInspected()">Mark the rest as inspected</button>
           </div>
           <div class="obs-panels-wrap" id="areaChecklist" style="padding:4px 14px 8px"></div>
 
