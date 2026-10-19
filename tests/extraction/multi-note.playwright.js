@@ -3,7 +3,7 @@
 //   1. a whole-house note (house-test-2 style)
 //   2. a subfloor-only follow-up (case subfloor-followup) — the first note's
 //      facts must survive, the subfloor must flip to Inspected and lose its
-//      Stored Articles reason, and the moisture rows must add up
+//      Stored items reason, and the moisture rows must add up
 //   3. a note that fails (no signal) and waits, then a newer note dictated
 //      while it waits: both must fill in oldest first, so the newer note's
 //      value wins where they disagree
@@ -139,11 +139,11 @@ const noteFor = key => `MARKER_${key} ${NOTE_TEXT[key] || 'note text'}`;
   const a = report.afterHouse, s2 = report.afterSubfloor, n = report.afterNewer;
   report.verdicts = {
     firstNoteFactsSurvive: s2.wall === 'Double brick' && s2.floor === 'Timber suspended floor' && s2.risk === 'HIGH' && s2.findings.length === 2 && s2.hindered === a.hindered,
-    laterNoteKeepsInteriorLimit: report.afterKitchen.areaStatus.interior === 'PARTIAL' && JSON.stringify(report.afterKitchen.areaReasons.interior) === '["Furniture"]',
+    laterNoteKeepsInteriorLimit: report.afterKitchen.areaStatus.interior === 'PARTIAL' && JSON.stringify(report.afterKitchen.areaReasons.interior) === '["Furniture or fittings"]',
     repeatedFindingNotAdded: report.afterKitchen.findings.length === 2,
     subfloorNowInspectedAndReasonCleared: s2.areaStatus.subfloor === 'INSPECTED' && !(s2.areaReasons && s2.areaReasons.subfloor && s2.areaReasons.subfloor.length),
     moistureRowsAddUp: s2.moistureRows.length === 4,
-    reasonsTickedFromFirstNote: JSON.stringify(a.areaReasons) === JSON.stringify({ interior: ['Furniture'], subfloor: ['Stored Articles'], roofvoid: ['Low clearance to the outside edges of roof void'] }),
+    reasonsTickedFromFirstNote: JSON.stringify(a.areaReasons) === JSON.stringify({ interior: ['Furniture or fittings'], subfloor: ['Stored items'], roofvoid: ['Low clearance'] }),
     restrictionsToggleShowsYes: a.resYes && a.resDetailShown,
     waitingNoteQueued: report.afterWaitingQueued.pending.length === 1 && report.afterWaitingQueued.weather === 'Fine and dry',
     waitingNoteDidNotOverwriteNewer: n.weather === 'Light rain' && n.risk === 'HIGH' && n.pending.length === 0,
