@@ -5081,6 +5081,7 @@ function startEdit(el, key, type) {
 // doesn't throw away the brand a plate scan or an earlier note recorded.
 function applyFieldCascade(key, value, el, prev) {
   if (key === 'standard') setStandard(value.trim(), true);
+  if (key === 'invasiveInspection' || key === 'invasiveInspectionDetails') syncInvasiveDetails();
 
   if (key === 'existingSystem') {
     // Clear specific name when type changes — it may no longer be valid
@@ -5224,7 +5225,15 @@ function showSection(name) {
 }
 
 // ── PROGRESS ──────────────────────────────────────────────────────────────
+// The where/why/when box only shows once an invasive inspection is
+// recommended, or when it already holds something so nothing is hidden.
+function syncInvasiveDetails() {
+  const wrap = document.getElementById('invasiveDetailsWrap');
+  if (wrap) wrap.hidden = reportData.invasiveInspection !== 'YES' && isBlankValue(reportData.invasiveInspectionDetails);
+}
+
 function updateProgress() {
+  syncInvasiveDetails();
   // FIX: this duplicated calculateCompletion()'s old plain-presence check
   // independently, so the same bug (a routine render lazily creating a
   // placeholder finding via getFindings(), silently marking the Findings
