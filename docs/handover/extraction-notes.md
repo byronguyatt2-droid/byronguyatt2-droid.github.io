@@ -25,7 +25,7 @@ All in one PR to `main` (branch `claude/voice-extraction-rdusm7`), three commits
 - Write order: `moistureReadings` → `waterLeaks` → `leakLocation` → `existingSystem` → `existingSystemOther`, then the rest. A leak forces moisture YES; a moisture NO from a note that doesn't mention leaks leaves a recorded leak alone.
 - `applyFieldCascade(key, value, el, prev)`: the system type only clears `existingSystemOther` when the type actually changed, so a plate-scan brand survives a voice note.
 - Duplicate meter rows (same location and reading) aren't added twice.
-- `applyObstructionExtraction`: a status that comes back INSPECTED/NA deletes that area's `areaReasons`; reasons are matched by exact label, then `OBS_REASON_SYNONYMS` ("stored items" → Stored Articles, "batts" → Insulation …), then every significant word with `no`/`not` kept, so "No access to subfloor" needs the "no" and a subfloor the inspector entered is never ticked as not accessed; when a phrase matches an exact label the looser word match is skipped.
+- `applyObstructionExtraction`: a status that comes back INSPECTED/NA deletes that area's `areaReasons`; reasons are matched by exact label, then `OBS_REASON_SYNONYMS` ("boxes" → Stored items, "batts" → Insulation …; the old specific labels are synonyms of the general reason they became, see `LEGACY_REASONS`), then every significant word with `no`/`not` kept, so "No access point" needs the "no" and a subfloor the inspector entered is never ticked as not accessed; when a phrase matches an exact label the looser word match is skipped.
 - `processTranscript`: when notes are waiting and the phone is online, the new note queues behind them and the queue runs, so notes land in dictation order and an older note can't overwrite a newer one.
 - `processPendingNotes`: a note-specific problem (Worker 413, `max_tokens` cut-off, an answer that isn't JSON) is written on the note (`note.problem`, shown under it in red) and skipped, so the notes behind it still fill in; sign-in, plan and signal problems still stop the run as before. `requestExtraction` throws `.badAnswer` for an unparseable answer and `extractionProblem` has a 413 message.
 - `service-worker.js`: `CACHE_VERSION` `korva-v52`.
@@ -53,9 +53,9 @@ Pass bar from the brief: every weight-3 check passes in 3 of 3 runs on house tes
 - Browser: `python3 -m http.server 8791` then `NODE_PATH=/opt/node-tools/node_modules node tests/extraction/multi-note.playwright.js <jspdf-dir> 8791` (header of the file explains `<jspdf-dir>`). All ten verdicts should print `true` and `pageErrors` `[]`.
 - Phone test for baz once live (fully close SAYON and reopen first):
   1. New report. Dictate one note: "double brick house on a suspended timber floor tiled roof no termite management system". Tap Extract. Check Property shows Double brick and Timber suspended floor.
-  2. Dictate a second note: "in the subfloor stored items block the back section partly inspected timber lying on the soil". Extract. Check Areas: Subfloor is Partly with Stored Articles ticked, and Property still shows Double brick.
+  2. Dictate a second note: "in the subfloor stored items block the back section partly inspected timber lying on the soil". Extract. Check Areas: Subfloor is Partly with Stored items ticked, and Property still shows Double brick.
   3. Turn on Aeroplane mode. Dictate "roof void inspected fully no termite activity". Extract: it should say the note is saved until there's signal. Turn Aeroplane mode off: the note should fill in and Roof Void should show Inspected.
-  4. Dictate "the owner moved the stored items the back of the subfloor is now inspected". Extract. Check Subfloor is Inspected and Stored Articles is no longer ticked.
+  4. Dictate "the owner moved the stored items the back of the subfloor is now inspected". Extract. Check Subfloor is Inspected and Stored items is no longer ticked.
   5. Tap Generate report and check the PDF opens and the Restrictions page answers NO.
 
 ## 5. What waits on baz
