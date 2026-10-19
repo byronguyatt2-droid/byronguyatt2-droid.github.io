@@ -4164,6 +4164,11 @@ body[data-voice="thinking"] .voice-hud { animation: hudPulse 0.6s ease-in-out in
 .did-it-send-text { margin: 8px 0 14px; font-size: 13px; line-height: 1.5; color: var(--text2); }
 .did-it-send-btns { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
 .photo-source-btns { margin-top: 14px; }
+.move-status { margin: 0 0 10px; font-size: 13px; font-weight: 700; line-height: 1.4; color: var(--text); }
+.move-steps { margin: 0 0 14px; padding-left: 20px; font-size: 13px; line-height: 1.5; color: var(--text2); }
+.move-steps li + li { margin-top: 4px; }
+#moveOverlay a.extract-btn { display: block; text-align: center; text-decoration: none; }
+#moveOverlay .did-it-send-btns [hidden] { display: none; }
 .doc-sent-lines { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
 .doc-sent { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--text2); }
 .doc-sent strong { font-weight: 700; }
