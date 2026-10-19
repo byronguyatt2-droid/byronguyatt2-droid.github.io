@@ -1762,14 +1762,41 @@ Rules:
 - "notes" is a short (under 140 characters) plain-text explanation of the visible features behind this identification (e.g. "pale soldier head, elongated mandibles, consistent with Coptotermes"), or null when identified is "NO".
 - This is a starting point for the inspector to confirm, never a final determination — never phrase "notes" as a certainty.`;
 
+// ── APP UPDATES ───────────────────────────────────────────────────────────
+// The service worker serves the cached app first, so a deploy used to need
+// two reloads to show. When a new version takes over, the page reloads
+// itself, but never mid-dictation or mid-typing: then it waits until the
+// app is next put away.
+let swRegistration = null;
+let updateReloadPending = false;
+
+function appIsBusy() {
+  const el = document.activeElement;
+  return isRecording || !!(el && el.matches('input, textarea, select, [contenteditable="true"]'));
+}
+
+function reloadForUpdate() {
+  if (appIsBusy()) { updateReloadPending = true; return; }
+  flushDraftSave();
+  location.reload();
+}
+
 // ── SPLASH ────────────────────────────────────────────────────────────────
 window.addEventListener('load', () => {
   // Register service worker for offline support (PWA only — skip inside the
   // native app wrapper, where Capacitor's own WebView handles asset loading
   // and a service worker can cause stale-cache issues).
   if ('serviceWorker' in navigator && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) {
-    navigator.serviceWorker.register('service-worker.js', { scope: './' }).catch((err) => {
+    const updating = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('service-worker.js', { scope: './' }).then((reg) => {
+      swRegistration = reg;
+    }).catch((err) => {
       console.warn('Service worker registration failed:', err);
+    });
+    // A new version took over: this page is still the old one, so load the
+    // new one now instead of on the next visit. Skipped on a first install.
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (updating) reloadForUpdate();
     });
   }
 
@@ -7754,7 +7781,13 @@ window.addEventListener('offline', () => updateSyncStatus());
 // Coming back to the app: the sign-in may have expired while the phone
 // slept, so refresh it before anything talks to the server.
 document.addEventListener('visibilitychange', async () => {
-  if (document.hidden) { flushDraftSave(); return; }
+  if (document.hidden) {
+    flushDraftSave();
+    if (updateReloadPending) location.reload();
+    return;
+  }
+  // An app left open for days never navigates, so ask for a new version here.
+  if (swRegistration) swRegistration.update().catch(() => {});
   await maybeRefreshAuthSession();
   processPendingNotes();
 });
