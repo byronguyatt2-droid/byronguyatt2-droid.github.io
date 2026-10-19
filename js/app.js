@@ -276,101 +276,80 @@ function obFinish() {
 // OBSTRUCTION ZONE SELECTOR
 // ══════════════════════════════════════════════════════════════════════════
 
+// Reasons are kinds of obstruction, not descriptions of one: "Stored items",
+// not "Storage to garage walls". Where exactly, and what it was, goes on
+// the area's row in Section 5 (ACCESS SPOTS).
 const OBS_ZONES = {
   interior: {
     label: 'The Interior',
-    items: [
-      'Furniture',
-      'Flooring',
-      'Fixtures',
-      'Items/belongings stored against wall',
-      'Items/belongings stored to cupboards',
-      'Limited access to skirting boards',
-      'Limited access to skirting boards due to stored items in garage',
-      'Locked room',
-    ],
+    items: ['Stored items', 'Furniture or fittings', 'Floor or wall coverings', 'Locked or no key'],
   },
   exterior: {
     label: 'The Exterior',
-    items: [
-      'Vegetation',
-      'Stored Articles',
-      'Air Conditioner Ducting',
-      'Storage to garage walls',
-      'Water Tanks',
-      'Hot water system',
-      'Air conditioning unit',
-      'Dog or animal in the yard',
-    ],
+    items: ['Stored items', 'Vegetation', 'Services or equipment', 'Dog or animal'],
   },
   subfloor: {
     label: 'Subfloor',
-    items: [
-      'Low Clearance',
-      'Stored Articles',
-      'Ducting',
-      'Plumbing',
-      'No access to subfloor',
-      'Insulation',
-    ],
+    items: ['Stored items', 'Low clearance', 'Services or equipment', 'Insulation', 'No access point'],
   },
   roofvoid: {
     label: 'Roof Void',
-    items: [
-      'Insulation',
-      'Sarking',
-      'Air conditioning ducting',
-      'Stored articles',
-      'Low clearance to the outside edges of roof void',
-      'Low clearance in roof void',
-      'Item blocking access to manhole',
-      'Manhole sealed or screwed shut',
-      'Height Restrictions',
-      'Skillion Roof Design (no void)',
-    ],
+    items: ['Stored items', 'Low clearance', 'Insulation or sarking', 'Services or equipment', 'No access point', 'Unsafe height', 'No roof void'],
   },
   outbuildings: {
     label: 'Outbuildings',
-    items: [
-      'Stored Articles',
-      'Locked, no access',
-    ],
+    items: ['Stored items', 'Locked or no key'],
   },
   site: {
     label: 'The Site',
-    items: [
-      'Vegetation',
-      'Stored Articles',
-      'Dog or animal in the yard',
-    ],
+    items: ['Stored items', 'Vegetation', 'Dog or animal'],
   },
   fences: {
     label: 'Fences',
-    items: [
-      'Vegetation',
-      'Stored Articles',
-      'Dog or animal in the yard',
-    ],
+    items: ['Stored items', 'Vegetation', 'Dog or animal'],
   },
   retainingwalls: {
     label: 'Retaining Walls',
-    items: [
-      'Back Fill',
-      'Abutting Timbers',
-      'Vegetation',
-      'Stored Articles',
-    ],
+    items: ['Stored items', 'Vegetation', 'Soil or abutting structures'],
   },
   landscapingtimbers: {
     label: 'Landscaping Timbers',
-    items: [
-      'Back Fill',
-      'Abutting Timbers',
-      'Vegetation',
-      'Stored Articles',
-    ],
+    items: ['Stored items', 'Vegetation', 'Soil or abutting structures'],
   },
 };
+
+// The specific labels reports were saved with before, and what each became.
+// Where an area can't take the first choice, the next one is tried.
+const LEGACY_REASONS = {
+  'Furniture': ['Furniture or fittings'], 'Fixtures': ['Furniture or fittings'],
+  'Flooring': ['Floor or wall coverings'],
+  'Limited access to skirting boards': ['Furniture or fittings'],
+  'Items/belongings stored against wall': ['Stored items'], 'Items/belongings stored to cupboards': ['Stored items'],
+  'Limited access to skirting boards due to stored items in garage': ['Stored items'],
+  'Stored Articles': ['Stored items'], 'Stored articles': ['Stored items'], 'Storage to garage walls': ['Stored items'],
+  'Item blocking access to manhole': ['Stored items'],
+  'Locked room': ['Locked or no key'], 'Locked room and storage to garage': ['Locked or no key'], 'Locked, no access': ['Locked or no key'],
+  'Air Conditioner Ducting': ['Services or equipment'], 'Air conditioning ducting': ['Services or equipment'], 'Ducting': ['Services or equipment'],
+  'Plumbing': ['Services or equipment'], 'Water Tanks': ['Services or equipment'], 'Hot water system': ['Services or equipment'],
+  'Air conditioning unit': ['Services or equipment'],
+  'Dog or animal in the yard': ['Dog or animal'],
+  'Low Clearance': ['Low clearance'], 'Low clearance in roof void': ['Low clearance'], 'Low clearance to the outside edges of roof void': ['Low clearance'],
+  'Insulation': ['Insulation', 'Insulation or sarking'], 'Sarking': ['Insulation or sarking'],
+  'No access to subfloor': ['No access point'], 'Manhole sealed or screwed shut': ['No access point'],
+  'Height Restrictions': ['Unsafe height'], 'Skillion Roof Design (no void)': ['No roof void'],
+  'Back Fill': ['Soil or abutting structures'], 'Abutting Timbers': ['Soil or abutting structures'],
+};
+
+function modernReasons(zoneId, list) {
+  const items = (OBS_ZONES[zoneId] || {}).items || [];
+  const out = [];
+  list.forEach(r => {
+    const next = items.includes(r) ? r : (LEGACY_REASONS[r] || []).find(c => items.includes(c));
+    if (next && !out.includes(next)) out.push(next);
+  });
+  return out;
+}
+
 // Each area gets a status, which AS 4349.3 reports must state:
 // INSPECTED (fully), PARTIAL (partly, reasons below), NOT (not inspected,
 // reasons below) or NA (not present at this property, e.g. no subfloor on a
@@ -388,19 +367,19 @@ const OBS_ZONES = {
 //   restricted access: a permanent restriction or locked entry (a locked
 //     room, no subfloor hatch, no roof void, beyond safe height).
 // Labels in RESTRICTED_REASONS are restricted; every other label hinders.
-const RESTRICTED_REASONS = new Set(['Locked room', 'Locked, no access', 'No access to subfloor', 'Height Restrictions', 'Skillion Roof Design (no void)', 'Manhole sealed or screwed shut', 'Dog or animal in the yard']);
+const RESTRICTED_REASONS = new Set(['Locked or no key', 'No access point', 'Unsafe height', 'No roof void', 'Dog or animal']);
 // Every status an area can hold. PARTIAL is still stored (older reports
 // and the AI use it), but the inspector never picks it: an area is
-// Inspected, Not inspected or Not present, and an inspected area with a
+// Inspected, Not inspected or Not applicable, and an inspected area with a
 // hindered or restricted reason ticked is held as PARTIAL, "inspected with
 // limits".
 const AREA_STATUSES = [
   ['INSPECTED', 'Inspected'],
   ['PARTIAL',   'Inspected with limits'],
   ['NOT',       'Not inspected'],
-  ['NA',        'Not present'],
+  ['NA',        'Not applicable'],
 ];
-const AREA_STATUS_BUTTONS = [['INSPECTED', 'Inspected'], ['NOT', 'Not inspected'], ['NA', 'Not present']];
+const AREA_STATUS_BUTTONS = [['INSPECTED', 'Inspected'], ['NOT', 'Not inspected'], ['NA', 'Not applicable']];
 // Inspected areas whose reason list has been opened with "Add a limit".
 const areaLimitsOpen = new Set();
 
@@ -568,6 +547,8 @@ function renderAreaChecklist() {
   const wrap = document.getElementById('areaChecklist');
   if (!wrap) return;
   migrateLegacyObstructions();
+  const markAll = document.getElementById('markAllAreasBtn');
+  if (markAll) markAll.hidden = Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
   wrap.innerHTML = Object.entries(OBS_ZONES).map(([zoneId, zone]) => {
     const status = areaStatusOf(zoneId);
     const lit = status === 'PARTIAL' ? 'INSPECTED' : status;
@@ -584,15 +565,16 @@ function renderAreaChecklist() {
         return `<button class="obs-item-btn${selected.includes(item) ? ' selected' : ''}"
           onclick="toggleObsItem('${zoneId}','${safe}')">${item}</button>`;
       };
-      const group = (title, items) => items.length
-        ? `<div class="obs-items-label">${title}</div><div class="obs-items">${items.map(btn).join('')}</div>` : '';
-      reasons = group('Hindered: in the way today', zone.items.filter(i => !RESTRICTED_REASONS.has(i)))
-        + group('Restricted: permanent or locked', zone.items.filter(i => RESTRICTED_REASONS.has(i)));
+      const group = (kind, title, items) => items.length
+        ? `<div class="obs-reasons obs-reasons-${kind}"><div class="obs-items-label">${ACCESS_GROUP_ICONS[kind]}<span>${title}</span></div><div class="obs-items">${items.map(btn).join('')}</div></div>` : '';
+      reasons = group('hindered', 'Hindered: in the way today', zone.items.filter(i => !RESTRICTED_REASONS.has(i)))
+        + group('restricted', 'Restricted: permanent or locked', zone.items.filter(i => RESTRICTED_REASONS.has(i)));
+      if (selected.length) reasons += `<div class="area-where">Say where exactly in <button type="button" class="link-btn" onclick="showSection('restrictions')">Access</button></div>`;
     }
     let result = '';
     if (areaWasEntered(zoneId)) {
       const picked = areaResultOf(zoneId);
-      result = '<div class="area-result"><span class="area-result-label">Found here:</span>' + AREA_RESULTS.map(([val, label]) =>
+      result = '<div class="area-result-label">Found here</div><div class="area-result">' + AREA_RESULTS.map(([val, label]) =>
         `<button class="obs-item-btn area-result-btn${picked === val ? ' selected result-' + val.toLowerCase() : ''}"
           onclick="setAreaResult('${zoneId}','${val}')">${label}</button>`).join('') + '</div>';
       if (picked === 'FOUND') {
@@ -645,10 +627,10 @@ function syncObstructionData() {
 // Those zones become "Not inspected" with the same reasons; the rest are
 // left for the inspector to mark.
 function migrateLegacyObstructions() {
-  // "Locked room and storage to garage" was renamed "Locked room".
-  Object.values(reportData.areaReasons || {}).forEach(list => list.forEach((r, i) => {
-    if (r === 'Locked room and storage to garage') list[i] = 'Locked room';
-  }));
+  // Older reports hold the old, specific reason labels.
+  Object.entries(reportData.areaReasons || {}).forEach(([z, list]) => {
+    if (Array.isArray(list) && list.some(r => !(OBS_ZONES[z] || { items: [] }).items.includes(r))) reportData.areaReasons[z] = modernReasons(z, list);
+  });
   if (reportData.areaStatus || !reportData.obstructions) return;
   reportData.areaStatus = {};
   reportData.areaReasons = {};
@@ -662,7 +644,8 @@ function migrateLegacyObstructions() {
     if (!storedZones.includes(zone.label)) return;
     reportData.areaStatus[zoneId] = 'NOT';
     const detail = storedNature.find(n => n.startsWith(zone.label + ':'));
-    if (detail) reportData.areaReasons[zoneId] = detail.replace(zone.label + ': ', '').split(', ').filter(i => zone.items.includes(i));
+    if (detail) reportData.areaReasons[zoneId] = detail.replace(zone.label + ': ', '').split(', ');
+    if (reportData.areaReasons[zoneId]) reportData.areaReasons[zoneId] = modernReasons(zoneId, reportData.areaReasons[zoneId]);
   });
 }
 
@@ -670,34 +653,26 @@ function migrateLegacyObstructions() {
 // right button without the exact label. Matched as whole words inside a
 // phrase about that area.
 const OBS_REASON_SYNONYMS = {
-  'Stored Articles': ['stored items', 'stored goods', 'stored belongings', 'stored articles', 'storage', 'boxes', 'personal items'],
-  'Stored articles': ['stored items', 'stored goods', 'stored belongings', 'stored articles', 'storage', 'boxes'],
-  'Furniture': ['furniture', 'furnishings', 'wardrobe', 'bed', 'couch', 'lounge suite'],
+  'Stored items': ['stored items', 'stored goods', 'stored belongings', 'stored articles', 'storage', 'boxes', 'personal items', 'belongings', 'items stored', 'stored in cupboards', 'stored in the cupboards', 'cupboards full', 'manhole blocked', 'blocking the manhole', 'blocking access to manhole', 'blocked manhole'],
+  'Furniture or fittings': ['furniture', 'furnishings', 'wardrobe', 'bed', 'couch', 'lounge suite', 'fixtures', 'fittings', 'cabinetry', 'built-ins'],
+  'Floor or wall coverings': ['flooring', 'floor coverings', 'carpet', 'carpets', 'floating floor', 'tiles', 'wall linings', 'wall coverings'],
   'Insulation': ['insulation', 'batts'],
+  'Insulation or sarking': ['insulation', 'batts', 'sarking', 'foil'],
   'Vegetation': ['vegetation', 'shrubs', 'shrubbery', 'overgrown', 'plants', 'garden growth'],
-  'Low Clearance': ['low clearance', 'clearance too low', 'not enough clearance', 'tight clearance'],
-  'Low clearance in roof void': ['low clearance in the roof', 'low clearance in roof void', 'low pitch'],
-  'Low clearance to the outside edges of roof void': ['outer edges low clearance', 'outside edges low clearance', 'edges low clearance', 'low clearance to the outer edges', 'low clearance at the outer edges', 'low clearance to the edges', 'low clearance at the edges', 'low clearance at the eaves', 'low clearance to the eaves', 'low clearance at the outer sides', 'low clearance to the outer sides'],
-  'Ducting': ['ducting', 'ducts'],
-  'Air conditioning ducting': ['ducting', 'ducts', 'air con'],
-  'Air Conditioner Ducting': ['ducting', 'ducts'],
-  'Air conditioning unit': ['air con unit', 'aircon unit', 'air conditioning unit', 'air conditioner unit', 'air conditioner', 'condenser', 'split system'],
-  'Hot water system': ['hot water system', 'hot water unit', 'hot water heater', 'hot water service', 'hot water tank', 'hws'],
-  'Dog or animal in the yard': ['dog', 'dogs', 'animal', 'animals'],
-  'Manhole sealed or screwed shut': ['screwed shut', 'nailed shut', 'painted shut', 'sealed shut', 'manhole sealed', 'manhole screwed', 'sealed manhole'],
-  'Plumbing': ['plumbing', 'pipes', 'pipework'],
-  'Sarking': ['sarking', 'foil'],
-  'Height Restrictions': ['height restriction', 'too high', 'height'],
-  'Skillion Roof Design (no void)': ['skillion', 'no roof void', 'no void'],
-  'Item blocking access to manhole': ['manhole blocked', 'blocking the manhole', 'blocking access to manhole', 'blocked manhole'],
-  'Water Tanks': ['water tank', 'rainwater tank', 'tank'],
-  'Items/belongings stored to cupboards': ['stored items in cupboards', 'stored items in the cupboards', 'cupboards with stored items', 'stored in cupboards', 'stored in the cupboards', 'items in cupboards', 'items in the cupboards', 'cupboards full'],
-  'Locked room': ['locked room', 'locked bedroom', 'room was locked', 'room locked', 'bedroom was locked', 'bedroom locked', 'locked door'],
-  'Locked, no access': ['locked', 'no key', 'couldn\'t get in', 'could not get in'],
-  'Back Fill': ['backfill', 'back fill', 'soil built up', 'soil against'],
-  'Abutting Timbers': ['abutting timber', 'timbers against', 'timber against'],
-  'No access to subfloor': ['no access to subfloor', 'no access to the subfloor', 'no subfloor access', 'could not access the subfloor', 'couldn\'t get into the subfloor', 'subfloor not accessible', 'subfloor not entered', 'hatch too small', 'no subfloor hatch'],
+  'Low clearance': ['low clearance', 'clearance too low', 'not enough clearance', 'tight clearance', 'low pitch'],
+  'Services or equipment': ['ducting', 'ducts', 'air con', 'aircon', 'air conditioner', 'air conditioning', 'condenser', 'split system', 'hot water', 'hws', 'water tank', 'rainwater tank', 'tank', 'plumbing', 'pipes', 'pipework'],
+  'Dog or animal': ['dog', 'dogs', 'animal', 'animals'],
+  'Locked or no key': ['locked', 'no key', 'locked room', 'locked bedroom', 'locked door', 'couldn\'t get in', 'could not get in'],
+  'No access point': ['screwed shut', 'nailed shut', 'painted shut', 'sealed shut', 'manhole sealed', 'manhole screwed', 'sealed manhole', 'no manhole', 'no access to subfloor', 'no access to the subfloor', 'no subfloor access', 'could not access the subfloor', 'couldn\'t get into the subfloor', 'subfloor not accessible', 'subfloor not entered', 'hatch too small', 'no subfloor hatch', 'no hatch'],
+  'Unsafe height': ['height restriction', 'too high', 'height', 'unsafe height', 'beyond safe height'],
+  'No roof void': ['skillion', 'no roof void', 'no void', 'no roof space'],
+  'Soil or abutting structures': ['backfill', 'back fill', 'soil built up', 'soil against', 'fill against', 'abutting timber', 'timbers against', 'timber against', 'abutting'],
 };
+// The old specific labels still tick their new reason when dictated or
+// returned by the AI.
+Object.entries(LEGACY_REASONS).forEach(([old, next]) => next.forEach(n => {
+  if (OBS_REASON_SYNONYMS[n] && !OBS_REASON_SYNONYMS[n].includes(old.toLowerCase())) OBS_REASON_SYNONYMS[n].push(old.toLowerCase());
+}));
 
 // Called from populateFields() after a voice/AI extraction. The AI returns
 // areaStatus for any area the technician mentioned, plus obstructions /
@@ -1630,12 +1605,12 @@ AREAS INSPECTED (areaStatus): one key per area the note actually covers; leave o
 HINDERED AND RESTRICTED ACCESS: five fields, each with one meaning. The report sorts every access limit into two kinds. HINDERED access is a temporary obstruction at the time of the inspection: furniture, stored goods, floor coverings, insulation, vegetation, a manhole blocked by stored items, or low clearance in the subfloor or roof void. RESTRICTED access is a permanent restriction or locked entry: a locked room, a subfloor with no access hatch, a manhole sealed or screwed shut, a roof with no void, a part beyond safe height, or a yard the inspector could not safely enter because of a dog or other animal.
 - obstructions: which areas were not fully inspected and roughly where, e.g. "Subfloor: back section behind stored items. Roof void: outer edges and corners". Only PARTIAL or NOT areas appear here. Null when nothing was in the way.
 - restrictedAccess: WHY, as "Area: reason" pairs separated by ". ", using the app's reason labels where one fits, because the app ticks them from these exact words:
-  Interior: Furniture | Flooring | Fixtures | Items/belongings stored against wall | Items/belongings stored to cupboards | Limited access to skirting boards | Locked room
-  Exterior: Vegetation | Stored Articles | Air Conditioner Ducting | Storage to garage walls | Water Tanks | Hot water system | Air conditioning unit | Dog or animal in the yard
-  Subfloor: Low Clearance | Stored Articles | Ducting | Plumbing | No access to subfloor | Insulation
-  Roof void: Insulation | Sarking | Air conditioning ducting | Stored articles | Low clearance to the outside edges of roof void | Low clearance in roof void | Item blocking access to manhole | Manhole sealed or screwed shut | Height Restrictions | Skillion Roof Design (no void)
-  Outbuildings: Stored Articles | Locked, no access.  Site / Fences: Vegetation | Stored Articles | Dog or animal in the yard.  Retaining walls / Landscaping timbers: Back Fill | Abutting Timbers | Vegetation | Stored Articles
-  Stored items, boxes, goods or belongings are "Stored Articles". Use "No access to subfloor" ONLY when the subfloor was not entered at all; a subfloor the inspector was in but could not fully reach gets "Stored Articles" or "Low Clearance", never any phrase with the word "access". When no label fits, write the reason in a few plain words after the area name. Null when nothing was in the way.
+  Interior: Stored items | Furniture or fittings | Floor or wall coverings | Locked or no key
+  Exterior: Stored items | Vegetation | Services or equipment | Dog or animal
+  Subfloor: Stored items | Low clearance | Services or equipment | Insulation | No access point
+  Roof void: Stored items | Low clearance | Insulation or sarking | Services or equipment | No access point | Unsafe height | No roof void
+  Outbuildings: Stored items | Locked or no key.  Site / Fences: Stored items | Vegetation | Dog or animal.  Retaining walls / Landscaping timbers: Stored items | Vegetation | Soil or abutting structures
+  These are kinds of obstruction; the specifics (which room, what exactly) go in noAccessAreas and hinderedAreas. Boxes, goods, belongings or a manhole blocked by stored items are "Stored items". Ducting, plumbing, air conditioning units, hot water systems and water tanks are "Services or equipment". A manhole sealed or screwed shut, or a subfloor with no hatch, is "No access point". Use "No access point" for the subfloor ONLY when it was not entered at all; a subfloor the inspector was in but could not fully reach gets "Stored items" or "Low clearance", never "No access point". When no label fits, write the reason in a few plain words after the area name. Null when nothing was in the way.
 - noAccessAreas: RESTRICTED access: every room, area or space the inspector could not inspect because of a permanent restriction or locked entry, where and why, in their words, e.g. "Front left bedroom, north-east side: locked. Subfloor: no access hatch". Null when the note names no such place. A place that was blocked only by something movable (a manhole blocked by stored boxes) is hinderedAreas, not this.
 - hinderedAreas: HINDERED access: the areas or parts the inspector could not fully inspect because of temporary obstructions or low clearance, whether they got in or not. Name only the limited areas and parts ("Roof void: outer edges and corners, low clearance. Subfloor: back section behind stored items. Bedrooms: walls behind furniture"). It is NOT a list of what was inspected, and it never names an area that was fully inspected. Null when the note states nothing was in the way, and also null when the note simply does not raise the subject.
 - hinderedAreasDetail: what hindered access in hinderedAreas ("low clearance; stored items; furniture against walls"). Null when hinderedAreas is null.
@@ -7933,7 +7908,7 @@ function isFieldFilled(key) {
       reportData.findings.some(f => f && (f.termiteActivity || f.species || f.damageDescription || f.activityLocation));
   }
   if (key === 'areaStatus') {
-    // Every area needs a status (Inspected / Not inspected / Not present).
+    // Every area needs a status (Inspected / Not inspected / Not applicable).
     return Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
   }
   if (key === 'standard') {
@@ -8898,7 +8873,7 @@ function reportPrepGaps() {
   const unmarked = Object.keys(OBS_ZONES).filter(z => !areaStatusOf(z));
   if (unmarked.length) push(`${unmarked.length} area${unmarked.length === 1 ? ' has' : 's have'} no inspection status (${unmarked.map(z => OBS_ZONES[z].label).join(', ')})`,
     `<button class="link-btn" onclick="fixSendGap('inspected')">Mark the rest as inspected</button>` +
-    `<button class="link-btn" onclick="fixSendGap('na')">Not present</button>`);
+    `<button class="link-btn" onclick="fixSendGap('na')">Mark the rest not applicable</button>`);
   const noResult = areasMissingResult();
   if (noResult.length) push(`${noResult.length} area${noResult.length === 1 ? ' has' : 's have'} no result for what was found there (${noResult.map(z => OBS_ZONES[z].label).join(', ')})`,
     `<button class="link-btn" onclick="fixSendGap('clear')">Mark the rest as nothing found</button>`);

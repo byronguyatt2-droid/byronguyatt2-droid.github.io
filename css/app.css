@@ -4252,3 +4252,22 @@ body:not(.dark-screen) .issue-banner { background: #FFFFFF; border-color: transp
 body:not(.dark-screen) .issue-banner.locked { background: #FFFFFF; border-color: #9AD3AE; }
 body:not(.dark-screen) .edit-banner { background: #FFF6E0; border-bottom-color: #F0C25A; color: #7A4F00; }
 #invasiveDetailsWrap[hidden] { display: none; }
+
+/* Areas (Section 4) */
+.areas-intro { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px 6px; }
+.areas-mark-all { font-size: 13px; }
+.areas-mark-all[hidden] { display: none; }
+.area-result-label { padding: 0 12px 6px; font-size: 12px; font-weight: 600; color: var(--text2); }
+.area-result { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 0 12px 12px; }
+.area-result .obs-item-btn { border-radius: 8px; }
+.obs-reasons { margin: 0 12px 10px; padding: 10px 10px 0; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); }
+.obs-reasons .obs-items-label { display: flex; align-items: center; gap: 6px; padding: 0; font-size: 12px; letter-spacing: 0; text-transform: none; }
+.obs-reasons .obs-items-label svg { width: 14px; height: 14px; flex: none; }
+.obs-reasons .obs-items { padding: 8px 0 10px; }
+.obs-reasons-hindered .obs-items-label { color: var(--yellow-text); }
+.obs-reasons-restricted .obs-items-label { color: var(--risk); }
+.obs-reasons-hindered .obs-item-btn.selected { background: rgba(245,162,35,0.14); border-color: var(--yellow); color: var(--yellow-text); font-weight: 600; }
+.obs-reasons-restricted .obs-item-btn.selected { background: rgba(192,57,43,0.10); border-color: var(--risk); color: var(--risk); font-weight: 600; }
+.area-where { padding: 0 12px 12px; font-size: 12.5px; color: var(--text3); }
+.area-where .link-btn { display: inline; min-height: 0; margin: 0; padding: 0; font-size: inherit; }
+.area-status-btn { font-size: 12px; line-height: 1.2; }
