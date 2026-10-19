@@ -105,7 +105,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // must match exactly: a prefix check would also let in a look-alike such as
 // https://byronguyatt2-droid.github.io.example.com.
 const ALLOWED_ORIGINS = [
-  'https://byronguyatt2-droid.github.io',
+  'https://sayon-app.github.io',
+  'https://byronguyatt2-droid.github.io', // the old address, still cached on phones
   'capacitor://localhost',     // Capacitor's default iOS origin
   'null',                      // for opening index.html directly as a file
 ];
@@ -126,7 +127,7 @@ function isAllowedOrigin(origin) {
 // Where Stripe sends people back to when the app's own return URL can't be
 // used (Stripe only accepts http(s) URLs, so a Capacitor or file:// origin
 // falls back to the hosted app).
-const DEFAULT_APP_URL = 'https://byronguyatt2-droid.github.io/';
+const DEFAULT_APP_URL = 'https://sayon-app.github.io/';
 
 // The only model this proxy will ever call, regardless of what the caller
 // asks for - stops it being used as a general-purpose proxy to a more
@@ -566,7 +567,7 @@ async function createStripeCustomer(businessId, user, env) {
 function safeReturnUrl(candidate, marker) {
   try {
     const u = new URL(candidate);
-    if (u.origin === new URL(DEFAULT_APP_URL).origin || LOCALHOST_ORIGIN.test(u.origin) || PREVIEW_ORIGIN.test(u.origin)) {
+    if ((u.protocol === 'https:' && ALLOWED_ORIGINS.includes(u.origin)) || LOCALHOST_ORIGIN.test(u.origin) || PREVIEW_ORIGIN.test(u.origin)) {
       return u.toString();
     }
   } catch { /* fall through */ }
