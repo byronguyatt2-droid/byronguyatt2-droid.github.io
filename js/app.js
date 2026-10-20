@@ -282,39 +282,39 @@ function obFinish() {
 const OBS_ZONES = {
   interior: {
     label: 'The Interior',
-    items: ['Stored items', 'Furniture or fittings', 'Floor or wall coverings', 'Locked or no key'],
+    items: ['Stored items', 'Furniture or fittings', 'Floor or wall coverings', 'Restricted access'],
   },
   exterior: {
     label: 'The Exterior',
-    items: ['Stored items', 'Vegetation', 'Services or equipment', 'Dog or animal'],
+    items: ['Stored items', 'Vegetation', 'Services or equipment', 'Restricted access'],
   },
   subfloor: {
     label: 'Subfloor',
-    items: ['Stored items', 'Low clearance', 'Services or equipment', 'Insulation', 'No access point'],
+    items: ['Stored items', 'Low clearance', 'Services or equipment', 'Insulation', 'Restricted access'],
   },
   roofvoid: {
     label: 'Roof Void',
-    items: ['Stored items', 'Low clearance', 'Insulation or sarking', 'Services or equipment', 'No access point', 'Unsafe height', 'No roof void'],
+    items: ['Stored items', 'Low clearance', 'Insulation or sarking', 'Services or equipment', 'Restricted access', 'No roof void'],
   },
   outbuildings: {
     label: 'Outbuildings',
-    items: ['Stored items', 'Locked or no key'],
+    items: ['Stored items', 'Restricted access'],
   },
   site: {
     label: 'The Site',
-    items: ['Stored items', 'Vegetation', 'Dog or animal'],
+    items: ['Stored items', 'Vegetation', 'Restricted access'],
   },
   fences: {
     label: 'Fences',
-    items: ['Stored items', 'Vegetation', 'Dog or animal'],
+    items: ['Stored items', 'Vegetation', 'Restricted access'],
   },
   retainingwalls: {
     label: 'Retaining Walls',
-    items: ['Stored items', 'Vegetation', 'Soil or abutting structures'],
+    items: ['Stored items', 'Vegetation', 'Soil or abutting structures', 'Restricted access'],
   },
   landscapingtimbers: {
     label: 'Landscaping Timbers',
-    items: ['Stored items', 'Vegetation', 'Soil or abutting structures'],
+    items: ['Stored items', 'Vegetation', 'Soil or abutting structures', 'Restricted access'],
   },
 };
 
@@ -328,15 +328,16 @@ const LEGACY_REASONS = {
   'Limited access to skirting boards due to stored items in garage': ['Stored items'],
   'Stored Articles': ['Stored items'], 'Stored articles': ['Stored items'], 'Storage to garage walls': ['Stored items'],
   'Item blocking access to manhole': ['Stored items'],
-  'Locked room': ['Locked or no key'], 'Locked room and storage to garage': ['Locked or no key'], 'Locked, no access': ['Locked or no key'],
+  'Locked room': ['Restricted access'], 'Locked room and storage to garage': ['Restricted access'], 'Locked, no access': ['Restricted access'],
+  'Locked or no key': ['Restricted access'], 'No access point': ['Restricted access'], 'Unsafe height': ['Restricted access'],
   'Air Conditioner Ducting': ['Services or equipment'], 'Air conditioning ducting': ['Services or equipment'], 'Ducting': ['Services or equipment'],
   'Plumbing': ['Services or equipment'], 'Water Tanks': ['Services or equipment'], 'Hot water system': ['Services or equipment'],
   'Air conditioning unit': ['Services or equipment'],
-  'Dog or animal in the yard': ['Dog or animal'],
+  'Dog or animal in the yard': ['Restricted access'], 'Dog or animal': ['Restricted access'],
   'Low Clearance': ['Low clearance'], 'Low clearance in roof void': ['Low clearance'], 'Low clearance to the outside edges of roof void': ['Low clearance'],
   'Insulation': ['Insulation', 'Insulation or sarking'], 'Sarking': ['Insulation or sarking'],
-  'No access to subfloor': ['No access point'], 'Manhole sealed or screwed shut': ['No access point'],
-  'Height Restrictions': ['Unsafe height'], 'Skillion Roof Design (no void)': ['No roof void'],
+  'No access to subfloor': ['Restricted access'], 'Manhole sealed or screwed shut': ['Restricted access'],
+  'Height Restrictions': ['Restricted access'], 'Skillion Roof Design (no void)': ['No roof void'],
   'Back Fill': ['Soil or abutting structures'], 'Abutting Timbers': ['Soil or abutting structures'],
 };
 
@@ -365,9 +366,10 @@ function modernReasons(zoneId, list) {
 //   hindered access: temporary obstructions at the time of the inspection
 //     (furniture, stored goods, insulation, vegetation, low clearance);
 //   restricted access: a permanent restriction or locked entry (a locked
-//     room, no subfloor hatch, no roof void, beyond safe height).
+//     room, no subfloor hatch, no roof void, beyond safe height, a safety
+//     risk such as a dog in the yard).
 // Labels in RESTRICTED_REASONS are restricted; every other label hinders.
-const RESTRICTED_REASONS = new Set(['Locked or no key', 'No access point', 'Unsafe height', 'No roof void', 'Dog or animal']);
+const RESTRICTED_REASONS = new Set(['Restricted access', 'No roof void']);
 // Every status an area can hold. PARTIAL is still stored (older reports
 // and the AI use it), but the inspector never picks it: an area is
 // Inspected, Not inspected or Not applicable, and an inspected area with a
@@ -661,10 +663,7 @@ const OBS_REASON_SYNONYMS = {
   'Vegetation': ['vegetation', 'shrubs', 'shrubbery', 'overgrown', 'plants', 'garden growth'],
   'Low clearance': ['low clearance', 'clearance too low', 'not enough clearance', 'tight clearance', 'low pitch'],
   'Services or equipment': ['ducting', 'ducts', 'air con', 'aircon', 'air conditioner', 'air conditioning', 'condenser', 'split system', 'hot water', 'hws', 'water tank', 'rainwater tank', 'tank', 'plumbing', 'pipes', 'pipework'],
-  'Dog or animal': ['dog', 'dogs', 'animal', 'animals'],
-  'Locked or no key': ['locked', 'no key', 'locked room', 'locked bedroom', 'locked door', 'couldn\'t get in', 'could not get in'],
-  'No access point': ['screwed shut', 'nailed shut', 'painted shut', 'sealed shut', 'manhole sealed', 'manhole screwed', 'sealed manhole', 'no manhole', 'no access to subfloor', 'no access to the subfloor', 'no subfloor access', 'could not access the subfloor', 'couldn\'t get into the subfloor', 'subfloor not accessible', 'subfloor not entered', 'hatch too small', 'no subfloor hatch', 'no hatch'],
-  'Unsafe height': ['height restriction', 'too high', 'height', 'unsafe height', 'beyond safe height'],
+  'Restricted access': ['locked', 'no key', 'locked room', 'locked bedroom', 'locked door', 'couldn\'t get in', 'could not get in', 'screwed shut', 'nailed shut', 'painted shut', 'sealed shut', 'manhole sealed', 'manhole screwed', 'sealed manhole', 'no manhole', 'no access to subfloor', 'no access to the subfloor', 'no subfloor access', 'could not access the subfloor', 'couldn\'t get into the subfloor', 'subfloor not accessible', 'subfloor not entered', 'hatch too small', 'no subfloor hatch', 'no hatch', 'height restriction', 'too high', 'unsafe height', 'beyond safe height', 'safety hazard', 'hazard', 'hazardous', 'unsafe', 'not safe', 'dog', 'dogs', 'animal', 'animals', 'bees', 'wasps', 'snake', 'snakes', 'live wires', 'exposed wiring', 'unstable'],
   'No roof void': ['skillion', 'no roof void', 'no void', 'no roof space'],
   'Soil or abutting structures': ['backfill', 'back fill', 'soil built up', 'soil against', 'fill against', 'abutting timber', 'timbers against', 'timber against', 'abutting'],
 };
@@ -1605,12 +1604,12 @@ AREAS INSPECTED (areaStatus): one key per area the note actually covers; leave o
 HINDERED AND RESTRICTED ACCESS: five fields, each with one meaning. The report sorts every access limit into two kinds. HINDERED access is a temporary obstruction at the time of the inspection: furniture, stored goods, floor coverings, insulation, vegetation, a manhole blocked by stored items, or low clearance in the subfloor or roof void. RESTRICTED access is a permanent restriction or locked entry: a locked room, a subfloor with no access hatch, a manhole sealed or screwed shut, a roof with no void, a part beyond safe height, or a yard the inspector could not safely enter because of a dog or other animal.
 - obstructions: which areas were not fully inspected and roughly where, e.g. "Subfloor: back section behind stored items. Roof void: outer edges and corners". Only PARTIAL or NOT areas appear here. Null when nothing was in the way.
 - restrictedAccess: WHY, as "Area: reason" pairs separated by ". ", using the app's reason labels where one fits, because the app ticks them from these exact words:
-  Interior: Stored items | Furniture or fittings | Floor or wall coverings | Locked or no key
-  Exterior: Stored items | Vegetation | Services or equipment | Dog or animal
-  Subfloor: Stored items | Low clearance | Services or equipment | Insulation | No access point
-  Roof void: Stored items | Low clearance | Insulation or sarking | Services or equipment | No access point | Unsafe height | No roof void
-  Outbuildings: Stored items | Locked or no key.  Site / Fences: Stored items | Vegetation | Dog or animal.  Retaining walls / Landscaping timbers: Stored items | Vegetation | Soil or abutting structures
-  These are kinds of obstruction; the specifics (which room, what exactly) go in noAccessAreas and hinderedAreas. Boxes, goods, belongings or a manhole blocked by stored items are "Stored items". Ducting, plumbing, air conditioning units, hot water systems and water tanks are "Services or equipment". A manhole sealed or screwed shut, or a subfloor with no hatch, is "No access point". Use "No access point" for the subfloor ONLY when it was not entered at all; a subfloor the inspector was in but could not fully reach gets "Stored items" or "Low clearance", never "No access point". When no label fits, write the reason in a few plain words after the area name. Null when nothing was in the way.
+  Interior: Stored items | Furniture or fittings | Floor or wall coverings | Restricted access
+  Exterior: Stored items | Vegetation | Services or equipment | Restricted access
+  Subfloor: Stored items | Low clearance | Services or equipment | Insulation | Restricted access
+  Roof void: Stored items | Low clearance | Insulation or sarking | Services or equipment | Restricted access | No roof void
+  Outbuildings: Stored items | Restricted access.  Site / Fences: Stored items | Vegetation | Restricted access.  Retaining walls / Landscaping timbers: Stored items | Vegetation | Soil or abutting structures | Restricted access
+  These are kinds of obstruction; the specifics (which room, what exactly) go in noAccessAreas and hinderedAreas. Boxes, goods, belongings or a manhole blocked by stored items are "Stored items". Ducting, plumbing, air conditioning units, hot water systems and water tanks are "Services or equipment". Every permanent restriction or locked entry is "Restricted access": a locked room or shed, a manhole sealed or screwed shut, a subfloor with no hatch, a part beyond safe height, or a yard the inspector could not safely enter (a dog, bees, a hazard). Use "Restricted access" for the subfloor ONLY when it was not entered at all; a subfloor the inspector was in but could not fully reach gets "Stored items" or "Low clearance", never "Restricted access". When no label fits, write the reason in a few plain words after the area name. Null when nothing was in the way.
 - noAccessAreas: RESTRICTED access: every room, area or space the inspector could not inspect because of a permanent restriction or locked entry, where and why, in their words, e.g. "Front left bedroom, north-east side: locked. Subfloor: no access hatch". Null when the note names no such place. A place that was blocked only by something movable (a manhole blocked by stored boxes) is hinderedAreas, not this.
 - hinderedAreas: HINDERED access: the areas or parts the inspector could not fully inspect because of temporary obstructions or low clearance, whether they got in or not. Name only the limited areas and parts ("Roof void: outer edges and corners, low clearance. Subfloor: back section behind stored items. Bedrooms: walls behind furniture"). It is NOT a list of what was inspected, and it never names an area that was fully inspected. Null when the note states nothing was in the way, and also null when the note simply does not raise the subject.
 - hinderedAreasDetail: what hindered access in hinderedAreas ("low clearance; stored items; furniture against walls"). Null when hinderedAreas is null.
