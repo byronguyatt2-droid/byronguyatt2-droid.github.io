@@ -147,7 +147,7 @@ Closing line 9010: "This report must be read in its entirety…"
 
 **/mnt/project-files/product-review/report-contents-and-trim.md** (checked against live, 2026-10-05)
 - Concluded: the 12 parts of a report map onto SAYON in a sensible order, and "the report itself is not bloated". Company details are set once.
-- Still open (candidates, none built): merge Areas and Restrictions into one step; hide Voice & AI; fold Accessibility into Settings; rethink Export/Import; ask an inspector whether the PDF needs **both** risk ratings.
+- Trims done 2026-10-20: Voice & AI hidden, Accessibility folded into Settings, Export/Import is "Download a copy" (see `state.md` section 4). The PDF has one risk rating. Areas and Access stay two tabs; Access is filled from the Areas ticks.
 - It says to get an inspector or industry body to confirm the details for each state.
 
 **/mnt/project-files/product-review/rating-2026-10-04.md** (written as "KORVUS", 8.6k lines, PDF not tested)
