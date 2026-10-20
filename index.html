@@ -889,15 +889,16 @@
 
       <div class="drawer-group-label">App</div>
 
-      <!-- Accessibility -->
-      <div class="saved-panel settings-panel" id="accessibilityPanel">
-        <button class="panel-label panel-label-toggle" onclick="openMenuPage('accessibilityPanel')" id="accessibilityPanelToggle">
-          <span class="panel-icon"><svg class="icon " width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8" r="1"/><path d="M12 12v7"/><path d="M9 15h6"/></svg></span>
-          <span class="panel-title">Accessibility</span>
+      <!-- Settings: display, voice, your data and the account -->
+      <div class="saved-panel settings-panel" id="settingsPanel">
+        <button class="panel-label panel-label-toggle" onclick="openMenuPage('settingsPanel')" id="settingsPanelToggle">
+          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
+          <span class="panel-title">Settings</span>
           <span class="job-panel-summary"></span>
           <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </button>
         <div class="job-panel-body">
+          <div class="settings-group-title">Display</div>
           <div class="settings-row">
             <div class="settings-row-text">
               <div class="settings-row-title">Text Size</div>
@@ -949,61 +950,24 @@
               <option value="tritanopia">Tritanopia</option>
             </select>
           </div>
-        </div>
-      </div>
-
-      <!-- Voice & AI -->
-      <div class="saved-panel settings-panel" id="aiPanel">
-        <button class="panel-label panel-label-toggle" onclick="openMenuPage('aiPanel')" id="aiPanelToggle">
-          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg></span>
-          <span class="panel-title">Voice &amp; AI</span>
-          <span class="job-panel-summary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-        </button>
-        <div class="job-panel-body">
+          <div class="settings-group-title">Voice</div>
           <div class="settings-row">
             <div class="settings-row-text">
-              <div class="settings-row-title">AI Extraction</div>
-              <div class="settings-row-desc">Active — voice transcripts are processed by Sayon's server-side AI service. No key or setup needed on this device. See the Privacy Policy for details.</div>
+              <div class="settings-row-title">Second transcription (trial)</div>
+              <div class="settings-row-desc">Also sends the recording to a more accurate transcription service and shows its version for you to check. Nothing changes unless you apply it. Off by default while it's tried on more phones.</div>
             </div>
+            <button type="button" class="toggle-switch" id="toggleAudioCapture" onclick="toggleAudioCaptureSetting()" aria-label="Second transcription (trial)"></button>
           </div>
+          <div class="settings-group-title">Your data</div>
           <div class="settings-row">
             <div class="settings-row-text">
-              <div class="settings-row-title">Experimental: AI Audio Transcription</div>
-              <div class="settings-row-desc">Beta — also sends your recording's raw audio to a higher-accuracy transcription service and offers it as an alternative to review (never applied automatically). Off by default: this runs a second microphone session alongside dictation, which hasn't been proven safe on every device yet.</div>
-            </div>
-            <button type="button" class="toggle-switch" id="toggleAudioCapture" onclick="toggleAudioCaptureSetting()" aria-label="Toggle experimental AI audio transcription"></button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Data & backups -->
-      <div class="saved-panel settings-panel" id="settingsPanel">
-        <button class="panel-label panel-label-toggle" onclick="openMenuPage('settingsPanel')" id="settingsPanelToggle">
-          <span class="panel-icon"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg></span>
-          <span class="panel-title">Data &amp; backups</span>
-          <span class="job-panel-summary"></span>
-          <svg class="icon panel-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-        </button>
-        <div class="job-panel-body">
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <div class="settings-row-title">Export All Data</div>
-              <div class="settings-row-desc">Downloads a backup file containing every saved report and your app preferences.</div>
+              <div class="settings-row-title">Download a copy</div>
+              <div class="settings-row-desc">Your reports already back up to your account. This saves a spare copy to this phone: every saved report, its photos and your settings. <button type="button" class="link-btn settings-inline-link" onclick="document.getElementById('importFileInput').click()">Restore from a copy</button></div>
+              <input type="file" id="importFileInput" accept="application/json,.json" style="display:none" onchange="importAllData(this.files[0])">
             </div>
             <button class="job-action-btn settings-primary-btn" onclick="exportAllData()">
-              <svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Export
+              <svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Download
             </button>
-          </div>
-          <div class="settings-row">
-            <div class="settings-row-text">
-              <div class="settings-row-title">Import Data</div>
-              <div class="settings-row-desc">Restores saved reports and preferences from a previously exported backup file.</div>
-            </div>
-            <button class="job-action-btn settings-primary-btn" onclick="document.getElementById('importFileInput').click()">
-              <svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>Import
-            </button>
-            <input type="file" id="importFileInput" accept="application/json,.json" style="display:none" onchange="importAllData(this.files[0])">
           </div>
           <div class="settings-row">
             <div class="settings-row-text">
@@ -1723,7 +1687,7 @@
     </div>
 
     <!-- Server-side (Whisper) transcription suggestion — experimental,
-         opt-in (Settings → "Experimental: AI Audio Transcription"), and
+         opt-in (Settings → "Second transcription (trial)"), and
          suggest-and-confirm for the same reason the AI cleanup panel above
          is: this has never run in real field conditions yet, and silently
          replacing a transcript the technician can already see and trust is

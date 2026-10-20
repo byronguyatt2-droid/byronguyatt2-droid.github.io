@@ -2808,6 +2808,8 @@ let hfAwake          = false;
 let hfSilenceTimer   = null;
 let hfSessionText    = '';
 let hfExtracting     = false;    // true while Claude API call is in flight
+let hfLastFinalText  = '';       // the duplicate guard in hfStartListening; kept
+let hfLastFinalAt    = 0;        // across restarts, which come after every pause
 
 const HF_WAKE_WORDS  = [
   // Correct
@@ -2934,6 +2936,10 @@ function hfStartListening() {
   let interimBuffer = '';
   let hfWatchdog     = null; // native-only: forces a "final" on a speech pause (see below)
   let lastInterim    = '';
+  // Same guard as dictation (startRecording): Safari re-delivers results it
+  // has already finalised, so commit each result index once and drop a
+  // final that exactly repeats the one just committed.
+  let committedUpTo  = -1;
 
   rec.onresult = (e) => {
     if (hfExtracting) return; // ignore input while Claude is processing
@@ -2947,6 +2953,12 @@ function hfStartListening() {
         interimBuffer = '';
         clearTimeout(hfWatchdog);
         lastInterim = '';
+        if (i <= committedUpTo) continue;
+        committedUpTo = i;
+        const now = Date.now();
+        if (text === hfLastFinalText && now - hfLastFinalAt < 3000) continue;
+        hfLastFinalText = text;
+        hfLastFinalAt = now;
 
         // ── Stop words ──
         if (HF_STOP_WORDS.some(w => text.includes(w))) {
@@ -2970,7 +2982,7 @@ function hfStartListening() {
             hfSetStatus('active', 'Listening — speak your details…');
             document.getElementById('waveform').classList.add('show');
             if (afterWake.length > 3) {
-              hfSessionText = afterWake + ' ';
+              hfSessionText = correctKnownMishearings(afterWake) + ' ';
               hfResetSilenceTimer();
             }
           }
@@ -2987,10 +2999,10 @@ function hfStartListening() {
             stripped = stripped.replace(new RegExp(kw, 'gi'), '').trim();
           });
           if (stripped.length > 3) {
-            hfSessionText += stripped + ' ';
+            hfSessionText += correctKnownMishearings(stripped) + ' ';
           }
         } else {
-          hfSessionText += result[0].transcript + ' ';
+          hfSessionText += correctKnownMishearings(result[0].transcript) + ' ';
         }
 
         // Update live transcript
@@ -3411,7 +3423,7 @@ async function callExtraction(text) {
 }
 
 // ── TEST MODE ─────────────────────────────────────────────────────────────
-// Owner-only switch in Data & backups. While it's on, every note sent to the
+// Owner-only switch in Settings. While it's on, every note sent to the
 // AI is saved to the owner's own Supabase table (supabase/test-notes.sql)
 // with what came back, so a batch of real recordings can be scored on
 // tests/extraction later. It never goes near Sentry or PostHog, and a failed
@@ -4053,6 +4065,27 @@ const repeatsText = (have, val) => { const h = new Set(keyWords(have)), v = keyW
 // at "bottom of a timber stud, garage".
 const PLACE_FILLER = new Set(['wall', 'walls', 'area', 'areas', 'side', 'section', 'room', 'part']);
 const repeatsPlace = (have, val) => { const h = new Set(keyWords(have)), v = keyWords(val).filter(w => !PLACE_FILLER.has(w)); return v.length > 0 && v.every(w => h.has(w)); };
+// Two findings are one when one place repeats the other, in either
+// direction ("laundry door frame" and "the door frame in the laundry, left
+// jamb"), and their activity doesn't contradict: a blank activity, or live
+// and old evidence at the same spot, is the same finding seen again. A
+// "nothing found" card never merges with a real one.
+function sameFindingPlace(a, b) {
+  if (!a.activityLocation || !b.activityLocation) return false;
+  const x = a.termiteActivity || null, y = b.termiteActivity || null;
+  if (x && y && x !== y && (x === 'NONE' || y === 'NONE')) return false;
+  return repeatsPlace(a.activityLocation, b.activityLocation) || repeatsPlace(b.activityLocation, a.activityLocation);
+}
+// Folds a repeated finding into the recorded one: live activity wins over
+// old evidence, the more detailed place is kept, and other blanks are
+// filled. Returns whether anything changed.
+function mergeFindingInto(have, f) {
+  let changed = false;
+  if (f.termiteActivity && (!have.termiteActivity || (f.termiteActivity === 'ACTIVE' && have.termiteActivity === 'INACTIVE'))) { have.termiteActivity = f.termiteActivity; changed = true; }
+  if (keyWords(f.activityLocation).length > keyWords(have.activityLocation).length && repeatsPlace(f.activityLocation, have.activityLocation)) { have.activityLocation = f.activityLocation; changed = true; }
+  ['species', 'damageDescription', 'nestLocated', 'structuralConcern'].forEach(k => { if (!have[k] && f[k]) { have[k] = f[k]; changed = true; } });
+  return changed;
+}
 
 // Identifies a note by its words, so extracting the same note again can be
 // told apart from a new one: reportData.noteText { key: { field: text } }
@@ -4103,16 +4136,17 @@ function populateFields(data, transcript) {
     if (hasRealFinding(incoming) || existingReal.length) incoming = incoming.filter(f => f.termiteActivity !== 'NONE');
     const kept = hasRealFinding(incoming) ? existing.filter(f => f.termiteActivity !== 'NONE' && findingHasData(f)) : existing.filter(findingHasData);
     // A note that only mentions a finding again (a recommendation to treat
-    // "the live termites in the kitchen skirting") isn't a new finding: it
-    // fills any blanks on the one already recorded instead of adding a card.
+    // "the live termites in the kitchen skirting", or the same spot said
+    // twice in one note) isn't a new finding: it fills in the one already
+    // recorded instead of adding a card. See sameFindingPlace for the test.
     let merged = false;
-    incoming = incoming.filter(f => {
-      if (!f.activityLocation) return true;
-      const same = kept.find(k => k.activityLocation && (k.termiteActivity || null) === f.termiteActivity && repeatsPlace(k.activityLocation, f.activityLocation));
-      if (!same) return true;
-      ['species', 'damageDescription', 'nestLocated', 'structuralConcern'].forEach(k => { if (!same[k] && f[k]) { same[k] = f[k]; merged = true; } });
-      return false;
+    const accepted = [];
+    incoming.forEach(f => {
+      const same = [...kept, ...accepted].find(k => sameFindingPlace(k, f));
+      if (!same) { accepted.push(f); return; }
+      if (mergeFindingInto(same, f)) merged = true;
     });
+    incoming = accepted;
 
     if (incoming.length) {
       const combined = [...kept, ...incoming];
@@ -8195,11 +8229,11 @@ async function exportAllData() {
     URL.revokeObjectURL(url);
 
     const reportCount = getSavedReports().length;
-    showToast(`Exported ${reportCount} saved report${reportCount === 1 ? '' : 's'} and preferences`, 'success');
+    showToast(`Downloaded a copy of ${reportCount} saved report${reportCount === 1 ? '' : 's'} and your settings`, 'success');
   } catch (e) {
     console.error('Export failed', e);
     reportError(e, 'export');
-    showToast('Export failed — see console for details', 'error');
+    showToast("Couldn't download a copy. Try again", 'error');
   }
 }
 
@@ -8232,9 +8266,9 @@ function importAllData(file) {
     const existingReports = getSavedReports();
     const mode = existingReports.length > 0
       ? confirm(
-          `This backup contains ${incomingReports.length} report${incomingReports.length === 1 ? '' : 's'}.\n\n` +
+          `This copy has ${incomingReports.length} report${incomingReports.length === 1 ? '' : 's'}.\n\n` +
           `You currently have ${existingReports.length} saved on this device.\n\n` +
-          `Click OK to MERGE (keep both, skipping duplicates by address+date), or Cancel to REPLACE everything with the backup.`
+          `OK adds the copy's reports to yours and keeps both. Cancel replaces yours with the copy.`
         )
       : true; // nothing to lose, just load it in
 
@@ -8270,11 +8304,11 @@ function importAllData(file) {
       restoreA11ySettings();
       restoreAudioCaptureSetting();
       restoreTelemetrySetting();
-      showToast(`Imported ${finalReports.length} report${finalReports.length === 1 ? '' : 's'}`, 'success');
+      showToast(`Restored ${finalReports.length} report${finalReports.length === 1 ? '' : 's'} from the copy`, 'success');
     } catch (err) {
       console.error('Import failed', err);
       reportError(err, 'import');
-      showToast('Import failed — see console for details', 'error');
+      showToast("Couldn't restore that copy. Check it's a SAYON download", 'error');
     }
   };
 
@@ -8308,7 +8342,7 @@ function toggleA11y(className, btnId, storageKey) {
 }
 
 // Dark screen: for subfloors, roof voids and night work. The header's moon
-// button and the Accessibility setting are the same switch.
+// button and the Settings switch are the same switch.
 function toggleDarkScreen(on) {
   if (typeof on !== 'boolean') on = !document.body.classList.contains('dark-screen');
   document.body.classList.toggle('dark-screen', on);

@@ -9,7 +9,7 @@
 // id. Never client names, addresses, emails or phone numbers, dictation or
 // transcripts, report text, photos or signatures. Nothing typed into the
 // app is read here, and every outgoing text goes through scrubTelemetryText.
-// Inspectors can turn it off in Menu › Data & backups.
+// Inspectors can turn it off in Menu › Settings.
 //
 // Only runs over https (the live site), so local testing sends nothing.
 
