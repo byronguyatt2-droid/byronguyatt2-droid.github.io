@@ -8,7 +8,7 @@ As of 2026-10-05, about 10:50 UTC. Written for a model starting with no context.
 - Check this file against reality before you rely on it:
   - `git fetch origin && git diff --stat origin/live origin/main`. On 2026-10-05 it listed only `CLAUDE.md`, `terms.html`, `privacy.html`, `supabase/delete-account.sql`, 2 lines each in `index.html` and `css/app.css` and 1 in `js/app.js` (all from `8b4a13b`), plus `docs/` and `tests/` once merged. Anything else is unreleased work.
   - `git show origin/live:service-worker.js | grep CACHE_VERSION` should print `korva-v51`.
-  - Open PRs: `gh api repos/byronguyatt2-droid/byronguyatt2-droid.github.io/pulls`. (`gh pr list/view` use GraphQL, which is blocked in Claude Code sessions.)
+  - Open PRs: `gh api repos/sayon-app/sayon-app.github.io/pulls`. (`gh pr list/view` use GraphQL, which is blocked in Claude Code sessions.)
   - Live Worker code: Cloudflare connector `workers_get_worker_code`, script `korva`. No Cloudflare connector? Ask baz to paste the live code. Never assume it matches `worker/worker.js`.
 - **This repo is public.** Never commit or post secrets or API keys (they live only as Cloudflare secrets), Stripe ids, the owner's personal or business details, or real client or house details. The Worker URL, Supabase URL and Supabase anon key are in `js/app.js` on purpose; the service-role key must never appear outside Cloudflare.
 - **Connectors (Supabase, Stripe, Cloudflare, GitHub) can write.** Only read with them unless baz has okayed that exact change by name. A bare "deploy" is not enough.
@@ -19,7 +19,7 @@ As of 2026-10-05, about 10:50 UTC. Written for a model starting with no context.
 
 | Part | State |
 |---|---|
-| App (GitHub Pages, `live` branch) | `korva-v51`, go-live PR #73. https://byronguyatt2-droid.github.io |
+| App (GitHub Pages, `live` branch) | `korva-v51`, go-live PR #73. https://sayon-app.github.io (until 2026-10-22: https://byronguyatt2-droid.github.io) |
 | Worker `korva` (Cloudflare) | v8.1 = v8 Stripe billing + `MAX_TOKENS_CEILING` 16000 + passes `output_config.effort` (`low`/`medium`/`high`) through. Confirmed live 2026-10-05 |
 | `worker/worker.js` (main and live) | v9 = v8.1 + `POST /send-email` through Resend. Same file as `/mnt/project-files/worker/korva-worker-v9.js`. Pages only serves it as a file; nothing runs it. Not on Cloudflare yet (section 4, item 4) |
 | AI model | `claude-sonnet-5` only; the Worker's `ALLOWED_MODEL` forces it. `model` plus `output_config: { effort }` is the working request shape, confirmed live 2026-10-05. Don't "correct" the model id or the parameter shape from memory: check the API docs and test through the Worker first |
@@ -59,6 +59,7 @@ As of 2026-10-05, about 10:50 UTC. Written for a model starting with no context.
 
 - **Report layout follows a real AS 3660.2 report (2026-10-15).** baz supplied a licensed company's report and asked SAYON's to match its order, terms and summary. The PDF now runs: cover (title set by the standard: AS 4349.3 is a "timber pest", anything else a "termite" inspection), contents, 1 client & inspection details, 2 summary (Access / Activity / Safety & risk questions, each with "See Section N"), 3 about the property, 4 areas inspected, 5 areas unable to be inspected (hindered, restricted, high risk, invasive), 6 findings, 7 conducive conditions, 8 recommendations & risk, 9 photographs, 10 scope, definitions & terms, 11 inspector, 12 client acknowledgement, appendix agreement. Numbers live in `REPORT_PARTS`; the app's section headers carry the same numbers. The undetected-risk rating, the fee and the invoice number were dropped.
   - **Hindered vs restricted:** hindered = temporary obstructions at the time, including low clearance (`hinderedAreas`, and every area reason not in `RESTRICTED_REASONS`); restricted = permanent restriction or locked entry (`noAccessAreas`, and `RESTRICTED_REASONS`). Keep them separate; never merge them.
+  - **"Obstructions" on screen and in the PDF (2026-10-22, baz).** What the code calls `hindered` is shown and printed as "Obstructions" (amber); restricted keeps its name (red). The code keys (`hindered`, `hinderedAreas`, CSS classes) are unchanged. Areas no longer has a photo box and Access has no general one: each area row in Access takes its own photos with a details box (`photosBySection['spot-<kind>-<zone>']`, ACCESS SPOT PHOTOS in js/app.js), printed under the access rows. The old boxes still show for a report that already has photos in them.
 - **CLAUDE.md's rules stand.** Reasons, so you can apply them to new cases:
   - Merging is not deploying (2026-10-03): baz reviews exactly what ships.
   - Replace, don't duplicate (2026-10-03): the prototype was built across many sessions and copies drift.
@@ -149,7 +150,7 @@ Order: test run → fixes + trims → cleanup pass → larger model. Email sendi
 - **One push branch feeds go-live PRs too.** While a go-live PR from your branch is open, keep new commits local and don't force-push it (check open PRs first). After a go-live merges, start the next main PR from `origin/main`.
 - **Dates were a day early in Australia.** Use `isoDate()` and `todayIsoDate()` (the phone's calendar), never `toISOString()`, for dates.
 - **A blank account copy could wipe phone-only details.** `takeCloudCopy()` in `js/business-sync.js`: for phone details with no timestamp (entered before syncing existed), any field blank in the account copy keeps the phone's value; otherwise the newer copy wins. Keep that rule.
-- **Keep the repo name `byronguyatt2-droid.github.io`**: renaming it moves the site off the root URL.
+- **Keep the repo name `sayon-app.github.io`** (matching the `sayon-app` account): any other name moves the site off the root URL. On 2026-10-22 the account was renamed from `byronguyatt2-droid` and the repo with it, to take the owner's name out of the address. Browser storage is per address, so phones moved over through the "SAYON has a new address" notice (ADDRESS MOVE in `js/app.js`); the Worker and Supabase allow both addresses. The Worker's own address, `korva.byronguyatt2.workers.dev`, is the Cloudflare account subdomain and is unchanged.
 
 ## 6. How to work here
 

@@ -2369,6 +2369,9 @@ body:has(#mainMenu[style*="flex"]) #micDock { display: none; }
 .scan-plate-btn:hover { color: var(--accent2); border-color: var(--accent); background: rgba(var(--accent-rgb),0.06); }
 .scan-plate-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .scan-plate-file-btn { margin-top: 8px; }
+/* The two durable notice buttons sit inside its photo box. */
+.section-photo-widget .scan-plate-btn { width: calc(100% - 24px); margin: 10px 12px 0; }
+.section-photo-widget .scan-plate-file-btn { margin-top: 8px; }
 
 .field-val {
   font-size: 15px;
@@ -3609,6 +3612,13 @@ body.ai-busy:has(#app[style*="flex"]) .ai-busy-bar { display: block; }
 .access-spot.empty { border-style: dashed; background: transparent; color: var(--accent2); font-weight: 600; }
 .access-spot-editor { grid-column: 1 / -1; margin-top: 6px; display: flex; flex-direction: column; }
 .access-spot-input { width: 100%; min-height: 44px; padding: 10px 11px; border: 1.5px solid var(--accent); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 16px; outline: none; }
+/* Photos of the spot, each with its own details. */
+.spot-photos { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.spot-photo { display: grid; grid-template-columns: 72px 1fr; grid-template-rows: auto auto; column-gap: 10px; row-gap: 4px; align-items: start; }
+.spot-photo img { grid-row: 1 / span 2; width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); }
+.spot-photo .photo-caption-input { width: 100%; }
+.spot-photo .photo-remove-btn { justify-self: start; }
+.spot-photo-add { align-self: flex-start; font-size: 13px; min-height: 32px; }
 .access-item-why.missing { color: var(--yellow-text); font-weight: 600; }
 .sec-group-title { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 15px; font-weight: 700; color: var(--text); }
 .sec-group-title small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--text3); }
@@ -3694,7 +3704,6 @@ body.ai-busy:has(#app[style*="flex"]) .ai-busy-bar { display: block; }
 .area-status-btn.status-partial { background: rgba(245,162,35,0.14); border-color: var(--yellow); color: var(--yellow-text); }
 .area-status-btn.status-not { background: rgba(192,57,43,0.12); border-color: var(--risk); color: var(--risk); }
 .area-status-btn.status-na { background: var(--surface3); border-color: var(--border); color: var(--text2); }
-.area-add-limit { display: block; margin: 6px 0 2px; font-size: 13px; }
 .area-status + .obs-items, .area-result + .obs-items { padding-top: 0; }
 .area-result { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 12px 10px; }
 .area-result-label { font-size: 11.5px; font-weight: 600; color: var(--text2); margin-right: 2px; }
