@@ -121,7 +121,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // Only allow requests that claim to come from the app itself. Each origin
 // must match exactly: a prefix check would also let in a look-alike such as
-// https://byronguyatt2-droid.github.io.example.com.
+// https://sayon-app.github.io.example.com.
 const ALLOWED_ORIGINS = [
   'https://sayon-app.github.io',
   'https://byronguyatt2-droid.github.io', // the old address, still cached on phones

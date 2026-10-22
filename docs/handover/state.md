@@ -8,7 +8,7 @@ As of 2026-10-05, about 10:50 UTC. Written for a model starting with no context.
 - Check this file against reality before you rely on it:
   - `git fetch origin && git diff --stat origin/live origin/main`. On 2026-10-05 it listed only `CLAUDE.md`, `terms.html`, `privacy.html`, `supabase/delete-account.sql`, 2 lines each in `index.html` and `css/app.css` and 1 in `js/app.js` (all from `8b4a13b`), plus `docs/` and `tests/` once merged. Anything else is unreleased work.
   - `git show origin/live:service-worker.js | grep CACHE_VERSION` should print `korva-v51`.
-  - Open PRs: `gh api repos/byronguyatt2-droid/byronguyatt2-droid.github.io/pulls`. (`gh pr list/view` use GraphQL, which is blocked in Claude Code sessions.)
+  - Open PRs: `gh api repos/sayon-app/sayon-app.github.io/pulls`. (`gh pr list/view` use GraphQL, which is blocked in Claude Code sessions.)
   - Live Worker code: Cloudflare connector `workers_get_worker_code`, script `korva`. No Cloudflare connector? Ask baz to paste the live code. Never assume it matches `worker/worker.js`.
 - **This repo is public.** Never commit or post secrets or API keys (they live only as Cloudflare secrets), Stripe ids, the owner's personal or business details, or real client or house details. The Worker URL, Supabase URL and Supabase anon key are in `js/app.js` on purpose; the service-role key must never appear outside Cloudflare.
 - **Connectors (Supabase, Stripe, Cloudflare, GitHub) can write.** Only read with them unless baz has okayed that exact change by name. A bare "deploy" is not enough.
@@ -19,7 +19,7 @@ As of 2026-10-05, about 10:50 UTC. Written for a model starting with no context.
 
 | Part | State |
 |---|---|
-| App (GitHub Pages, `live` branch) | `korva-v51`, go-live PR #73. https://byronguyatt2-droid.github.io |
+| App (GitHub Pages, `live` branch) | `korva-v51`, go-live PR #73. https://sayon-app.github.io (until 2026-10-22: https://byronguyatt2-droid.github.io) |
 | Worker `korva` (Cloudflare) | v8.1 = v8 Stripe billing + `MAX_TOKENS_CEILING` 16000 + passes `output_config.effort` (`low`/`medium`/`high`) through. Confirmed live 2026-10-05 |
 | `worker/worker.js` (main and live) | v9 = v8.1 + `POST /send-email` through Resend. Same file as `/mnt/project-files/worker/korva-worker-v9.js`. Pages only serves it as a file; nothing runs it. Not on Cloudflare yet (section 4, item 4) |
 | AI model | `claude-sonnet-5` only; the Worker's `ALLOWED_MODEL` forces it. `model` plus `output_config: { effort }` is the working request shape, confirmed live 2026-10-05. Don't "correct" the model id or the parameter shape from memory: check the API docs and test through the Worker first |
@@ -149,7 +149,7 @@ Order: test run → fixes + trims → cleanup pass → larger model. Email sendi
 - **One push branch feeds go-live PRs too.** While a go-live PR from your branch is open, keep new commits local and don't force-push it (check open PRs first). After a go-live merges, start the next main PR from `origin/main`.
 - **Dates were a day early in Australia.** Use `isoDate()` and `todayIsoDate()` (the phone's calendar), never `toISOString()`, for dates.
 - **A blank account copy could wipe phone-only details.** `takeCloudCopy()` in `js/business-sync.js`: for phone details with no timestamp (entered before syncing existed), any field blank in the account copy keeps the phone's value; otherwise the newer copy wins. Keep that rule.
-- **Keep the repo name `byronguyatt2-droid.github.io`**: renaming it moves the site off the root URL.
+- **Keep the repo name `sayon-app.github.io`** (matching the `sayon-app` account): any other name moves the site off the root URL. On 2026-10-22 the account was renamed from `byronguyatt2-droid` and the repo with it, to take the owner's name out of the address. Browser storage is per address, so phones moved over through the "SAYON has a new address" notice (ADDRESS MOVE in `js/app.js`); the Worker and Supabase allow both addresses. The Worker's own address, `korva.byronguyatt2.workers.dev`, is the Cloudflare account subdomain and is unchanged.
 
 ## 6. How to work here
 
