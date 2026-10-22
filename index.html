@@ -1198,7 +1198,7 @@
           </div>
 
           <!-- Area-by-area record: every area is Inspected, Not inspected or
-               Not applicable, and any hindered or restricted reason is ticked
+               Not applicable, and any obstruction or restricted reason is ticked
                under it. Rendered by renderAreaChecklist(). -->
           <div class="areas-intro">
             <p class="access-intro">Mark every area and what was found there. If something limited the inspection, tick the kind of reason. You'll say where exactly in Access.</p>
@@ -1206,7 +1206,7 @@
           </div>
           <div class="obs-panels-wrap" id="areaChecklist" style="padding:4px 14px 8px"></div>
 
-          <div class="section-photo-widget">
+          <div class="section-photo-widget" data-legacy-photos hidden>
             <div class="section-photo-header">
               <div class="section-photo-header-left">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
@@ -1245,6 +1245,7 @@
             <p class="access-intro" id="accessIntro">Filled in from your ticks in Areas. Tap an area to change it.</p>
             <div class="access-summary" id="accessHinderedBox"></div>
             <div class="access-summary" id="accessRestrictedBox"></div>
+            <input type="file" id="spotPhotoInput" accept="image/*" multiple style="display:none" onchange="handleSpotPhotoFiles(this)">
             <div class="res-disclaimer">
               The parts of these areas that could not be seen or reached may contain termite activity or damage.
             </div>
@@ -1268,8 +1269,8 @@
           </div>
 
 
-          <!-- Section photo widget -->
-          <div class="section-photo-widget">
+          <!-- Older reports only; new photos go on each spot above. -->
+          <div class="section-photo-widget" data-legacy-photos hidden>
             <div class="section-photo-header">
               <div class="section-photo-header-left">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>

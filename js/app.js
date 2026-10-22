@@ -567,9 +567,9 @@ function renderAreaChecklist() {
       };
       const group = (kind, title, items) => items.length
         ? `<div class="obs-reasons obs-reasons-${kind}"><div class="obs-items-label">${ACCESS_GROUP_ICONS[kind]}<span>${title}</span></div><div class="obs-items">${items.map(btn).join('')}</div></div>` : '';
-      reasons = group('hindered', 'Hindered: in the way today', zone.items.filter(i => !RESTRICTED_REASONS.has(i)))
+      reasons = group('hindered', 'Obstructions: in the way today', zone.items.filter(i => !RESTRICTED_REASONS.has(i)))
         + group('restricted', 'Restricted: permanent or locked', zone.items.filter(i => RESTRICTED_REASONS.has(i)));
-      if (selected.length) reasons += `<div class="area-where">Say where exactly in <button type="button" class="link-btn" onclick="showSection('restrictions')">Access</button></div>`;
+      if (selected.length) reasons += `<div class="area-where">Add where exactly, and photos, in <button type="button" class="link-btn" onclick="showSection('restrictions')">Access</button></div>`;
     }
     let result = '';
     if (areaWasEntered(zoneId)) {
@@ -927,7 +927,8 @@ function renderAccessSummary() {
   const rBox = document.getElementById('accessRestrictedBox');
   if (!hBox || !rBox) return;
   // Don't redraw under the inspector's thumb while a spot is being typed.
-  if (document.activeElement && document.activeElement.classList.contains('access-spot-input')) return;
+  const typing = document.activeElement && document.activeElement.classList;
+  if (typing && (typing.contains('access-spot-input') || typing.contains('spot-photo-caption'))) return;
   const reasons = reportData.areaReasons || {};
   const limited = areasNotFullyInspected();
   const allMarked = Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
@@ -944,15 +945,28 @@ function renderAccessSummary() {
     return `<div class="access-item">
       <span class="access-item-name">${OBS_ZONES[z].label.replace(/^The /, '')}</span>
       <button type="button" class="access-item-state" onclick="openAreaRow('${z}')" aria-label="${status}. Change in Areas">${status}</button>${why}
-      ${spotLine(kind, z)}</div>`;
+      ${spotLine(kind, z)}${spotPhotos(kind, z)}</div>`;
   }).filter(Boolean);
   const spotLine = (kind, key) => {
     const spot = accessSpot(kind, key, accessZones(kind));
     return `<button type="button" class="access-spot${spot ? '' : ' empty'}" data-kind="${kind}" data-key="${key}" onclick="editAccessSpot('${kind}','${key}')">${spot ? escapeHtml(spot) : '+ Add exact spot'}</button>`;
   };
+  // Photos of the spot, each with its own details box.
+  const spotPhotos = (kind, key) => {
+    const section = spotPhotoSection(kind, key);
+    const photos = (reportData.photosBySection || {})[section] || [];
+    const cards = photos.map(p => `<div class="spot-photo">
+        <img data-photo-id="${p.id}" alt="Photo">
+        <input class="photo-caption-input spot-photo-caption" type="text" placeholder="Add details…" value="${escapeHtml(p.caption || '')}"
+          oninput="updateSectionPhotoCaption('${p.id}','${section}',this.value)">
+        <button type="button" class="photo-remove-btn" onclick="removeSpotPhoto('${p.id}','${section}')">Remove</button>
+      </div>`).join('');
+    return `<div class="spot-photos" data-section="${section}">${cards}
+      <button type="button" class="link-btn spot-photo-add" onclick="addSpotPhoto('${section}')">+ Add photo</button></div>`;
+  };
   // Voice text that names no listed area, under its own row.
   const other = kind => accessSpot(kind, '_other', accessZones(kind)) ? `<div class="access-item access-item-other">
-      <span class="access-item-name">Other spots</span>${spotLine(kind, '_other')}</div>` : '';
+      <span class="access-item-name">Other spots</span>${spotLine(kind, '_other')}${spotPhotos(kind, '_other')}</div>` : '';
   // One card per kind of limit: a header with the count, then the areas.
   const group = (kind, title, sub, list, none) => {
     const extra = other(kind);
@@ -965,10 +979,12 @@ function renderAccessSummary() {
       <div class="access-group-head"><span class="access-group-icon">${ACCESS_GROUP_ICONS[kind]}</span>
         <span class="access-group-title">${title}<small>${sub}</small></span>${count}</div>${body}</div>`;
   };
-  hBox.innerHTML = group('hindered', 'Hindered access', 'In the way on the day: stored goods, furniture, insulation',
+  hBox.innerHTML = group('hindered', 'Obstructions', 'In the way on the day: stored goods, furniture, insulation',
     rows(false), allMarked || hinderedTextIsNil());
   rBox.innerHTML = group('restricted', 'Restricted access', 'Locked or permanent: no key, no hatch, no roof void',
     rows(true), allMarked);
+  [hBox, rBox].forEach(box => box.querySelectorAll('.spot-photos').forEach(el =>
+    hydratePhotoImages(el, (reportData.photosBySection || {})[el.dataset.section] || [])));
   const intro = document.getElementById('accessIntro');
   if (intro) intro.innerHTML = allMarked || limited.length ? 'Filled in from your ticks in Areas. Tap a status to change it there, or add where exactly.'
     : `Mark every area in Section ${REPORT_PARTS.areas} and these fill themselves in. <button type="button" class="link-btn" onclick="showSection('obstructions')">Go to Areas</button>`;
@@ -995,7 +1011,7 @@ function accessLimits() {
     const items = (reportData.areaReasons || {})[z] || [];
     const status = st === 'NOT' ? 'Not inspected' : 'Inspected';
     const h = items.filter(i => !RESTRICTED_REASONS.has(i)), r = items.filter(i => RESTRICTED_REASONS.has(i));
-    if (h.length) hindered.push([zone.label, `${status}, hindered by ${h.join(', ').toLowerCase()}${where('hindered', z, hZones)}`]);
+    if (h.length) hindered.push([zone.label, `${status}, obstructed by ${h.join(', ').toLowerCase()}${where('hindered', z, hZones)}`]);
     if (r.length) restricted.push([zone.label, `${st === 'NOT' ? 'Not inspected:' : 'Inspected, restricted by'} ${r.join(', ').toLowerCase()}${where('restricted', z, rZones)}`]);
     if (!items.length) hindered.push([zone.label, `${status}, reason not recorded${where('hindered', z, hZones)}`]);
   });
@@ -1006,7 +1022,7 @@ function accessLimits() {
   const hOther = accessSpot('hindered', '_other', hZones), rOther = accessSpot('restricted', '_other', rZones);
   if (hOther) {
     hindered.push([areaRows ? 'Other spots' : 'Where', hOther]);
-    if (!areaRows && !isBlankValue(reportData.hinderedAreasDetail)) hindered.push(['What hindered it', reportData.hinderedAreasDetail]);
+    if (!areaRows && !isBlankValue(reportData.hinderedAreasDetail)) hindered.push(['What obstructed it', reportData.hinderedAreasDetail]);
   }
   if (rOther) restricted.push([restricted.length ? 'Other spots' : 'Where and why', rOther]);
   const limited = areasNotFullyInspected();
@@ -1014,6 +1030,46 @@ function accessLimits() {
     : [!isBlankValue(reportData.noAccessAreas) ? reportData.noAccessAreas : '', ...limited.map(z => OBS_ZONES[z].label)].filter(Boolean).join('; ');
   const allMarked = Object.keys(OBS_ZONES).every(z => areaStatusOf(z));
   return { hindered, restricted, highRisk, allMarked };
+}
+
+// ── ACCESS SPOT PHOTOS ───────────────────────────────────────────────────
+// Each area row in Section 5 takes its own photos, stored with the other
+// section photos under photosBySection['spot-<kind>-<zone>'] so backup and
+// sync pick them up. They print with the access rows.
+function spotPhotoSection(kind, key) { return `spot-${kind}-${key}`; }
+
+function addSpotPhoto(section) {
+  const input = document.getElementById('spotPhotoInput');
+  input.dataset.section = section;
+  choosePhotoSource(input);
+}
+
+async function handleSpotPhotoFiles(input) {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  await handleSectionPhotoFiles(files, input.dataset.section);
+  renderAccessSummary();
+}
+
+function removeSpotPhoto(id, section) {
+  removeSectionPhoto(id, section);
+  renderAccessSummary();
+}
+
+// The photos of every spot the report prints, in the order of the rows,
+// each captioned with its area and kind ahead of the inspector's details.
+function accessSpotPhotos() {
+  const out = [];
+  ['hindered', 'restricted'].forEach(kind => {
+    const zones = accessZones(kind);
+    [...zones, '_other'].forEach(key => {
+      const photos = (reportData.photosBySection || {})[spotPhotoSection(kind, key)] || [];
+      if (!photos.length || (key === '_other' && !accessSpot(kind, '_other', zones))) return;
+      const where = (key === '_other' ? 'Other spot' : OBS_ZONES[key].label.replace(/^The /, '')) + (kind === 'restricted' ? ', restricted' : ', obstruction');
+      photos.forEach(p => out.push({ ...p, caption: [where, (p.caption || '').trim()].filter(Boolean).join(': ') }));
+    });
+  });
+  return out;
 }
 
 function restoreResState() { renderAccessSummary(); }
@@ -6159,6 +6215,10 @@ function renderSectionPhotoGrid(section) {
   if (!grid) return;
   const photos = getSectionPhotos(section);
   if (count) count.textContent = `${photos.length}/${MAX_SECTION_PHOTOS} photos`;
+  // Areas and Access take photos per spot now; their old boxes only show
+  // for reports that already have photos in them.
+  const box = grid.closest('[data-legacy-photos]');
+  if (box) box.hidden = !photos.length;
   if (btn) btn.disabled = photos.length >= MAX_SECTION_PHOTOS;
   if (photos.length === 0) {
     grid.innerHTML = '<div class="section-photo-empty">No photos added</div>';
@@ -8923,7 +8983,7 @@ function reportSummary() {
   const nestNo = fs.length && !withNest.length;
   const groups = [
     { title: 'Access', items: [
-      ['Was access hindered by temporary obstructions?', yn(hinderedYes, hinderedNo), ynTone(hinderedYes, hinderedNo, 'warn'), REPORT_PARTS.access,
+      ['Were there temporary obstructions?', yn(hinderedYes, hinderedNo), ynTone(hinderedYes, hinderedNo, 'warn'), REPORT_PARTS.access,
         acc.hindered.filter(([l]) => OBS_ZONES_BY_LABEL[l]).map(([l]) => l).join(', ')],
       ['Was access restricted (permanent or locked)?', yn(restrictedYes, acc.allMarked), ynTone(restrictedYes, acc.allMarked, 'warn'), REPORT_PARTS.access,
         acc.restricted.filter(([l]) => OBS_ZONES_BY_LABEL[l]).map(([l]) => l).join(', ')],
@@ -9912,8 +9972,8 @@ async function buildReportPdf() {
 
   // ── PHOTO GALLERY ─────────────────────────────────────────────────────────
   // ── PDF SECTION PHOTO RENDERER ─────────────────────────────────────────
-  function renderSectionPhotosInPDF(sectionKey, label) {
-    const photos = (reportData.photosBySection || {})[sectionKey] || [];
+  function renderSectionPhotosInPDF(sectionKey, label, list) {
+    const photos = list || (reportData.photosBySection || {})[sectionKey] || [];
     if (photos.length === 0) return;
 
     const photoW = (CW - 4) / 2;
@@ -9939,7 +9999,7 @@ async function buildReportPdf() {
         if (p.caption && p.caption.trim()) {
           doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(...C.inkLight);
           const capLines = doc.splitTextToSize(p.caption.trim(), photoW - 2);
-          doc.text(capLines[0], x, y + photoH + 4);
+          doc.text(capLines.slice(0, 2), x, y + photoH + 4);
         }
       } catch(e) {
         // If image fails, draw placeholder
@@ -10364,7 +10424,7 @@ async function buildReportPdf() {
   const acc = accessLimits();
   const noLimits = !areasNotFullyInspected().length;
 
-  subhead('HINDERED ACCESS: TEMPORARY OBSTRUCTIONS AT THE TIME OF INSPECTION');
+  subhead('OBSTRUCTIONS: TEMPORARY, AT THE TIME OF INSPECTION');
   acc.hindered.forEach(([label, text]) => row(label, text));
   if (!acc.hindered.length) noneRow(hinderedAnswer() === 'NO' || (acc.allMarked && noLimits));
   gap(3);
@@ -10392,6 +10452,7 @@ async function buildReportPdf() {
     disclaimer('An invasive inspection may involve cutting, drilling or removing linings, floor coverings or timbers to see inside them. It needs the owner\'s written permission and a separate agreement.');
   }
   notesBlock('restrictions');
+  renderSectionPhotosInPDF(null, 'Obstructions and restricted access', accessSpotPhotos());
   renderSectionPhotosInPDF('restrictions', 'Areas Unable to Be Inspected');
 
   // ─────────────────────────────────────────────────────────────────────
@@ -10662,7 +10723,7 @@ async function buildReportPdf() {
     ['Visual Inspection', 'An inspection conducted by an inspector who uses their unaided visual faculties, and may use a probe, screwdriver, or moisture meter, to observe accessible areas of the property for evidence of timber pest activity, damage, and conducive conditions.'],
     ['Reasonable Access', 'Access to areas of a building that are safe, accessible, and do not require any removal, dismantling, or disturbance of fixed or stored items. Access is via a standard 3.6m ladder from ground level. Subfloor access requires minimum 400mm clearance; roof void access requires minimum 450mm x 400mm opening.'],
     ['Readily Accessible Area', 'An area that can be inspected without moving furniture, stored goods, floor coverings, wall or ceiling linings, insulation, or personal possessions.'],
-    ['Hindered Access', 'An area, or part of one, that could not be fully inspected because of temporary obstructions at the time of inspection, such as furniture, stored goods, floor coverings, insulation, vegetation, or low clearance in the subfloor or roof void. The inspector is not required to move obstructions.'],
+    ['Obstructions', 'An area, or part of one, that could not be fully inspected because of temporary obstructions at the time of inspection, such as furniture, stored goods, floor coverings, insulation, vegetation, or low clearance in the subfloor or roof void. The inspector is not required to move obstructions.'],
     ['Restricted Access', 'An area that could not be inspected because of a permanent restriction or locked entry, such as a locked room, a subfloor with no access opening, a roof with no roof void, or a part of the building beyond safe reach.'],
     ['High Risk Areas', 'Areas to which access was not available, or not fully available, that are considered at high risk of concealed timber pest activity. Access should be gained and these areas inspected.'],
     ['Invasive Inspection', 'A further inspection in which linings, floor coverings or timbers may be cut, drilled or removed to look inside them. It needs the owner\'s written permission and a separate agreement.'],
@@ -10720,8 +10781,8 @@ async function buildReportPdf() {
   tcHeading('2. Scope of Inspection');
   tcPara('The inspection was confined to areas that were safely and reasonably accessible at the time of the inspection. Readily accessible areas are defined in AS 4349.3-2010 as those that can be inspected without moving furniture, lifting or removing floor coverings or wall linings, breaking apart building elements, exposing concealed spaces, or causing damage to the structure or its contents. The inspector did not move, displace, or remove any floor coverings, insulation, wall linings, ceiling materials, fixed cabinetry, furniture, stored items, or personal belongings. Subfloor and roof void areas were inspected only where safe and reasonable access was available and where minimum clearance dimensions prescribed in the relevant Standard were satisfied.');
 
-  tcHeading('3. Areas Not Inspected — Hindered and Restricted Access');
-  tcPara(`Certain areas of the property could not be inspected, or fully inspected, because access was hindered by temporary obstructions or restricted by a permanent restriction or locked entry, as recorded in Section ${REPORT_PARTS.access}. It is acknowledged that timber pest activity or damage may exist within any area that could not be inspected. Where high risk areas have been identified or further investigation recommended, a follow-up inspection should be carried out once access is available. The absence of recorded findings in any area is not a representation that those areas are free of timber pest activity or damage.`);
+  tcHeading('3. Areas Not Inspected — Obstructions and Restricted Access');
+  tcPara(`Certain areas of the property could not be inspected, or fully inspected, because of temporary obstructions, or because access was restricted by a permanent restriction or locked entry, as recorded in Section ${REPORT_PARTS.access}. It is acknowledged that timber pest activity or damage may exist within any area that could not be inspected. Where high risk areas have been identified or further investigation recommended, a follow-up inspection should be carried out once access is available. The absence of recorded findings in any area is not a representation that those areas are free of timber pest activity or damage.`);
 
   tcHeading('4. Limitations of a Visual Non-Invasive Inspection');
   tcPara('A visual, non-invasive inspection of the type described in AS 4349.3-2010 cannot detect activity or damage concealed within wall cavities, structural timber members, beneath floor slabs or coverings, inside hollow trees or stumps, behind fixed linings, or in any area that cannot be directly observed without causing damage. Subterranean termites are frequently active inside walls, flooring, and structural framing without any external indicators being visible. The findings of this report reflect observable conditions in accessible areas at the time of inspection only. No inspection of this nature can conclusively establish that a property is free of timber pest infestation, activity, or damage.');
@@ -10882,7 +10943,7 @@ async function buildReportPdf() {
       [REPORT_PARTS.summary, 'Summary', 'The main results under access, activity and safety & risk, with where to read more.'],
       [REPORT_PARTS.property, 'About the Property', 'How the building is built and used, and its termite management system.'],
       [REPORT_PARTS.areas, 'Areas Inspected', 'Each area, how much of it was inspected, and what was found there.'],
-      [REPORT_PARTS.access, 'Areas Unable to Be Inspected, and Why', 'Hindered access, restricted access, high risk areas and invasive inspection.'],
+      [REPORT_PARTS.access, 'Areas Unable to Be Inspected, and Why', 'Obstructions, restricted access, high risk areas and invasive inspection.'],
       [REPORT_PARTS.findings, 'Findings', 'Termites, borers, wood decay, chemical delignification and previous treatment.'],
       [REPORT_PARTS.conducive, 'Conducive Conditions', 'Conditions that make timber pest attack more likely, and why each matters.'],
       [REPORT_PARTS.recommendations, 'Recommendations & Risk', 'The risk of termite attack, treatment and when to inspect again.'],
