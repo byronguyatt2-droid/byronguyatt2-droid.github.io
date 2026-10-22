@@ -382,8 +382,6 @@ const AREA_STATUSES = [
   ['NA',        'Not applicable'],
 ];
 const AREA_STATUS_BUTTONS = [['INSPECTED', 'Inspected'], ['NOT', 'Not inspected'], ['NA', 'Not applicable']];
-// Inspected areas whose reason list has been opened with "Add a limit".
-const areaLimitsOpen = new Set();
 
 // Other ways inspectors name an area, for matching dictated text.
 const AREA_ALIASES = {
@@ -541,7 +539,7 @@ function toggleObsItem(zoneId, item) {
   // unticking the last one makes it plainly inspected again.
   if (!reportData.areaStatus) reportData.areaStatus = {};
   if (areaStatusOf(zoneId) === 'INSPECTED' && list.length) reportData.areaStatus[zoneId] = 'PARTIAL';
-  else if (areaStatusOf(zoneId) === 'PARTIAL' && !list.length) { reportData.areaStatus[zoneId] = 'INSPECTED'; areaLimitsOpen.add(zoneId); }
+  else if (areaStatusOf(zoneId) === 'PARTIAL' && !list.length) reportData.areaStatus[zoneId] = 'INSPECTED';
   syncObstructionData();
 }
 
@@ -557,10 +555,10 @@ function renderAreaChecklist() {
     const statusBtns = AREA_STATUS_BUTTONS.map(([val, label]) =>
       `<button class="obs-zone-btn area-status-btn${lit === val ? ' active status-' + status.toLowerCase() : ''}"
         onclick="setAreaStatus('${zoneId}','${val}')">${label}</button>`).join('');
+    // The hindered and restricted reasons show as soon as the area is
+    // marked, so a limit is one tap away.
     let reasons = '';
-    if (status === 'INSPECTED' && !areaLimitsOpen.has(zoneId)) {
-      reasons = `<button class="link-btn area-add-limit" onclick="areaLimitsOpen.add('${zoneId}');renderAreaChecklist()">+ Add a hindered or restricted reason</button>`;
-    } else if (['INSPECTED', 'PARTIAL', 'NOT'].includes(status)) {
+    if (['INSPECTED', 'PARTIAL', 'NOT'].includes(status)) {
       const selected = (reportData.areaReasons || {})[zoneId] || [];
       const btn = item => {
         const safe = item.replace(/'/g, '&#39;');
@@ -1578,7 +1576,7 @@ FIELDS (every one null unless the note gives it):
 
 DROPDOWN FIELDS: the app shows these as pick-lists. Return the list value EXACTLY as written below when the inspector's words fit one; when they describe something the list cannot express, return their words instead (never a list value that adds a fact they did not state).
 - structureType: "Detached house" | "Semi-detached" | "Terrace / townhouse" | "Duplex" | "Unit / apartment" | "Granny flat" | "Commercial building". "House" or "home" with nothing more is "Detached house".
-- height: "Single storey" | "Double storey" | "Split level" | "Three storey+".
+- height: "Single storey" | "Double storey" | "Split level" | "Multiple storey" (three or more storeys).
 - wallConstruction: "Brick veneer" | "Double brick" | "Weatherboard" | "Fibro / cement sheet" | "Rendered masonry" | "Lightweight cladding" | "Mixed construction". Brick veneer and double brick are different builds: the phrase "double brick veneer" is a slip, so use whichever the inspector restates or settles on later, and never combine the two.
 - floorType: "Concrete slab on ground" | "Timber suspended floor" | "Elevated timber (stumps)" | "Combination slab / timber". "Not a slab" plus joists, bearers or a subfloor means "Timber suspended floor"; stumps means "Elevated timber (stumps)".
 - roofType: "Colorbond metal" | "Tiled — concrete" | "Tiled — terracotta" | "Corrugated iron" | "Flat membrane" | "Mixed". A tiled roof whose tile material is not named is written as the inspector said it, e.g. "Tiled roof, timber framed": never pick concrete or terracotta for them. Roof framing (timber or steel) has no field of its own, so it may be appended here.
@@ -3829,6 +3827,10 @@ async function scanCompliancePlate(fromFile) {
     } else {
       const picked = await pickImageFileAsBase64(!fromFile);
       if (!picked) return; // cancelled
+      if (picked.unreadable) {
+        showToast("Couldn't open that photo here. Try a JPEG or PNG, or take it with the phone", 'error');
+        return;
+      }
       ({ base64, mediaType } = picked);
     }
   } catch (e) {
@@ -3916,26 +3918,27 @@ async function scanCompliancePlate(fromFile) {
 
 // Web/PWA fallback for scanCompliancePlate() — no native Camera plugin there.
 // useCamera opens the camera straight away; without it the phone offers the
-// photo library and files. Resolves { base64, mediaType } or null.
+// photo library and files. Resolves { base64, mediaType }, null when
+// cancelled, or { unreadable: true } when the browser can't open the file.
+// The photo is always re-drawn as a JPEG of at most 1600px first: a laptop
+// photo can be a HEIC, or a full-size file too big for the AI to accept.
 function pickImageFileAsBase64(useCamera) {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     if (useCamera) input.capture = 'environment';
-    input.onchange = () => {
+    input.onchange = async () => {
       const file = input.files && input.files[0];
       if (!file) { resolve(null); return; }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = String(reader.result || '');
-        const base64 = result.split(',')[1];
-        const type = (result.match(/^data:([^;]+);/) || [])[1];
-        const mediaType = ['image/png', 'image/webp', 'image/gif'].includes(type) ? type : 'image/jpeg';
-        resolve(base64 ? { base64, mediaType } : null);
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(file);
+      try {
+        const { blob } = await compressPhotoFile(file, { maxDim: 1600, quality: 0.85, maxBytes: 3500000 });
+        const base64 = String(await blobToDataUrl(blob)).split(',')[1];
+        resolve(base64 ? { base64, mediaType: 'image/jpeg' } : { unreadable: true });
+      } catch (e) {
+        console.warn('Could not open the durable notice photo:', e);
+        resolve({ unreadable: true });
+      }
     };
     input.click();
   });
@@ -4372,10 +4375,19 @@ const CHOICE_SETS = {
   antcapping: [['INTACT', 'good'], ['GAPS', 'bad'], ['NONE', 'bad']],
   ventilation: [['ADEQUATE', 'good'], ['POOR', 'bad'], ['N/A', 'neutral']],
   drainage:  [['ADEQUATE', 'good'], ['POOR', 'bad'], ['N/A', 'neutral']],
-  height:    [['Single storey', 'neutral'], ['Double storey', 'neutral'], ['Split level', 'neutral'], ['Three storey+', 'neutral']],
+  height:    [['Single storey', 'neutral'], ['Double storey', 'neutral'], ['Split level', 'neutral'], ['Multiple storey', 'neutral']],
 };
 // Report fields: the set comes from the field's key, else its edit type.
 const CHOICE_SET_BY_KEY = { borerActivity: 'borer', durableNoticePresent: 'wantyes', antCapSoldered: 'wantyes', hardLandscaping: 'neutral', softLandscaping: 'neutral' };
+// Choice labels that were renamed. Reports saved with the old label show
+// the new one when they are opened.
+const RENAMED_CHOICES = { height: { 'Three storey+': 'Multiple storey' } };
+function upgradeRenamedChoices(rd) {
+  Object.entries(RENAMED_CHOICES).forEach(([key, map]) => {
+    if (rd && map[rd[key]]) rd[key] = map[rd[key]];
+  });
+  return rd;
+}
 const CHOICE_SET_BY_TYPE = { yesno: 'yesno', yesnona: 'yesno', risk: 'risk', slabedge: 'slabedge', weepholes: 'weepholes', antcapping: 'antcapping', ventilation: 'ventilation', drainage: 'drainage', height: 'height', activity: 'activity' };
 
 function choiceCardsHTML(set, name, current, dataAttrs) {
@@ -5656,6 +5668,17 @@ function agreementFeeText(raw) {
   return `${/^\$|^[^0-9]/.test(fee) ? '' : '$'}${fee}${/gst/i.test(fee) ? '' : ' inc GST'}`;
 }
 
+// Fee boxes put the $ in front as soon as a figure is typed, keeping the
+// cursor where it was.
+function addDollarSign(el) {
+  const v = el.value;
+  if (v.trim() === '$') { el.value = ''; return; }
+  if (!/\d/.test(v) || /^\s*\$/.test(v)) return;
+  const pos = el.selectionStart;
+  el.value = '$' + v.replace(/^\s+/, '');
+  if (pos != null) { const p = pos + el.value.length - v.length; el.setSelectionRange(p, p); }
+}
+
 // The agreement's fee box is the Job details fee: typing in either updates
 // the one stored value.
 function onAgreementFeeInput() {
@@ -5828,8 +5851,12 @@ function genPhotoId() {
 
 // Resizes/re-encodes a single File to a compressed JPEG Blob, returning
 // {blob, width, height} so the PDF can preserve the correct aspect ratio
-// later without needing to re-decode the image.
-function compressPhotoFile(file) {
+// later without needing to re-decode the image. opts lets a caller that
+// sends the photo to the AI keep more detail (bigger, less squeezed).
+function compressPhotoFile(file, opts = {}) {
+  const maxDim = opts.maxDim || PHOTO_MAX_DIMENSION;
+  const quality = opts.quality || 0.7;
+  const maxBytes = opts.maxBytes || 225000;
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('Could not read file'));
@@ -5838,9 +5865,9 @@ function compressPhotoFile(file) {
       img.onerror = () => reject(new Error('Could not decode image'));
       img.onload = () => {
         let w = img.naturalWidth, h = img.naturalHeight;
-        if (w > PHOTO_MAX_DIMENSION || h > PHOTO_MAX_DIMENSION) {
-          if (w >= h) { h = Math.round(h * (PHOTO_MAX_DIMENSION / w)); w = PHOTO_MAX_DIMENSION; }
-          else { w = Math.round(w * (PHOTO_MAX_DIMENSION / h)); h = PHOTO_MAX_DIMENSION; }
+        if (w > maxDim || h > maxDim) {
+          if (w >= h) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+          else { w = Math.round(w * (maxDim / h)); h = maxDim; }
         }
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
@@ -5849,9 +5876,9 @@ function compressPhotoFile(file) {
         canvas.toBlob(blob => {
           if (!blob) { reject(new Error('Could not encode image')); return; }
           // Re-compress harder if a particularly busy/detailed photo still came out large
-          if (blob.size <= 225000) { resolve({ blob, width: w, height: h }); return; }
+          if (blob.size <= maxBytes) { resolve({ blob, width: w, height: h }); return; }
           canvas.toBlob(smaller => resolve({ blob: smaller || blob, width: w, height: h }), 'image/jpeg', 0.5);
-        }, 'image/jpeg', 0.7);
+        }, 'image/jpeg', quality);
       };
       img.src = reader.result;
     };
@@ -7883,6 +7910,7 @@ function loadDraft() {
     updateJob();
 
     reportData = { ...draft.reportData };
+    upgradeRenamedChoices(reportData);
     fieldNotes = { ...(draft.fieldNotes || {}) };
     currentReportId = draft.currentReportId || null;
     externalizePhotos(reportData).then(changed => { if (changed) saveDraft(); });
@@ -8107,6 +8135,7 @@ function loadReport(id) {
 
   // Restore report data
   reportData = { ...entry.reportData };
+  upgradeRenamedChoices(reportData);
   fieldNotes = { ...(entry.fieldNotes || {}) };
   currentReportId = entry.id;
   externalizePhotos(reportData).then(changed => { if (changed) saveDraft(); });
@@ -10248,7 +10277,7 @@ async function buildReportPdf() {
   startPart('About the Property', true);
   sectionTitle('ABOUT THE PROPERTY', REPORT_PARTS.property);
   row('Structure Type', reportData.structureType);
-  row('Height', reportData.height);
+  row('Height', RENAMED_CHOICES.height[reportData.height] || reportData.height);
   row('Wall Construction', reportData.wallConstruction);
   row('Floor Type', reportData.floorType);
   if (/slab/i.test(reportData.floorType || '')) {
