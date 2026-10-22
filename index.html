@@ -775,7 +775,7 @@
             </div>
             <div class="job-field">
               <div class="job-field-label">Fee (inc. GST)</div>
-              <input class="job-input" id="jobFee" placeholder="e.g. $440.00" oninput="saveJobInfo()">
+              <input class="job-input" id="jobFee" inputmode="decimal" placeholder="$440.00" oninput="addDollarSign(this);saveJobInfo()">
             </div>
           </div>
           <div class="job-field">
@@ -1117,8 +1117,15 @@
               <div class="field-label">Specific System Name <span class="field-hint">Optional</span></div>
               <div class="field-val" id="f-existingSystemOther" onclick="startEdit(this,'existingSystemOther','existingsystemspecific')">—</div>
             </div>
-            <div class="field field-wide">
-              <div class="field-label">Read From Compliance Plate</div>
+            <div class="section-photo-widget field-wide">
+              <div class="section-photo-header">
+                <div class="section-photo-header-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                  Durable notice
+                  <span class="section-photo-count" id="sectionPhotoCount-durable">0/30</span>
+                </div>
+              </div>
+              <div class="section-photo-hint">Photograph the durable notice and SAYON fills in the system above. The photo is kept here and printed in the report.</div>
               <button class="scan-plate-btn" type="button" id="scanPlateBtn" onclick="scanCompliancePlate()">
                 <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/></svg>
                 <span id="scanPlateBtnText">Take a photo of the durable notice</span>
@@ -1127,23 +1134,6 @@
                 <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 <span>Choose a saved photo or file</span>
               </button>
-            </div>
-            <div class="section-photo-widget field-wide">
-              <div class="section-photo-header">
-                <div class="section-photo-header-left">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-                  Durable notice photo
-                  <span class="section-photo-count" id="sectionPhotoCount-durable">0/30</span>
-                </div>
-                <button class="section-photo-add-btn" id="sectionPhotoBtn-durable"
-                  onclick="choosePhotoSource('sectionPhotoInput-durable')">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                  Add Photo
-                </button>
-                <input type="file" id="sectionPhotoInput-durable" accept="image/*" multiple style="display:none"
-                  onchange="handleSectionPhotoFiles(this.files,'durable')">
-              </div>
-              <div class="section-photo-hint">Photos read with the buttons above are kept here and printed in the report.</div>
               <div class="section-photo-grid" id="sectionPhotoGrid-durable">
                 <div class="section-photo-empty">No photos added</div>
               </div>
@@ -1763,7 +1753,7 @@
         </div>
         <div class="job-field">
           <div class="job-field-label">Fee</div>
-          <input class="job-input" id="agreementFee" placeholder="e.g. $330 inc GST" oninput="onAgreementFeeInput()">
+          <input class="job-input" id="agreementFee" inputmode="decimal" placeholder="$330" oninput="addDollarSign(this);onAgreementFeeInput()">
         </div>
       </div>
       <div class="job-field">
