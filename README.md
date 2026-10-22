@@ -20,7 +20,7 @@ This project was previously named TermAI / TermiteAI.
 Merging and deploying are separate steps.
 
 - `main` is where finished code is merged. Merging to `main` does not change the live site.
-- `live` is the branch GitHub Pages publishes to https://byronguyatt2-droid.github.io.
+- `live` is the branch GitHub Pages publishes to https://sayon-app.github.io (the app moved there from https://byronguyatt2-droid.github.io on 2026-10-22).
 
 To deploy, only after the owner has reviewed the diff and said "deploy":
 
