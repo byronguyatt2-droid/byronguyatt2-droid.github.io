@@ -5390,6 +5390,9 @@ function showSection(name) {
     if (tab) tab.classList.toggle('active', s === name);
   });
 
+  // The section's own colour (SECTION COLOURS in css/app.css)
+  document.body.dataset.section = name;
+
   // Scroll active tab into view
   const activeTab = document.getElementById('tab-' + name);
   if (activeTab) activeTab.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });

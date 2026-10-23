@@ -4323,6 +4323,62 @@ body:not(.dark-screen) .agreement-banner.signed { background: #E6F6EC; border-co
 body:not(.dark-screen) .issue-banner { background: #FFFFFF; border-color: transparent; box-shadow: 0 14px 36px rgba(0,0,0,0.35); }
 body:not(.dark-screen) .issue-banner.locked { background: #FFFFFF; border-color: #9AD3AE; }
 body:not(.dark-screen) .edit-banner { background: #FFF6E0; border-bottom-color: #F0C25A; color: #7A4F00; }
+/* ── SECTION COLOURS ──
+   Each report section has its own colour, stepping round from teal to
+   violet and back to green at sign-off, so neighbours blend into each
+   other like the fade on the intro. --sec is the section's colour,
+   --sec-next the one after it, --sec-ink a deeper shade for text on white.
+   Amber and red stay reserved for obstructions and restricted access, and
+   the dark screen keeps its own plain look. */
+body, #tab-property, #section-property                     { --sec: 20,184,166; --sec-next: 6,182,212;   --sec-ink: 15,118,110; }
+body[data-section="obstructions"], #tab-obstructions, #section-obstructions { --sec: 6,182,212;  --sec-next: 14,165,233;  --sec-ink: 14,116,144; }
+body[data-section="restrictions"], #tab-restrictions, #section-restrictions { --sec: 14,165,233; --sec-next: 59,130,246;  --sec-ink: 3,105,161; }
+body[data-section="findings"], #tab-findings, #section-findings             { --sec: 59,130,246; --sec-next: 99,102,241;  --sec-ink: 29,78,216; }
+body[data-section="conducive"], #tab-conducive, #section-conducive          { --sec: 99,102,241; --sec-next: 139,92,246;  --sec-ink: 67,56,202; }
+body[data-section="recommendations"], #tab-recommendations, #section-recommendations { --sec: 139,92,246; --sec-next: 168,85,247; --sec-ink: 109,40,217; }
+body[data-section="photos"], #tab-photos, #section-photos                   { --sec: 168,85,247; --sec-next: 16,185,129;  --sec-ink: 126,34,206; }
+body[data-section="signoff"], #tab-signoff, #section-signoff                { --sec: 16,185,129; --sec-next: 20,184,166;  --sec-ink: 4,120,87; }
+
+/* The backdrop's glow takes the open section's colour. */
+body:not(.dark-screen) {
+  background:
+    radial-gradient(120% 40% at 50% -8%, rgba(var(--sec),0.34), rgba(var(--sec),0) 62%),
+    linear-gradient(180deg, #0B141C 0%, #070B10 100%);
+  background-color: #070B10;
+}
+/* Progress bar: the whole run of section colours, revealed as it fills. */
+body:not(.dark-screen) .progress-fill {
+  height: 3px;
+  background: linear-gradient(90deg, rgb(20,184,166), rgb(6,182,212), rgb(14,165,233), rgb(59,130,246), rgb(99,102,241), rgb(139,92,246), rgb(168,85,247), rgb(16,185,129)) 0 0 / 100vw 100% no-repeat;
+  box-shadow: 0 0 10px rgba(var(--sec),0.6);
+}
+/* Tabs: each fades from its colour into the next one's. */
+body:not(.dark-screen) .section-tab:hover { background: rgba(var(--sec),0.14); }
+body:not(.dark-screen) .section-tab.active {
+  background: linear-gradient(135deg, rgb(var(--sec)) 0%, rgb(var(--sec-next)) 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 18px rgba(var(--sec),0.5), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+/* Cards: a glow of the section's colour along the top, a fading band
+   across the header, and a title that runs from ink into the colour. */
+body:not(.dark-screen) .report-section {
+  box-shadow: 0 14px 36px rgba(0,0,0,0.35), 0 0 0 1px rgba(var(--sec),0.22), 0 -10px 40px -14px rgba(var(--sec),0.7);
+}
+body:not(.dark-screen) .report-section .section-header {
+  border-top: 3px solid rgb(var(--sec));
+  border-image: linear-gradient(90deg, rgb(var(--sec)), rgb(var(--sec-next)), rgba(var(--sec-next),0)) 1;
+  background: linear-gradient(135deg, rgba(var(--sec),0.18) 0%, rgba(var(--sec-next),0.07) 45%, rgba(var(--sec),0) 80%);
+}
+body:not(.dark-screen) .report-section .section-header h3 .sec-num { color: rgb(var(--sec-ink)); }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  body:not(.dark-screen) .report-section .section-header h3 {
+    background: linear-gradient(90deg, var(--text) 0%, var(--text) 45%, rgb(var(--sec-ink)) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-size: 15px;
+  }
+}
 #invasiveDetailsWrap[hidden] { display: none; }
 
 /* Areas (Section 4) */
