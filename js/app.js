@@ -6144,6 +6144,10 @@ function backUpNewPhotos() {
 // The old reportData.photos array is kept for backward compatibility (general photos tab)
 
 const MAX_SECTION_PHOTOS = 30;
+// The property box takes one photo, the front of the house, which goes on
+// the report cover. Adding another replaces it.
+const SECTION_PHOTO_LIMITS = { general: 1 };
+const sectionPhotoLimit = section => SECTION_PHOTO_LIMITS[section] || MAX_SECTION_PHOTOS;
 const SECTION_PHOTO_KEYS = ['general','durable','obstructions','restrictions','findings','conducive','recommendations'];
 
 function getSectionPhotos(section) {
@@ -6159,9 +6163,11 @@ async function handleSectionPhotoFiles(fileList, section) {
   if (input) input.value = '';
   if (!files.length) return;
 
+  const limit = sectionPhotoLimit(section);
+  if (limit === 1 && getSectionPhotos(section).length) reportData.photosBySection[section] = [];
   const existing = getSectionPhotos(section);
-  const remaining = MAX_SECTION_PHOTOS - existing.length;
-  if (remaining <= 0) { showToast(`Photo limit reached for this section (${MAX_SECTION_PHOTOS})`, 'error'); return; }
+  const remaining = limit - existing.length;
+  if (remaining <= 0) { showToast(`Photo limit reached for this section (${limit})`, 'error'); return; }
   const toProcess = files.slice(0, remaining);
   if (files.length > toProcess.length) showToast(`Only added ${toProcess.length} of ${files.length} photos`, 'warn');
 
@@ -6224,12 +6230,14 @@ function renderSectionPhotoGrid(section) {
   const btn   = document.getElementById(`sectionPhotoBtn-${section}`);
   if (!grid) return;
   const photos = getSectionPhotos(section);
-  if (count) count.textContent = `${photos.length}/${MAX_SECTION_PHOTOS} photos`;
+  const limit = sectionPhotoLimit(section);
+  if (count) count.textContent = limit === 1 ? '' : `${photos.length}/${limit} photos`;
   // Areas and Access take photos per spot now; their old boxes only show
   // for reports that already have photos in them.
   const box = grid.closest('[data-legacy-photos]');
   if (box) box.hidden = !photos.length;
-  if (btn) btn.disabled = photos.length >= MAX_SECTION_PHOTOS;
+  if (btn && limit === 1) btn.lastChild.textContent = photos.length ? ' Replace photo' : ' Add photo';
+  else if (btn) btn.disabled = photos.length >= limit;
   if (photos.length === 0) {
     grid.innerHTML = '<div class="section-photo-empty">No photos added</div>';
     return;
