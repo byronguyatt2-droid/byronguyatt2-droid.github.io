@@ -245,6 +245,14 @@ body.large-touch .saved-item-delete { width: 44px; height: 44px; }
                splashNameSheen 1.1s ease-in-out 1s forwards;
   }
 }
+/* The logo box takes the same white-to-teal fade as the name below it,
+   so the two read as one run of colour; the ring turns dark to show on
+   the pale top. */
+#splash .splash-icon {
+  background: linear-gradient(180deg, #F4F7FA 0%, #CCFBF1 40%, #2DD4BF 78%, #14B8A6 100%);
+  color: #0B3B36;
+  box-shadow: 0 0 60px rgba(45,212,191,0.35), 0 10px 30px rgba(20,184,166,0.25), inset 0 1px 1px rgba(255,255,255,0.6), inset 0 -2px 4px rgba(10,110,101,0.35);
+}
 @keyframes splashNameIn {
   from { opacity: 0; letter-spacing: 10px; filter: blur(10px); transform: translateY(6px); }
   to   { opacity: 1; letter-spacing: -1px; filter: blur(0) drop-shadow(0 0 18px rgba(45,212,191,0.35)); transform: none; }
