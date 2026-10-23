@@ -14,7 +14,7 @@
 // with every index.html change from here on - it's what forces activate() to
 // drop the old cache and install() to pre-cache the new files, so a redeploy
 // takes effect on the very next load instead of needing an extra refresh.
-const CACHE_VERSION = 'korva-v108';
+const CACHE_VERSION = 'korva-v109';
 
 
 const APP_SHELL = [
@@ -29,9 +29,9 @@ const APP_SHELL = [
   './js/telemetry.js',
   './js/vendor/sentry-11.4.0.min.js',
   './manifest.json',
-  './icon-192.png',
-  './icon-512.png',
-  './icon-maskable-512.png',
+  './icon-192.png?v=2',
+  './icon-512.png?v=2',
+  './icon-maskable-512.png?v=2',
 ];
 
 const APP_SHELL_PATHS = new Set(APP_SHELL.map((path) => new URL(path, self.location).pathname));
