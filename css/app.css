@@ -4323,62 +4323,64 @@ body:not(.dark-screen) .agreement-banner.signed { background: #E6F6EC; border-co
 body:not(.dark-screen) .issue-banner { background: #FFFFFF; border-color: transparent; box-shadow: 0 14px 36px rgba(0,0,0,0.35); }
 body:not(.dark-screen) .issue-banner.locked { background: #FFFFFF; border-color: #9AD3AE; }
 body:not(.dark-screen) .edit-banner { background: #FFF6E0; border-bottom-color: #F0C25A; color: #7A4F00; }
-/* ── SECTION COLOURS ──
-   Each report section has its own colour, stepping round from teal to
-   violet and back to green at sign-off, so neighbours blend into each
-   other like the fade on the intro. --sec is the section's colour,
-   --sec-next the one after it, --sec-ink a deeper shade for text on white.
-   Amber and red stay reserved for obstructions and restricted access, and
-   the dark screen keeps its own plain look. */
-body, #tab-property, #section-property                     { --sec: 20,184,166; --sec-next: 6,182,212;   --sec-ink: 15,118,110; }
-body[data-section="obstructions"], #tab-obstructions, #section-obstructions { --sec: 6,182,212;  --sec-next: 14,165,233;  --sec-ink: 14,116,144; }
-body[data-section="restrictions"], #tab-restrictions, #section-restrictions { --sec: 14,165,233; --sec-next: 59,130,246;  --sec-ink: 3,105,161; }
-body[data-section="findings"], #tab-findings, #section-findings             { --sec: 59,130,246; --sec-next: 99,102,241;  --sec-ink: 29,78,216; }
-body[data-section="conducive"], #tab-conducive, #section-conducive          { --sec: 99,102,241; --sec-next: 139,92,246;  --sec-ink: 67,56,202; }
-body[data-section="recommendations"], #tab-recommendations, #section-recommendations { --sec: 139,92,246; --sec-next: 168,85,247; --sec-ink: 109,40,217; }
-body[data-section="photos"], #tab-photos, #section-photos                   { --sec: 168,85,247; --sec-next: 16,185,129;  --sec-ink: 126,34,206; }
-body[data-section="signoff"], #tab-signoff, #section-signoff                { --sec: 16,185,129; --sec-next: 20,184,166;  --sec-ink: 4,120,87; }
+/* ── TEAL GLOW DETAILS ──
+   The intro's look carried into the report: fades from bright teal into
+   nothing, soft teal glows, and a title that runs from ink into teal. One
+   colour throughout; amber, red and green keep their meanings, and the
+   dark screen keeps its own plain look. */
+:root { --glow: 20,184,166; --glow-hi: 94,234,212; --glow-ink: 15,118,110; }
 
-/* The backdrop's glow takes the open section's colour. */
-body:not(.dark-screen) {
-  background:
-    radial-gradient(120% 40% at 50% -8%, rgba(var(--sec),0.34), rgba(var(--sec),0) 62%),
-    linear-gradient(180deg, #0B141C 0%, #070B10 100%);
-  background-color: #070B10;
-}
-/* Progress bar: the whole run of section colours, revealed as it fills. */
+/* Progress bar: teal into mint, with a glow. */
 body:not(.dark-screen) .progress-fill {
   height: 3px;
-  background: linear-gradient(90deg, rgb(20,184,166), rgb(6,182,212), rgb(14,165,233), rgb(59,130,246), rgb(99,102,241), rgb(139,92,246), rgb(168,85,247), rgb(16,185,129)) 0 0 / 100vw 100% no-repeat;
-  box-shadow: 0 0 10px rgba(var(--sec),0.6);
+  background: linear-gradient(90deg, rgb(var(--glow)), rgb(var(--glow-hi)));
+  box-shadow: 0 0 10px rgba(var(--glow-hi),0.6);
 }
-/* Tabs: each fades from its colour into the next one's. */
-body:not(.dark-screen) .section-tab:hover { background: rgba(var(--sec),0.14); }
+/* Active tab: lit from the top like the logo, with a glow under it. */
 body:not(.dark-screen) .section-tab.active {
-  background: linear-gradient(135deg, rgb(var(--sec)) 0%, rgb(var(--sec-next)) 100%);
+  background: linear-gradient(180deg, #2DD4BF 0%, #14B8A6 45%, #0D9488 100%);
   border-color: transparent;
-  box-shadow: 0 4px 18px rgba(var(--sec),0.5), inset 0 1px 0 rgba(255,255,255,0.3);
+  box-shadow: 0 4px 18px rgba(var(--glow),0.45), inset 0 1px 0 rgba(255,255,255,0.35);
 }
-/* Cards: a glow of the section's colour along the top, a fading band
-   across the header, and a title that runs from ink into the colour. */
+/* Cards: a faint teal ring and a glow rising off the top edge. */
 body:not(.dark-screen) .report-section {
-  box-shadow: 0 14px 36px rgba(0,0,0,0.35), 0 0 0 1px rgba(var(--sec),0.22), 0 -10px 40px -14px rgba(var(--sec),0.7);
+  box-shadow: 0 14px 36px rgba(0,0,0,0.35), 0 0 0 1px rgba(var(--glow),0.18), 0 -10px 40px -14px rgba(var(--glow),0.7);
 }
+/* Section header: a bright line above and a fine line below, both fading
+   out to the right, over a teal wash that fades the same way. */
 body:not(.dark-screen) .report-section .section-header {
-  border-top: 3px solid rgb(var(--sec));
-  border-image: linear-gradient(90deg, rgb(var(--sec)), rgb(var(--sec-next)), rgba(var(--sec-next),0)) 1;
-  background: linear-gradient(135deg, rgba(var(--sec),0.18) 0%, rgba(var(--sec-next),0.07) 45%, rgba(var(--sec),0) 80%);
+  border-top: 3px solid rgb(var(--glow));
+  border-image: linear-gradient(90deg, rgb(var(--glow)), rgb(var(--glow-hi)) 45%, rgba(var(--glow-hi),0)) 1;
+  background: linear-gradient(135deg, rgba(var(--glow),0.16) 0%, rgba(var(--glow-hi),0.06) 45%, rgba(var(--glow),0) 80%);
 }
-body:not(.dark-screen) .report-section .section-header h3 .sec-num { color: rgb(var(--sec-ink)); }
+body:not(.dark-screen) .report-section .section-header h3 .sec-num { color: rgb(var(--glow-ink)); }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   body:not(.dark-screen) .report-section .section-header h3 {
-    background: linear-gradient(90deg, var(--text) 0%, var(--text) 45%, rgb(var(--sec-ink)) 100%);
+    background: linear-gradient(90deg, var(--text) 0%, var(--text) 45%, rgb(var(--glow-ink)) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
     font-size: 15px;
   }
 }
+/* Cards inside a section (findings, area rows, access groups) take the
+   same fading line under their heading. */
+body:not(.dark-screen) .finding-card-header,
+body:not(.dark-screen) .obs-zone-panel[open] > .obs-zone-panel-header,
+body:not(.dark-screen) .access-group-head {
+  border-bottom: 1px solid rgba(var(--glow),0.5);
+  border-image: linear-gradient(90deg, rgba(var(--glow),0.75), rgba(var(--glow-hi),0.35) 50%, rgba(var(--glow-hi),0)) 1;
+}
+body:not(.dark-screen) .finding-card-header { background: linear-gradient(135deg, rgba(var(--glow),0.10), rgba(var(--glow),0) 70%), var(--surface2); }
+/* A picked answer glows in its own colour (red, amber, green or grey). */
+@supports (color: color-mix(in srgb, red 50%, transparent)) {
+  body:not(.dark-screen) .choice-card:has(input:checked),
+  body:not(.dark-screen) .choice-card.active {
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--tone) 45%, transparent), inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+}
+/* In edit mode a field lights up teal under the finger or pointer. */
+body:not(.dark-screen) .edit-mode .field-val:hover { box-shadow: 0 0 0 3px rgba(var(--glow),0.14), 0 0 16px rgba(var(--glow),0.18); }
 #invasiveDetailsWrap[hidden] { display: none; }
 
 /* Areas (Section 4) */
