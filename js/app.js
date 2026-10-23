@@ -1640,7 +1640,7 @@ DROPDOWN FIELDS: the app shows these as pick-lists. Return the list value EXACTL
 - occupancyStatus: "Occupied — residential" | "Owner occupied" | "Tenanted" | "Vacant" | "Under renovation" | "Commercial / industrial". "Occupied" or "furnished" alone is "Occupied — residential".
 - weatherConditions: "Fine and dry" | "Overcast" | "Light rain" | "Heavy rain" | "Humid" | "Windy".
 - constructionEra: only from a stated age, decade or year ("built in the 70s" is "1965-1985", "around 1998" is "1985-2003", "2005" is "Post-2003") or from an era-specific material the inspector names (fibro sheeting, asbestos). Never date a house from its wall, floor or roof type: the era prints an asbestos warning in the report, so a guessed era is a false fact.
-- existingSystem (the TYPE of termite management system found): "Physical Barrier" | "Chemical Reticulation System" | "Termite Baiting System" | "Combination System — Physical + Chemical" | "System Present — Type Unidentified". A chemical soil treatment or chemical barrier with no reticulation pipes mentioned is written as "Chemical soil barrier". Only when a system is actually present; when the inspector says there is no system, no barrier or nothing installed, leave it null (never "No", "None", "Nil").
+- existingSystem (the TYPE of termite management system found): "Physical Barrier" | "Chemical Reticulation System" | "Termite Baiting System" | "Chemical Barrier" | "Combination System — Physical + Chemical" | "System Present — Type Unidentified". A chemical soil treatment or chemical barrier with no reticulation pipes mentioned (e.g. Termidor sprayed around the perimeter) is "Chemical Barrier". Only when a system is actually present; when the inspector says there is no system, no barrier or nothing installed, leave it null (never "No", "None", "Nil").
 - existingSystemOther: the brand, product or chemical the system is recorded as (HomeGuard Blue, Kordon, Termimesh, Exterra, Sentricon, Termidor, Altriset ...), plus the install year if read from the notice. Only when the inspector names it.
 - inspectionType: "Annual — Existing Building" for an annual, routine, regular or yearly inspection of the client's own home; "Pre-Purchase — Timber Pest" for pre-purchase, pre-sale or a client buying the property ("pre-purchased" is the same); "Pre-Purchase — Combined Building & Pest" only when they say building and pest; "Treatment Follow-Up", "Re-inspection", "New Construction — Completion" and "Insurance / Legal" only when said in those words. Otherwise null.
 - inspectionFrequency: write the NEXT interval first as a number of months, then any later pattern, e.g. "3 months, then every 12 months" or "12 months". Never put a later interval before the first one. It is only the routine re-inspection interval: a one-off invasive or follow-up inspection ("invasive inspection in two weeks") never goes here.
@@ -1740,14 +1740,16 @@ Respond with ONLY raw JSON (no markdown fences, no commentary), matching exactly
 
 Rules:
 - If no durable notice/compliance plate is visible in the photo, or the text is too unclear to read with real confidence, return {"systemFound":"NO","existingSystem":null,"existingSystemOther":null,"extraDetails":null}. Do not guess.
-- "existingSystem" must be EXACTLY one of these five strings (whichever matches the system type printed on the plate) — never invent a different value:
+- "existingSystem" must be EXACTLY one of these six strings (whichever matches the system type printed on the plate) — never invent a different value:
   "Physical Barrier"
   "Chemical Reticulation System"
+  "Chemical Barrier"
   "Termite Baiting System"
   "Combination System — Physical + Chemical"
   "System Present — Type Unidentified"
+  "Chemical Barrier" is a chemical soil treatment or barrier (e.g. Termidor, Altriset, Premise, Biflex) with no reticulation pipes named; use "Chemical Reticulation System" only when the plate names a reticulation or injection system.
   Only use "System Present — Type Unidentified" if the plate confirms a system exists but its type genuinely can't be determined from the text.
-- "existingSystemOther" is the specific product/brand name printed on the plate — for example "Kordon", "HomeGuard Blue", "HomeGuard DPC", "HomeGuard TMB", "HomeGuard GT", "Termseal", "Smartfilm", "Termimesh", "Granitgard", "Greenzone", "Termguard", "Altis", "TermX", "TermStop", "Camilleri", "Cavtech", "Reterm", "Exterra", "Sentricon", "Trelona", "Nemesis". Use the exact brand name as printed, even if it isn't in this list. If no brand name is legible, return null for this field even when "existingSystem" is set.
+- "existingSystemOther" is the specific product/brand name printed on the plate — for example "Kordon", "HomeGuard Blue", "HomeGuard DPC", "HomeGuard TMB", "HomeGuard GT", "Termseal", "Smartfilm", "Termimesh", "Granitgard", "Greenzone", "Termguard", "Altis", "TermX", "TermStop", "Camilleri", "Cavtech", "Reterm", "Exterra", "Sentricon", "Trelona", "Nemesis", "Termidor", "Altriset", "Premise", "Biflex". Use the exact brand name as printed, even if it isn't in this list. If no brand name is legible, return null for this field even when "existingSystem" is set.
 - "extraDetails" is a short (under 140 characters) plain-text note of anything else useful and legible on the plate that doesn't fit the fields above — e.g. install date, installer/company name, licence number. Return null if nothing else is legible.
 - Never fabricate a value for any field. If you're not confident, use null rather than guessing.`;
 
@@ -4287,7 +4289,7 @@ function populateFields(data, transcript) {
   // - "no moisture" from a note that doesn't mention leaks must not wipe a
   //   leak an earlier note recorded (the moisture cascade clears leaks);
   // - the system type only replaces a brand when the type itself changed.
-  const values = { ...data };
+  const values = upgradeRenamedChoices({ ...data });
   if (values.waterLeaks === 'YES' && values.moistureReadings !== 'YES') values.moistureReadings = 'YES';
   if (values.moistureReadings === 'NO' && !values.waterLeaks && reportData.waterLeaks === 'YES') delete values.moistureReadings;
   if (values.existingSystem !== undefined && values.existingSystem !== null && !hasIdentifiedSystem(String(values.existingSystem))) delete values.existingSystem;
@@ -4437,7 +4439,10 @@ const CHOICE_SETS = {
 const CHOICE_SET_BY_KEY = { borerActivity: 'borer', durableNoticePresent: 'wantyes', antCapSoldered: 'wantyes', hardLandscaping: 'neutral', softLandscaping: 'neutral' };
 // Choice labels that were renamed. Reports saved with the old label show
 // the new one when they are opened.
-const RENAMED_CHOICES = { height: { 'Three storey+': 'Multiple storey' } };
+const RENAMED_CHOICES = {
+  height: { 'Three storey+': 'Multiple storey' },
+  existingSystem: { 'Chemical soil barrier': 'Chemical Barrier' },
+};
 function upgradeRenamedChoices(rd) {
   Object.entries(RENAMED_CHOICES).forEach(([key, map]) => {
     if (rd && map[rd[key]]) rd[key] = map[rd[key]];
@@ -5155,6 +5160,7 @@ function startEdit(el, key, type) {
     existingsystem: [
       'Physical Barrier',
       'Chemical Reticulation System',
+      'Chemical Barrier',
       'Termite Baiting System',
       'Combination System — Physical + Chemical',
       'System Present — Type Unidentified',
@@ -5179,6 +5185,9 @@ function startEdit(el, key, type) {
     'Chemical Reticulation System': [
       'Termguard', 'Altis', 'TermX', 'TermStop', 'Camilleri', 'Cavtech', 'Reterm',
     ],
+    'Chemical Barrier': [
+      'Termidor', 'Altriset', 'Premise', 'Biflex',
+    ],
     'Termite Baiting System': [
       'Exterra', 'Sentricon', 'Trelona', 'Nemesis',
     ],
@@ -5190,6 +5199,7 @@ function startEdit(el, key, type) {
       'HomeGuard Blue', 'HomeGuard DPC', 'HomeGuard TMB', 'HomeGuard GT',
       'Kordon', 'Termseal', 'Smartfilm', 'Termimesh', 'Granitgard', 'Greenzone',
       'Termguard', 'Altis', 'TermX', 'TermStop', 'Camilleri', 'Cavtech',
+      'Termidor', 'Altriset', 'Premise', 'Biflex',
       'Exterra', 'Sentricon', 'Trelona', 'Nemesis',
     ],
   };
@@ -10364,7 +10374,7 @@ async function buildReportPdf() {
 
   // The termite management system, and whether it can still be inspected.
   subhead('TERMITE MANAGEMENT SYSTEM');
-  row('Existing System', reportData.existingSystem || 'None recorded');
+  row('Existing System', RENAMED_CHOICES.existingSystem[reportData.existingSystem] || reportData.existingSystem || 'None recorded');
   if (reportData.existingSystemOther) row('Specific System Name', reportData.existingSystemOther);
   row('Durable Notice Present (Meter Box)', reportData.durableNoticePresent, true);
   if (hasIdentifiedSystem(reportData.existingSystem)) {
