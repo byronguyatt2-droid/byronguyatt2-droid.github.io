@@ -4935,6 +4935,7 @@ function autoReveal(data) {
 function toggleEdit() {
   if (!editOn && isReportLocked()) { showToast('This job is complete and locked. Tap Amend to change it', 'info'); return; }
   editOn = !editOn;
+  document.body.classList.toggle('report-editing', editOn);
   const body = document.getElementById('reportBody');
   const btn = document.getElementById('editBtn');
   const banner = document.getElementById('editBanner');
