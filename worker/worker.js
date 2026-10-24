@@ -4,7 +4,14 @@
  * The API keys are stored as Cloudflare secrets and never exposed to the
  * browser or public repo. See worker/README.md for setup and deploy steps.
  *
- * CHANGES FROM v9.1 -> v9.2:
+ * CHANGES FROM v9.2 -> v9.3:
+ * - GET /weather?lat=..&lng=.. gives a signed-in user the weather at a
+ *   property from Google's Weather API: conditions, temperature, humidity
+ *   and the rain over the past 24 hours. Needs the GOOGLE_WEATHER_KEY
+ *   secret (a Google key limited to the Weather API); until it is set the
+ *   route answers 501 and the app leaves the weather for the inspector.
+ *
+ * CHANGES FROM v9.1 -> v9.2 (also in this version):
  * - Counts AI calls safely: a call now reserves its place in the monthly
  *   allowance before it runs, with a database update that only succeeds if
  *   nobody else changed the count first. Calls fired at the same moment can
@@ -238,7 +245,7 @@ export default {
     }
 
     const isStripeRoute = url.pathname.startsWith('/stripe/');
-    const isGetRoute = isStripeRoute || url.pathname === '/maps-key';
+    const isGetRoute = isStripeRoute || url.pathname === '/maps-key' || url.pathname === '/weather';
     if (request.method !== 'POST' && !(isGetRoute && request.method === 'GET')) {
       return new Response('Method not allowed', { status: 405 });
     }
@@ -266,6 +273,10 @@ export default {
     if (url.pathname === '/maps-key') {
       if (!env.GOOGLE_MAPS_KEY) return jsonResponse(501, { message: 'Address suggestions are not set up' }, origin);
       return jsonResponse(200, { key: env.GOOGLE_MAPS_KEY }, origin);
+    }
+
+    if (url.pathname === '/weather') {
+      return handleWeather(url, env, origin);
     }
 
     if (isStripeRoute) {
@@ -300,6 +311,44 @@ export default {
     return response;
   },
 };
+
+// The weather at a property right now, from Google's Weather API, cut down
+// to what the report records. The key is a server key, so it never leaves
+// the Worker.
+async function handleWeather(url, env, origin) {
+  if (!env.GOOGLE_WEATHER_KEY) return jsonResponse(501, { message: 'Weather is not set up' }, origin);
+  const lat = Number(url.searchParams.get('lat'));
+  const lng = Number(url.searchParams.get('lng'));
+  if (!url.searchParams.get('lat') || !url.searchParams.get('lng') || !Number.isFinite(lat) || !Number.isFinite(lng)
+      || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return jsonResponse(400, { message: 'The location is missing or not valid' }, origin);
+  }
+  const query = new URLSearchParams({
+    key: env.GOOGLE_WEATHER_KEY,
+    'location.latitude': lat.toFixed(4),
+    'location.longitude': lng.toFixed(4),
+    unitsSystem: 'METRIC',
+  });
+  let w = null;
+  try {
+    const res = await fetch('https://weather.googleapis.com/v1/currentConditions:lookup?' + query);
+    if (res.ok) w = await res.json();
+    else console.error('Weather lookup failed: HTTP ' + res.status);
+  } catch (err) {
+    console.error('Weather lookup failed: ' + (err && err.message ? err.message : String(err)));
+  }
+  if (!w || typeof w !== 'object') return jsonResponse(502, { message: 'The weather service could not be reached' }, origin);
+  const amount = qpf => (qpf && typeof qpf.quantity === 'number' ? qpf.quantity : null); // millimetres
+  const cond = w.weatherCondition || {};
+  return jsonResponse(200, {
+    type: typeof cond.type === 'string' ? cond.type : null,
+    description: cond.description && typeof cond.description.text === 'string' ? cond.description.text : null,
+    tempC: w.temperature && typeof w.temperature.degrees === 'number' ? w.temperature.degrees : null,
+    humidity: typeof w.relativeHumidity === 'number' ? w.relativeHumidity : null,
+    rain24h: amount(w.currentConditionsHistory && w.currentConditionsHistory.qpf),
+    at: typeof w.currentTime === 'string' ? w.currentTime : null,
+  }, origin);
+}
 
 function upstreamError(origin) {
   return jsonResponse(502, { error: { type: 'upstream_error', message: 'The AI service could not be reached. Try again' } }, origin);

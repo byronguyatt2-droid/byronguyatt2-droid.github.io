@@ -1591,7 +1591,7 @@ function lookupSpecies(raw) {
 }
 
 const SECTIONS = {
-  property:        { fields:['structureType','height','occupancyStatus','weatherConditions','wallConstruction','roofType','floorType','facadeDirection','constructionEra','standard'], total:10 },
+  property:        { fields:['structureType','height','occupancyStatus','weatherConditions','temperature','humidity','rainLast24h','wallConstruction','roofType','floorType','facadeDirection','constructionEra','standard'], total:13 },
   obstructions:    { fields:['areaStatus'], total:1 },
   restrictions:    { fields:['hinderedAreas','hinderedAreasDetail','noAccessAreas','highRiskAreas','invasiveInspection','invasiveInspectionDetails'], total:2 },
   findings:        { fields:['findings','borerActivity','decayFound','delignification','previousTreatment','previousTreatmentDetails'], total:4 },
@@ -1622,7 +1622,7 @@ THE ONE RULE: a field holds only what the inspector said or plainly meant. Never
 
 FIELDS (every one null unless the note gives it):
 {"propertyStreetAddress":string,"propertySuburb":string,"propertyState":"NSW"|"VIC"|"QLD"|"WA"|"SA"|"TAS"|"ACT"|"NT","propertyPostcode":string,"clientName":string,"inspectionType":"Annual — Existing Building"|"Pre-Purchase — Timber Pest"|"Pre-Purchase — Combined Building & Pest"|"New Construction — Completion"|"Treatment Follow-Up"|"Re-inspection"|"Insurance / Legal",
-"structureType":string,"height":string,"wallConstruction":string,"roofType":string,"floorType":string,"facadeDirection":string,"constructionEra":"Pre-1920s"|"1920s-1940s"|"1945-1965"|"1965-1985"|"1985-2003"|"Post-2003","occupancyStatus":string,"weatherConditions":string,
+"structureType":string,"height":string,"wallConstruction":string,"roofType":string,"floorType":string,"facadeDirection":string,"constructionEra":"Pre-1920s"|"1920s-1940s"|"1945-1965"|"1965-1985"|"1985-2003"|"Post-2003","occupancyStatus":string,"weatherConditions":string,"temperature":string,"humidity":string,"rainLast24h":string,
 "existingSystem":string,"existingSystemOther":string,"durableNoticePresent":"YES"|"NO","hardLandscaping":"YES"|"NO","zone25mmVisible":"YES"|"NO","softLandscaping":"YES"|"NO","zone75mmVisible":"YES"|"NO","antCapSoldered":"YES"|"NO"|"N/A",
 "areaStatus":{"interior"|"exterior"|"subfloor"|"roofvoid"|"outbuildings"|"site"|"fences"|"retainingwalls"|"landscapingtimbers":"INSPECTED"|"PARTIAL"|"NOT"|"NA"},"areaResult":{same area keys:"CLEAR"|"FOUND"},"obstructions":string,"restrictedAccess":string,"noAccessAreas":string,"highRiskAreas":string,"hinderedAreas":string,"hinderedAreasDetail":string,
 "findings":[{"termiteActivity":"ACTIVE"|"INACTIVE"|"NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES"|"NO","structuralConcern":"YES"|"NO"}],
@@ -1639,6 +1639,7 @@ DROPDOWN FIELDS: the app shows these as pick-lists. Return the list value EXACTL
 - facadeDirection: "North" | "North-east" | "East" | "South-east" | "South" | "South-west" | "West" | "North-west" (the direction the front of the building faces).
 - occupancyStatus: "Occupied — residential" | "Owner occupied" | "Tenanted" | "Vacant" | "Under renovation" | "Commercial / industrial". "Occupied" or "furnished" alone is "Occupied — residential".
 - weatherConditions: "Fine and dry" | "Overcast" | "Light rain" | "Heavy rain" | "Humid" | "Windy".
+- temperature, humidity, rainLast24h: only a reading the inspector states, written as "22°C", "70%" and "5 mm" (rainLast24h "None" when they say there was no rain). Never estimate one from the weather description.
 - constructionEra: only from a stated age, decade or year ("built in the 70s" is "1965-1985", "around 1998" is "1985-2003", "2005" is "Post-2003") or from an era-specific material the inspector names (fibro sheeting, asbestos). Never date a house from its wall, floor or roof type: the era prints an asbestos warning in the report, so a guessed era is a false fact.
 - existingSystem (the TYPE of termite management system found): "Physical Barrier" | "Chemical Reticulation System" | "Termite Baiting System" | "Chemical Barrier" | "Combination System — Physical + Chemical" | "System Present — Type Unidentified". A chemical soil treatment or chemical barrier with no reticulation pipes mentioned (e.g. Termidor sprayed around the perimeter) is "Chemical Barrier". Only when a system is actually present; when the inspector says there is no system, no barrier or nothing installed, leave it null (never "No", "None", "Nil").
 - existingSystemOther: the brand, product or chemical the system is recorded as (HomeGuard Blue, Kordon, Termimesh, Exterra, Sentricon, Termidor, Altriset ...), plus the install year if read from the notice. Only when the inspector names it.
@@ -6531,7 +6532,7 @@ async function lookupAddresses(query) {
 // The picked suggestion's street, suburb, state and postcode.
 async function addressParts(prediction) {
   const place = prediction.toPlace();
-  await place.fetchFields({ fields: ['addressComponents'] });
+  await place.fetchFields({ fields: ['addressComponents', 'location'] });
   addressSessionToken = null; // a pick ends the billing session
   const part = (type, short) => {
     const c = (place.addressComponents || []).find(x => (x.types || []).includes(type));
@@ -6544,6 +6545,7 @@ async function addressParts(prediction) {
     suburb: part('locality') || part('sublocality') || part('postal_town'),
     state: auStateCode(part('administrative_area_level_1', true)),
     postcode: part('postal_code', true),
+    location: place.location ? { lat: place.location.lat(), lng: place.location.lng() } : null,
   };
 }
 
@@ -6551,6 +6553,7 @@ let addressSuggestTimer = null;
 let addressSuggestions = [];
 function onAddressTyped(value) {
   clearTimeout(addressSuggestTimer);
+  delete reportData.siteLocation; // a typed address has no map point
   const q = String(value || '').trim();
   if (q.length < 4 || !navigator.onLine) { hideAddressSuggestions(); return; }
   addressSuggestTimer = setTimeout(async () => {
@@ -6594,7 +6597,74 @@ async function pickAddressSuggestion(i) {
   set('jobSuburb', a.suburb);
   set('jobState', a.state);
   set('jobPostcode', a.postcode);
+  if (a.location) reportData.siteLocation = a.location;
   updateJob();
+  if (a.location && inspectionIsToday()) fillWeather({ quiet: true });
+}
+
+// ── WEATHER ON THE DAY ───────────────────────────────────────────────────
+// Temperature, humidity and the last 24 hours of rain at the property, from
+// the Worker's /weather route (Google's Weather API). Picking the address on
+// the day of the inspection fills the empty ones quietly; "Fill from today's
+// weather" fills them all, from the picked address or else the phone's
+// location. The inspector can still edit every value.
+function inspectionIsToday() {
+  const d = (document.getElementById('jobInspectionDate') || {}).value || reportData.jobInspectionDate;
+  return !d || d === todayIsoDate();
+}
+
+// Google's condition type as one of the report's Weather Conditions choices.
+function weatherConditionsFrom(type) {
+  const t = String(type || '');
+  if (!t) return null;
+  if (/HEAVY|THUNDER|^RAIN$|WIND_AND_RAIN/.test(t)) return 'Heavy rain';
+  if (/RAIN|SHOWER|DRIZZLE/.test(t)) return 'Light rain';
+  if (/WIND/.test(t)) return 'Windy';
+  if (/CLEAR|PARTLY_CLOUDY/.test(t)) return 'Fine and dry';
+  if (/CLOUDY/.test(t)) return 'Overcast';
+  return null;
+}
+
+function phoneLocation() {
+  if (!navigator.geolocation) return Promise.resolve(null);
+  return new Promise(resolve => navigator.geolocation.getCurrentPosition(
+    p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+    () => resolve(null),
+    { timeout: 10000, maximumAge: 600000 }));
+}
+
+// quiet: the automatic fill after an address pick. It fills only empty
+// fields, never asks for the phone's location and shows no messages.
+async function fillWeather({ quiet = false } = {}) {
+  const btn = document.getElementById('weatherFillBtn');
+  const say = (msg, kind) => { if (!quiet) showToast(msg, kind); };
+  if (btn) { btn.disabled = true; btn.textContent = 'Getting the weather…'; }
+  try {
+    const loc = reportData.siteLocation || (quiet ? null : await phoneLocation());
+    if (!loc) { say('Pick the address from the list, or allow location, to get the weather', 'info'); return; }
+    const res = await workerFetch(`/weather?lat=${loc.lat.toFixed(4)}&lng=${loc.lng.toFixed(4)}`, { method: 'GET' });
+    if (res.status === 501) { say("Weather isn't set up yet, so enter it by hand", 'info'); return; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const w = await res.json();
+    const set = (key, val, always) => {
+      if (val === null || val === undefined || (reportData[key] && !always)) return;
+      reportData[key] = val;
+      const el = document.getElementById('f-' + key);
+      if (el) renderField(el, key, val);
+    };
+    const num = n => typeof n === 'number' && Number.isFinite(n);
+    set('weatherConditions', weatherConditionsFrom(w.type), false);
+    set('temperature', num(w.tempC) ? Math.round(w.tempC) + '°C' : null, !quiet);
+    set('humidity', num(w.humidity) ? Math.round(w.humidity) + '%' : null, !quiet);
+    set('rainLast24h', num(w.rain24h) ? (w.rain24h > 0 ? Math.round(w.rain24h * 10) / 10 + ' mm' : 'None') : null, !quiet);
+    updateProgress();
+    saveDraft();
+    say('Weather filled in. Tap a value in edit mode to change it', 'success');
+  } catch (e) {
+    say("Couldn't get the weather, so enter it by hand", 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Fill from today's weather"; }
+  }
 }
 
 // ── APPLICABLE STANDARD ──────────────────────────────────────────────────
@@ -10232,7 +10302,7 @@ async function buildReportPdf() {
   // ── NOTES BLOCK ───────────────────────────────────────────────────────────
   const FIELD_LABELS = {
     structureType:'Structure Type', wallConstruction:'Wall Construction', floorType:'Floor Type', roofType:'Roof Type',
-    height:'Height', facadeDirection:'Orientation', occupancyStatus:'Occupancy Status', weatherConditions:'Weather Conditions',
+    height:'Height', facadeDirection:'Orientation', occupancyStatus:'Occupancy Status', weatherConditions:'Weather Conditions', temperature:'Temperature', humidity:'Humidity', rainLast24h:'Rain in the Last 24 Hours',
     constructionEra:'Year / Period of Construction', standard:'Applicable Standard',
     hinderedAreas:'Hindered Access: Where', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'What Hindered Access', noAccessAreas:'Restricted Access: Where & Why', highRiskAreas:'High Risk Areas',
     previousTreatment:'Evidence of Previous Treatment', previousTreatmentDetails:'Previous Treatment: What & Where', siteDrainage:'Site Drainage', subfloorDrainage:'Subfloor Drainage',
@@ -10412,6 +10482,9 @@ async function buildReportPdf() {
   row('Inspection Date', inspectionDate);
   row('Inspection Time', inspectionTime);
   row('Weather Conditions', reportData.weatherConditions);
+  row('Temperature', reportData.temperature);
+  row('Humidity', reportData.humidity);
+  row('Rain in the Last 24 Hours', reportData.rainLast24h);
   row('Inspection Type', inspType);
   row('Applicable Standard', standardLabel);
   row('Order / Job ID', orderId);
