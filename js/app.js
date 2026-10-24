@@ -990,27 +990,28 @@ function renderAccessSummary() {
 // an empty list can be printed as "None".
 function accessLimits() {
   const hindered = [], restricted = [];
+  const detail = isBlankValue(reportData.hinderedAreasDetail) || reportData.hinderedAreas === 'NO' ? '' : reportData.hinderedAreasDetail;
   const hZones = accessZones('hindered'), rZones = accessZones('restricted');
   const where = (kind, z, zones) => { const s = accessSpot(kind, z, zones); return s ? `. Where: ${s.charAt(0).toUpperCase()}${s.slice(1)}` : ''; };
   Object.entries(OBS_ZONES).forEach(([z, zone]) => {
     const st = areaStatusOf(z);
     if (!['PARTIAL', 'NOT'].includes(st)) return;
     const items = (reportData.areaReasons || {})[z] || [];
-    const status = st === 'NOT' ? 'Not inspected' : 'Inspected';
+    const status = st === 'NOT' ? 'Not inspected' : 'Partly inspected';
     const h = items.filter(i => !RESTRICTED_REASONS.has(i)), r = items.filter(i => RESTRICTED_REASONS.has(i));
     if (h.length) hindered.push([zone.label, `${status}, obstructed by ${h.join(', ').toLowerCase()}${where('hindered', z, hZones)}`]);
     if (r.length) restricted.push([zone.label, `${st === 'NOT' ? 'Not inspected:' : 'Inspected, restricted by'} ${r.join(', ').toLowerCase()}${where('restricted', z, rZones)}`]);
-    if (!items.length) hindered.push([zone.label, `${status}, reason not recorded${where('hindered', z, hZones)}`]);
+    if (!items.length) hindered.push([zone.label, `${status}${detail ? '' : ', reason not recorded'}${where('hindered', z, hZones)}`]);
   });
   // Spots tied to no listed area follow the area rows. With no area rows
   // at all (older reports), the inspector's words print as they were, with
   // 'What hindered it'.
   const areaRows = hindered.length;
   const hOther = accessSpot('hindered', '_other', hZones), rOther = accessSpot('restricted', '_other', rZones);
-  if (hOther) {
-    hindered.push([areaRows ? 'Other spots' : 'Where', hOther]);
-    if (!areaRows && !isBlankValue(reportData.hinderedAreasDetail)) hindered.push(['What obstructed it', reportData.hinderedAreasDetail]);
-  }
+  if (hOther) hindered.push([areaRows ? 'Other spots' : 'Where', hOther]);
+  // The inspector's own words about what was in the way always print, so a
+  // dictated reason isn't lost behind the per-area rows.
+  if (detail && !hinderedTextIsNil()) hindered.push(['What obstructed it', detail]);
   if (rOther) restricted.push([restricted.length ? 'Other spots' : 'Where and why', rOther]);
   const limited = areasNotFullyInspected();
   const highRisk = !isBlankValue(reportData.highRiskAreas) ? reportData.highRiskAreas
@@ -4325,6 +4326,14 @@ function populateFields(data, transcript) {
   const entries = Object.entries(values)
     .filter(([key, val]) => !skip.has(key) && val !== null && val !== undefined && document.getElementById('f-' + key))
     .sort((a, b) => rank(a[0]) - rank(b[0]));
+
+  // What hindered access has no field on screen of its own; it's kept for
+  // the PDF, which prints it with the obstructed areas (accessLimits).
+  if (typeof values.hinderedAreasDetail === 'string' && values.hinderedAreasDetail.trim()) {
+    const prev = isBlankValue(reportData.hinderedAreasDetail) ? '' : String(reportData.hinderedAreasDetail);
+    const add = values.hinderedAreasDetail.trim();
+    reportData.hinderedAreasDetail = !prev || prev.toLowerCase().includes(add.toLowerCase()) ? (prev || add) : prev.replace(/[.;,\s]+$/, '') + '; ' + add;
+  }
 
   entries.forEach(([key, rawVal], i) => {
     const el = document.getElementById('f-' + key);
@@ -9360,8 +9369,8 @@ function reportSummary() {
         { YES: 'bad', NO: 'good' }[reportData.treatmentRecommended] || 'none', REPORT_PARTS.recommendations, reportData.treatmentType || ''],
       ['Risk of termite attack', reportData.riskLevel || NR, { HIGH: 'bad', MEDIUM: 'warn', LOW: 'good' }[reportData.riskLevel] || 'none', REPORT_PARTS.recommendations,
         reportData.riskLevel && basis.length ? `Based on ${basis.join(', ')}` : ''],
-      ['Next inspection', reportData.inspectionFrequency ? String(reportData.inspectionFrequency).split(/[,;]/)[0].trim().toUpperCase() : 'WITHIN 12 MONTHS', 'none', REPORT_PARTS.recommendations,
-        reportData.inspectionFrequency && /[,;]/.test(reportData.inspectionFrequency) ? reportData.inspectionFrequency : ''],
+      ['Next inspection', nextInspectionChip(reportData.inspectionFrequency), 'none', REPORT_PARTS.recommendations,
+        reportData.inspectionFrequency && nextInspectionChip(reportData.inspectionFrequency) !== String(reportData.inspectionFrequency).trim().toUpperCase() ? reportData.inspectionFrequency : ''],
     ] },
   ];
   // Areas the inspector couldn't fully see, and why.
@@ -9927,6 +9936,16 @@ function generateReport() {
   }, 50);
 }
 
+// The summary's Next inspection answer in a few words ("6 MONTHS"); the
+// inspector's full wording prints under the question.
+function nextInspectionChip(freq) {
+  const f = String(freq || '').trim();
+  if (!f) return 'WITHIN 12 MONTHS';
+  const m = f.match(/(\d+)\s*(month|week|year)s?/i);
+  if (m) return `${m[1]} ${m[2].toUpperCase()}${m[1] === '1' ? '' : 'S'}`;
+  return f.split(/[,;]/)[0].trim().toUpperCase();
+}
+
 // ── SHARED PDF PIECES ── used by the inspection report and the quote PDF
 // (js/quote.js) so both documents carry the same brand.
 const PDF_COLORS = {
@@ -10235,7 +10254,7 @@ async function buildReportPdf() {
 
     // Value — colour-coded
     if (isEmpty) {
-      doc.setTextColor(...C.rule); doc.setFont('helvetica','italic');
+      doc.setTextColor(...C.inkMuted); doc.setFont('helvetica','italic');
     } else if (invert && (v === 'YES' || v === 'NO')) {
       doc.setTextColor(...(v === 'NO' ? C.danger : C.safe)); doc.setFont('helvetica','bold');
     } else if (['YES','HIGH','OBSTRUCTED','BRIDGED','ACTIVE'].includes(v)) {
@@ -10284,9 +10303,9 @@ async function buildReportPdf() {
   function subhead(label) {
     if (y > 250) newPage();
     y += 3;
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text(label, M, y); y += 2.5;
-    doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 5;
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.accentDark);
+    doc.text(label, M, y); y += 2.2;
+    doc.setFillColor(...C.accentLight); doc.rect(M, y, CW, 0.5, 'F'); y += 1.5;
     _rowShade = false;
   }
 
@@ -10303,12 +10322,12 @@ async function buildReportPdf() {
 
   // ── DISCLAIMER ────────────────────────────────────────────────────────────
   function disclaimer(text) {
-    doc.setFont('helvetica','italic'); doc.setFontSize(7.5); doc.setTextColor(...C.inkMuted);
+    doc.setFont('helvetica','italic'); doc.setFontSize(7.8); doc.setTextColor(...C.inkLight);
     const lines = doc.splitTextToSize(text, CW - 6);
     const blockH = lines.length * 4 + 3;
     if (y + blockH > 280) newPage();
     // Subtle left bar
-    doc.setFillColor(...C.ruleLight); doc.rect(M, y, 1.5, blockH, 'F');
+    doc.setFillColor(...C.accentLight); doc.rect(M, y, 1.5, blockH, 'F');
     doc.text(lines, M+4, y+3); y += blockH + 2;
     doc.setFont('helvetica','normal');
   }
@@ -10680,9 +10699,9 @@ async function buildReportPdf() {
 
     if (next.length) {
       if (y + 14 > 270) newPage();
-      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-      doc.text('WHAT TO DO NEXT', M, y); y += 2.5;
-      doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 5;
+      doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.accentDark);
+      doc.text('WHAT TO DO NEXT', M, y); y += 2.2;
+      doc.setFillColor(...C.accentLight); doc.rect(M, y, CW, 0.5, 'F'); y += 5;
       next.forEach((item, i) => {
         const lines = doc.splitTextToSize(item, CW - 8);
         if (y + lines.length * 4.3 > 276) newPage();
@@ -10772,8 +10791,10 @@ async function buildReportPdf() {
     // An area the property doesn't have isn't listed.
     if (!st || st === 'NA') return;
     const result = areaResultOf(zoneId);
-    const ev = result === 'FOUND' ? areaEvidence(zoneId) : [];
-    const resultText = !result ? 'Result not recorded'
+    // With no result marked, evidence recorded elsewhere that names the area
+    // still prints, rather than "not recorded" over a finding in it.
+    const ev = result === 'FOUND' || !result ? areaEvidence(zoneId) : [];
+    const resultText = !result && !ev.length ? 'Result not recorded'
       : ev.length ? `Timber pest evidence found, see ${ev.join('; ')}` : AREA_RESULT_TEXT[result];
     row(zone.label, AREA_STATUS_TEXT[st] + (areaWasEntered(zoneId) ? `. ${resultText}.` : ''));
   });
