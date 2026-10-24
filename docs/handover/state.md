@@ -20,10 +20,10 @@ As of 2026-10-05, about 10:50 UTC. Written for a model starting with no context.
 | Part | State |
 |---|---|
 | App (GitHub Pages, `live` branch) | `korva-v51`, go-live PR #73. https://sayon-app.github.io (until 2026-10-22: https://byronguyatt2-droid.github.io) |
-| Worker `korva` (Cloudflare) | v8.1 = v8 Stripe billing + `MAX_TOKENS_CEILING` 16000 + passes `output_config.effort` (`low`/`medium`/`high`) through. Confirmed live 2026-10-05 |
-| `worker/worker.js` (main and live) | v9 = v8.1 + `POST /send-email` through Resend. Same file as `/mnt/project-files/worker/korva-worker-v9.js`. Pages only serves it as a file; nothing runs it. Not on Cloudflare yet (section 4, item 4) |
+| Worker `korva` (Cloudflare) | v9.2, the same file as `worker/worker.js`: AI-call reservations, `/send-email` with a daily limit, and `GET /maps-key` for address suggestions. Pasted by baz and confirmed identical 2026-10-24. Secrets still to add: `RESEND_API_KEY` + `MAIL_FROM` (email) and `GOOGLE_MAPS_KEY` (address suggestions); each route answers 501 until its secret is set |
+| `worker/worker.js` (main) | Same as the live Worker (v9.2). Pages only serves it as a file; nothing runs it from there |
 | AI model | `claude-sonnet-5` only; the Worker's `ALLOWED_MODEL` forces it. `model` plus `output_config: { effort }` is the working request shape, confirmed live 2026-10-05. Don't "correct" the model id or the parameter shape from memory: check the API docs and test through the Worker first |
-| Supabase | `report-photos.sql`, `business-settings.sql`, `delete-account.sql` applied. The base tables (`businesses`, `reports`, `subscriptions`, `team_members`, plus `invites` and `jobs` left from cut features) were made in the dashboard and have no SQL in the repo: read them with `list_tables` before touching sync, billing or delete. `delete_my_account` still writes to `invites` and `jobs`, so don't drop them |
+| Supabase | `report-photos.sql`, `business-settings.sql`, `delete-account.sql`, `email-daily-limit.sql` (2026-10-24) applied. The base tables (`businesses`, `reports`, `subscriptions`, `team_members`, plus `invites` and `jobs` left from cut features) were made in the dashboard and have no SQL in the repo: read them with `list_tables` before touching sync, billing or delete. `delete_my_account` still writes to `invites` and `jobs`, so don't drop them |
 | Stripe | Test mode (sandbox) only |
 
 **The job chain today**
