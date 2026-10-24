@@ -2829,6 +2829,15 @@ function clearTranscriptPlaceholderIfNeeded(el) {
   if (!el.classList.contains('active')) el.textContent = '';
 }
 
+// Paste as plain text: a copy from a web page or document would otherwise
+// bring its font and highlight into the box.
+function onTranscriptPaste(e) {
+  const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+  if (!text) return;
+  e.preventDefault();
+  document.execCommand('insertText', false, text);
+}
+
 function onTranscriptEdited(el) {
   currentTranscript = el.textContent;
   const hasText = currentTranscript.trim().length > 0;
