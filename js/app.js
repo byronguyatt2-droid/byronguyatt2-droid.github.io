@@ -1591,7 +1591,7 @@ function lookupSpecies(raw) {
 }
 
 const SECTIONS = {
-  property:        { fields:['structureType','height','occupancyStatus','weatherConditions','wallConstruction','roofType','floorType','facadeDirection','constructionEra','standard'], total:10 },
+  property:        { fields:['structureType','height','occupancyStatus','weatherConditions','temperature','humidity','rainLast24h','wallConstruction','roofType','floorType','facadeDirection','constructionEra','standard'], total:13 },
   obstructions:    { fields:['areaStatus'], total:1 },
   restrictions:    { fields:['hinderedAreas','hinderedAreasDetail','noAccessAreas','highRiskAreas','invasiveInspection','invasiveInspectionDetails'], total:2 },
   findings:        { fields:['findings','borerActivity','decayFound','delignification','previousTreatment','previousTreatmentDetails'], total:4 },
@@ -1622,7 +1622,7 @@ THE ONE RULE: a field holds only what the inspector said or plainly meant. Never
 
 FIELDS (every one null unless the note gives it):
 {"propertyStreetAddress":string,"propertySuburb":string,"propertyState":"NSW"|"VIC"|"QLD"|"WA"|"SA"|"TAS"|"ACT"|"NT","propertyPostcode":string,"clientName":string,"inspectionType":"Annual — Existing Building"|"Pre-Purchase — Timber Pest"|"Pre-Purchase — Combined Building & Pest"|"New Construction — Completion"|"Treatment Follow-Up"|"Re-inspection"|"Insurance / Legal",
-"structureType":string,"height":string,"wallConstruction":string,"roofType":string,"floorType":string,"facadeDirection":string,"constructionEra":"Pre-1920s"|"1920s-1940s"|"1945-1965"|"1965-1985"|"1985-2003"|"Post-2003","occupancyStatus":string,"weatherConditions":string,
+"structureType":string,"height":string,"wallConstruction":string,"roofType":string,"floorType":string,"facadeDirection":string,"constructionEra":"Pre-1920s"|"1920s-1940s"|"1945-1965"|"1965-1985"|"1985-2003"|"Post-2003","occupancyStatus":string,"weatherConditions":string,"temperature":string,"humidity":string,"rainLast24h":string,
 "existingSystem":string,"existingSystemOther":string,"durableNoticePresent":"YES"|"NO","hardLandscaping":"YES"|"NO","zone25mmVisible":"YES"|"NO","softLandscaping":"YES"|"NO","zone75mmVisible":"YES"|"NO","antCapSoldered":"YES"|"NO"|"N/A",
 "areaStatus":{"interior"|"exterior"|"subfloor"|"roofvoid"|"outbuildings"|"site"|"fences"|"retainingwalls"|"landscapingtimbers":"INSPECTED"|"PARTIAL"|"NOT"|"NA"},"areaResult":{same area keys:"CLEAR"|"FOUND"},"obstructions":string,"restrictedAccess":string,"noAccessAreas":string,"highRiskAreas":string,"hinderedAreas":string,"hinderedAreasDetail":string,
 "findings":[{"termiteActivity":"ACTIVE"|"INACTIVE"|"NONE","species":string,"damageDescription":string,"activityLocation":string,"nestLocated":"YES"|"NO","structuralConcern":"YES"|"NO"}],
@@ -1639,6 +1639,7 @@ DROPDOWN FIELDS: the app shows these as pick-lists. Return the list value EXACTL
 - facadeDirection: "North" | "North-east" | "East" | "South-east" | "South" | "South-west" | "West" | "North-west" (the direction the front of the building faces).
 - occupancyStatus: "Occupied — residential" | "Owner occupied" | "Tenanted" | "Vacant" | "Under renovation" | "Commercial / industrial". "Occupied" or "furnished" alone is "Occupied — residential".
 - weatherConditions: "Fine and dry" | "Overcast" | "Light rain" | "Heavy rain" | "Humid" | "Windy".
+- temperature, humidity, rainLast24h: only a reading the inspector states, written as "22°C", "70%" and "5 mm" (rainLast24h "None" when they say there was no rain). Never estimate one from the weather description.
 - constructionEra: only from a stated age, decade or year ("built in the 70s" is "1965-1985", "around 1998" is "1985-2003", "2005" is "Post-2003") or from an era-specific material the inspector names (fibro sheeting, asbestos). Never date a house from its wall, floor or roof type: the era prints an asbestos warning in the report, so a guessed era is a false fact.
 - existingSystem (the TYPE of termite management system found): "Physical Barrier" | "Chemical Reticulation System" | "Termite Baiting System" | "Chemical Barrier" | "Combination System — Physical + Chemical" | "System Present — Type Unidentified". A chemical soil treatment or chemical barrier with no reticulation pipes mentioned (e.g. Termidor sprayed around the perimeter) is "Chemical Barrier". Only when a system is actually present; when the inspector says there is no system, no barrier or nothing installed, leave it null (never "No", "None", "Nil").
 - existingSystemOther: the brand, product or chemical the system is recorded as (HomeGuard Blue, Kordon, Termimesh, Exterra, Sentricon, Termidor, Altriset ...), plus the install year if read from the notice. Only when the inspector names it.
@@ -6468,6 +6469,204 @@ function updateJob() {
   saveDraft();
 }
 
+// ── ADDRESS SUGGESTIONS ──────────────────────────────────────────────────
+// As the street address is typed, real addresses are listed under it; tapping
+// one fills street, suburb, state and postcode. lookupAddresses() is the only
+// part that talks to an address service. Offline or on any error the list
+// just stays empty and the fields work as plain text boxes.
+const AU_STATES = { 'new south wales': 'NSW', 'victoria': 'VIC', 'queensland': 'QLD', 'western australia': 'WA',
+  'south australia': 'SA', 'tasmania': 'TAS', 'australian capital territory': 'ACT', 'northern territory': 'NT' };
+function auStateCode(name) {
+  const n = String(name || '').trim();
+  return AU_STATES[n.toLowerCase()] || (Object.values(AU_STATES).includes(n.toUpperCase()) ? n.toUpperCase() : '');
+}
+
+// Google Places, through the Maps JavaScript API. The key comes from the
+// Worker's GOOGLE_MAPS_KEY secret, which keeps it out of this public repo; it
+// only works from the SAYON site addresses set on it in Google Cloud (HTTP
+// referrer restriction), and only for Maps JavaScript and Places. Until the
+// secret is set there are no suggestions and the boxes work as plain text.
+let googleMapsKey = null; // a promise of the key, '' when there is none
+function getGoogleMapsKey() {
+  if (!googleMapsKey) {
+    googleMapsKey = workerFetch('/maps-key', { method: 'GET' }).then(async res => {
+      if (res.ok) return (await res.json()).key || '';
+      if (![404, 405, 501].includes(res.status)) googleMapsKey = null; // ask again later
+      return '';
+    }).catch(() => { googleMapsKey = null; return ''; });
+  }
+  return googleMapsKey;
+}
+let googlePlacesLib = null;
+let addressSessionToken = null;
+function loadGooglePlaces(key) {
+  if (googlePlacesLib) return googlePlacesLib;
+  googlePlacesLib = new Promise((resolve, reject) => {
+    window.__sayonMapsReady = () => resolve();
+    const sc = document.createElement('script');
+    sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key)
+      + '&loading=async&callback=__sayonMapsReady';
+    sc.async = true;
+    sc.onerror = () => { googlePlacesLib = null; reject(new Error('Maps did not load')); };
+    document.head.appendChild(sc);
+  }).then(() => google.maps.importLibrary('places'));
+  return googlePlacesLib;
+}
+
+// Resolves [{ label, area, prediction }] for the typed text.
+async function lookupAddresses(query) {
+  const key = await getGoogleMapsKey();
+  if (!key) return [];
+  const places = await loadGooglePlaces(key);
+  if (!addressSessionToken) addressSessionToken = new places.AutocompleteSessionToken();
+  const { suggestions } = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+    input: query, includedRegionCodes: ['au'], sessionToken: addressSessionToken,
+  });
+  return (suggestions || []).map(s => s.placePrediction).filter(Boolean).map(p => ({
+    label: p.mainText ? p.mainText.text : p.text.text,
+    area: p.secondaryText ? p.secondaryText.text : '',
+    prediction: p,
+  }));
+}
+
+// The picked suggestion's street, suburb, state and postcode.
+async function addressParts(prediction) {
+  const place = prediction.toPlace();
+  await place.fetchFields({ fields: ['addressComponents', 'location'] });
+  addressSessionToken = null; // a pick ends the billing session
+  const part = (type, short) => {
+    const c = (place.addressComponents || []).find(x => (x.types || []).includes(type));
+    return c ? (short ? c.shortText : c.longText) : '';
+  };
+  const unit = part('subpremise', true);
+  const number = part('street_number', true);
+  return {
+    street: [unit && number ? unit + '/' + number : number, part('route')].filter(Boolean).join(' '),
+    suburb: part('locality') || part('sublocality') || part('postal_town'),
+    state: auStateCode(part('administrative_area_level_1', true)),
+    postcode: part('postal_code', true),
+    location: place.location ? { lat: place.location.lat(), lng: place.location.lng() } : null,
+  };
+}
+
+let addressSuggestTimer = null;
+let addressSuggestions = [];
+function onAddressTyped(value) {
+  clearTimeout(addressSuggestTimer);
+  delete reportData.siteLocation; // a typed address has no map point
+  const q = String(value || '').trim();
+  if (q.length < 4 || !navigator.onLine) { hideAddressSuggestions(); return; }
+  addressSuggestTimer = setTimeout(async () => {
+    try {
+      const list = await lookupAddresses(q);
+      if (document.getElementById('jobAddress').value.trim() !== q) return; // typed on since
+      showAddressSuggestions(list);
+    } catch (e) {
+      hideAddressSuggestions();
+    }
+  }, 300);
+}
+
+function showAddressSuggestions(list) {
+  const box = document.getElementById('addrSuggest');
+  if (!box) return;
+  addressSuggestions = list;
+  if (!list.length) { hideAddressSuggestions(); return; }
+  box.innerHTML = list.map((a, i) => `<button type="button" class="addr-suggest-item" role="option"
+      onmousedown="event.preventDefault()" onclick="pickAddressSuggestion(${i})">
+      <span class="addr-suggest-street">${escapeHtml(a.label)}</span>
+      <span class="addr-suggest-area">${escapeHtml(a.area)}</span>
+    </button>`).join('') + '<div class="addr-suggest-credit">Powered by Google</div>';
+  box.classList.add('open');
+}
+
+function hideAddressSuggestions() {
+  const box = document.getElementById('addrSuggest');
+  if (box) { box.classList.remove('open'); box.innerHTML = ''; }
+}
+
+async function pickAddressSuggestion(i) {
+  const pick = addressSuggestions[i];
+  hideAddressSuggestions();
+  if (!pick) return;
+  let a;
+  try { a = await addressParts(pick.prediction); }
+  catch (e) { showToast('Could not fetch that address, type it in instead', 'error'); return; }
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  set('jobAddress', a.street);
+  set('jobSuburb', a.suburb);
+  set('jobState', a.state);
+  set('jobPostcode', a.postcode);
+  if (a.location) reportData.siteLocation = a.location;
+  updateJob();
+  if (a.location && inspectionIsToday()) fillWeather({ quiet: true });
+}
+
+// ── WEATHER ON THE DAY ───────────────────────────────────────────────────
+// Temperature, humidity and the last 24 hours of rain at the property, from
+// the Worker's /weather route (Google's Weather API). Picking the address on
+// the day of the inspection fills the empty ones quietly; "Fill from today's
+// weather" fills them all, from the picked address or else the phone's
+// location. The inspector can still edit every value.
+function inspectionIsToday() {
+  const d = (document.getElementById('jobInspectionDate') || {}).value || reportData.jobInspectionDate;
+  return !d || d === todayIsoDate();
+}
+
+// Google's condition type as one of the report's Weather Conditions choices.
+function weatherConditionsFrom(type) {
+  const t = String(type || '');
+  if (!t) return null;
+  if (/HEAVY|THUNDER|^RAIN$|WIND_AND_RAIN/.test(t)) return 'Heavy rain';
+  if (/RAIN|SHOWER|DRIZZLE/.test(t)) return 'Light rain';
+  if (/WIND/.test(t)) return 'Windy';
+  if (/CLEAR|PARTLY_CLOUDY/.test(t)) return 'Fine and dry';
+  if (/CLOUDY/.test(t)) return 'Overcast';
+  return null;
+}
+
+function phoneLocation() {
+  if (!navigator.geolocation) return Promise.resolve(null);
+  return new Promise(resolve => navigator.geolocation.getCurrentPosition(
+    p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+    () => resolve(null),
+    { timeout: 10000, maximumAge: 600000 }));
+}
+
+// quiet: the automatic fill after an address pick. It fills only empty
+// fields, never asks for the phone's location and shows no messages.
+async function fillWeather({ quiet = false } = {}) {
+  const btn = document.getElementById('weatherFillBtn');
+  const say = (msg, kind) => { if (!quiet) showToast(msg, kind); };
+  if (btn) { btn.disabled = true; btn.textContent = 'Getting the weather…'; }
+  try {
+    const loc = reportData.siteLocation || (quiet ? null : await phoneLocation());
+    if (!loc) { say('Pick the address from the list, or allow location, to get the weather', 'info'); return; }
+    const res = await workerFetch(`/weather?lat=${loc.lat.toFixed(4)}&lng=${loc.lng.toFixed(4)}`, { method: 'GET' });
+    if (res.status === 501) { say("Weather isn't set up yet, so enter it by hand", 'info'); return; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const w = await res.json();
+    const set = (key, val, always) => {
+      if (val === null || val === undefined || (reportData[key] && !always)) return;
+      reportData[key] = val;
+      const el = document.getElementById('f-' + key);
+      if (el) renderField(el, key, val);
+    };
+    const num = n => typeof n === 'number' && Number.isFinite(n);
+    set('weatherConditions', weatherConditionsFrom(w.type), false);
+    set('temperature', num(w.tempC) ? Math.round(w.tempC) + '°C' : null, !quiet);
+    set('humidity', num(w.humidity) ? Math.round(w.humidity) + '%' : null, !quiet);
+    set('rainLast24h', num(w.rain24h) ? (w.rain24h > 0 ? Math.round(w.rain24h * 10) / 10 + ' mm' : 'None') : null, !quiet);
+    updateProgress();
+    saveDraft();
+    say('Weather filled in. Tap a value in edit mode to change it', 'success');
+  } catch (e) {
+    say("Couldn't get the weather, so enter it by hand", 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Fill from today's weather"; }
+  }
+}
+
 // ── APPLICABLE STANDARD ──────────────────────────────────────────────────
 // (updateStandard() removed — dead code, no #standardSelect element exists
 // and nothing called it; setStandard() below is the real active path)
@@ -9634,6 +9833,22 @@ function pdfTracked(doc, text, x, y, { cs = 0.35, align } = {}) {
   return w;
 }
 
+// A rule that runs from teal through mint and fades into the page, like the
+// lines on the app's section headers. jsPDF has no gradients, so it is drawn
+// as thin steps. wash: a pale teal band that fades straight into the page.
+function drawPdfFadeRule(doc, x, y, w, h, { wash = false } = {}) {
+  const white = [255, 255, 255];
+  const from = wash ? [228, 245, 242] : PDF_COLORS.accent;
+  const mid = wash ? [240, 250, 248] : [94, 234, 212];
+  const steps = Math.max(12, Math.round(w / 1.5)), sw = w / steps;
+  const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  for (let i = 0; i < steps; i++) {
+    const t = i / (steps - 1);
+    doc.setFillColor(...(t < 0.45 ? mix(from, mid, t / 0.45) : mix(mid, white, (t - 0.45) / 0.55)));
+    doc.rect(x + i * sw, y, sw + 0.05, h, 'F');
+  }
+}
+
 // The business's mark: the uploaded logo, else its initials (or S for
 // SAYON) in a teal tile. size is the square it fits in, in mm.
 function drawPdfCompanyMark(doc, company, x = 15, y = 12, size = 17) {
@@ -9663,7 +9878,7 @@ function drawPdfCompanyMark(doc, company, x = 15, y = 12, size = 17) {
 function drawPdfLetterhead(doc, company, { docLabel, date }) {
   const C = PDF_COLORS;
   const W = 210, M = 15;
-  doc.setFillColor(...C.accent); doc.rect(0, 0, W, 1.6, 'F');
+  drawPdfFadeRule(doc, 0, 0, W, 1.6);
   const markW = drawPdfCompanyMark(doc, company, M, 11, 17);
   const tx = M + markW + 5;
   doc.setFont('helvetica','bold'); doc.setFontSize(13.5); doc.setTextColor(...C.ink);
@@ -9680,7 +9895,7 @@ function drawPdfLetterhead(doc, company, { docLabel, date }) {
   pdfTracked(doc, (docLabel || '').toUpperCase(), W - M, 17.5, { align: 'right' });
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
   if (date) doc.text(date, W - M, 22.6, { align: 'right' });
-  doc.setFillColor(...C.accent); doc.rect(M, 33, W - M * 2, 0.5, 'F');
+  drawPdfFadeRule(doc, M, 33, W - M * 2, 0.5);
   return 33.5;
 }
 
@@ -9828,7 +10043,7 @@ async function buildReportPdf() {
     }
     doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.accent);
     doc.text(sectionLabel.toUpperCase(), W-M, 10, { align:'right' });
-    doc.setFillColor(...C.accent); doc.rect(M, 17, CW, 0.35, 'F');
+    drawPdfFadeRule(doc, M, 17, CW, 0.35);
     y = 26;
   }
 
@@ -9841,6 +10056,10 @@ async function buildReportPdf() {
     const num = no || '';
     if (y > 240) newPage();
     gap(4);
+    // As on the app's section headers: a teal line above, a soft teal wash
+    // and a fine line below, all fading out to the right.
+    drawPdfFadeRule(doc, M, y - 2.5, CW, 0.7);
+    drawPdfFadeRule(doc, M, y - 1.8, CW, 10.6, { wash: true });
     // Number badge
     if (num) {
       doc.setFillColor(...C.accent); doc.roundedRect(M, y, 7, 7, 1, 1, 'F');
@@ -9852,8 +10071,7 @@ async function buildReportPdf() {
     const titleX = num ? M+10 : M;
     doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(...C.ink);
     doc.text(title, titleX, y+5.5);
-    // Full-width orange rule
-    doc.setFillColor(...C.rule); doc.rect(M, y+9, CW, 0.3, 'F');
+    drawPdfFadeRule(doc, M, y+8.8, CW, 0.3);
     y += 15;
   }
 
@@ -10084,7 +10302,7 @@ async function buildReportPdf() {
   // ── NOTES BLOCK ───────────────────────────────────────────────────────────
   const FIELD_LABELS = {
     structureType:'Structure Type', wallConstruction:'Wall Construction', floorType:'Floor Type', roofType:'Roof Type',
-    height:'Height', facadeDirection:'Orientation', occupancyStatus:'Occupancy Status', weatherConditions:'Weather Conditions',
+    height:'Height', facadeDirection:'Orientation', occupancyStatus:'Occupancy Status', weatherConditions:'Weather Conditions', temperature:'Temperature', humidity:'Humidity', rainLast24h:'Rain in the Last 24 Hours',
     constructionEra:'Year / Period of Construction', standard:'Applicable Standard',
     hinderedAreas:'Hindered Access: Where', obstructions:'Areas Not Inspected', restrictedAccess:'Obstructions', hinderedAreasDetail:'What Hindered Access', noAccessAreas:'Restricted Access: Where & Why', highRiskAreas:'High Risk Areas',
     previousTreatment:'Evidence of Previous Treatment', previousTreatmentDetails:'Previous Treatment: What & Where', siteDrainage:'Site Drainage', subfloorDrainage:'Subfloor Drainage',
@@ -10264,6 +10482,9 @@ async function buildReportPdf() {
   row('Inspection Date', inspectionDate);
   row('Inspection Time', inspectionTime);
   row('Weather Conditions', reportData.weatherConditions);
+  row('Temperature', reportData.temperature);
+  row('Humidity', reportData.humidity);
+  row('Rain in the Last 24 Hours', reportData.rainLast24h);
   row('Inspection Type', inspType);
   row('Applicable Standard', standardLabel);
   row('Order / Job ID', orderId);
