@@ -3796,7 +3796,7 @@ const isBlankValue = v => v === undefined || v === null || v === '' || (typeof v
 function countExtractFilled(before) {
   let n = 0;
   Object.keys(reportData).forEach(k => {
-    if (k === 'findings' || k === 'pendingNotes' || k === 'noteText' || isBlankValue(reportData[k])) return;
+    if (k === 'findings' || k === 'pendingNotes' || k === 'noteText' || k === 'weatherFilled' || isBlankValue(reportData[k])) return;
     if (JSON.stringify(reportData[k]) !== before.data[k]) n++;
   });
   (reportData.findings || []).forEach(f => {
@@ -5237,7 +5237,13 @@ function startEdit(el, key, type) {
   }
   if (OPTIONS[type]) {
     input = document.createElement('select');
-    input.innerHTML = OPTIONS[type].map(o => `<option value="${o}" ${cur===o?'selected':''}>${o}</option>`).join('');
+    // An empty field opens on "Choose…", not the first option: tapping in and
+    // away again used to save that first option (a blank era became
+    // "Pre-1920s", a blank system "Physical Barrier"). A value that isn't in
+    // the list (an older report's wording) stays as it is.
+    const opts = cur && !OPTIONS[type].includes(cur) ? [cur, ...OPTIONS[type]] : OPTIONS[type];
+    input.innerHTML = (cur ? '' : '<option value="" selected>Choose…</option>') +
+      opts.map(o => `<option value="${escapeHtml(o)}" ${cur===o?'selected':''}>${escapeHtml(o)}</option>`).join('');
     input.addEventListener('change', () => commitEdit(el, key, input.value));
     input.addEventListener('blur',   () => commitEdit(el, key, input.value));
   } else {
@@ -6776,9 +6782,18 @@ async function fillWeather({ quiet = false } = {}) {
     if (res.status === 501) { say("Weather isn't set up yet, so enter it by hand", 'info'); return; }
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const w = await res.json();
+    // The button refreshes what the weather filled before, but never a
+    // reading the inspector dictated or typed: 65% said on site beats 74%
+    // from the nearest station.
+    const filled = reportData.weatherFilled || (reportData.weatherFilled = {});
+    let kept = 0, changed = 0;
     const set = (key, val, always) => {
-      if (val === null || val === undefined || (reportData[key] && !always)) return;
+      if (val === null || val === undefined) return;
+      const cur = reportData[key];
+      if (cur && !(always && cur === filled[key])) { if (always && cur !== val) kept++; return; }
       reportData[key] = val;
+      filled[key] = val;
+      changed++;
       const el = document.getElementById('f-' + key);
       if (el) renderField(el, key, val);
     };
@@ -6789,7 +6804,8 @@ async function fillWeather({ quiet = false } = {}) {
     set('rainLast24h', num(w.rain24h) ? (w.rain24h > 0 ? Math.round(w.rain24h * 10) / 10 + ' mm' : 'None') : null, !quiet);
     updateProgress();
     saveDraft();
-    say('Weather filled in. Tap a value in edit mode to change it', 'success');
+    if (changed) say(kept ? "Weather filled in. Readings you'd already entered were kept" : 'Weather filled in. Tap a value in edit mode to change it', 'success');
+    else say(kept ? "Kept the readings you'd already entered. Clear one in edit mode to fill it from the weather" : 'Weather is already filled in', 'info');
   } catch (e) {
     say("Couldn't get the weather, so enter it by hand", 'error');
   } finally {
@@ -9187,7 +9203,7 @@ else installToastScreenWatch();
 //   reportData.amending      { reason, startedAt } - unlocked for an amendment
 //   reportData.noQuoteNeeded true when the job needs no quote
 // The quote's own sent state lives on the quote (see SENT AND LOCKED in js/quote.js).
-const ISSUE_META_KEYS = ['reportNumber', 'sent', 'issue', 'issueHistory', 'amending', 'pendingNotes', 'noQuoteNeeded', 'noteText'];
+const ISSUE_META_KEYS = ['reportNumber', 'sent', 'issue', 'issueHistory', 'amending', 'pendingNotes', 'noQuoteNeeded', 'noteText', 'weatherFilled'];
 const ISSUE_SECTION_NAMES = { job:'Job details', quote:'Quote', property:'Property', obstructions:'Areas inspected', restrictions:'Areas unable to be inspected',
   findings:'Findings', conducive:'Conducive', recommendations:'Recommendations', photos:'Photos', signoff:'Sign-off' };
 
