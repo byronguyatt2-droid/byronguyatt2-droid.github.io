@@ -4318,7 +4318,9 @@ body:not(.dark-screen) .report-body { background: transparent; }
 body:not(.dark-screen) .report-section,
 body:not(.dark-screen) #jobPanel:not(.menu-page-active) { border-color: transparent; box-shadow: 0 14px 36px rgba(0,0,0,0.35); }
 /* Banners on the backdrop need a solid face to stay readable. */
-body:not(.dark-screen) .agreement-banner { background: #FFF6E0; border-color: #F0C25A; color: #7A4F00; }
+/* Unsigned agreement: light red, as no job should start without it. */
+body:not(.dark-screen) .agreement-banner { background: linear-gradient(135deg, #FFE4E4 0%, #FFF1F1 60%, #FFF7F7 100%); border-color: #F2A3A3; color: #9B1C1C; box-shadow: 0 0 0 1px rgba(215,38,30,0.08), 0 6px 22px -6px rgba(215,38,30,0.45); }
+body:not(.dark-screen) .agreement-banner:not(.signed) .agreement-banner-btn { background: #D7261E; border-color: #D7261E; color: #FFFFFF; box-shadow: 0 3px 10px rgba(215,38,30,0.35); }
 body:not(.dark-screen) .agreement-banner.signed { background: #E6F6EC; border-color: #9AD3AE; color: #1E7A45; }
 body:not(.dark-screen) .issue-banner { background: #FFFFFF; border-color: transparent; box-shadow: 0 14px 36px rgba(0,0,0,0.35); }
 body:not(.dark-screen) .issue-banner.locked { background: #FFFFFF; border-color: #9AD3AE; }
@@ -4461,6 +4463,67 @@ body:not(.dark-screen) .dashboard-stat-card {
   clip-path: inset(0 round 10px);
 }
 body:not(.dark-screen) .dashboard-stat-value { color: rgb(var(--glow-ink)); }
+/* A picked plain answer (storey, roof, inspection type) fades like the
+   active tab instead of sitting flat in the old teal. */
+body:not(.dark-screen) .choice-card.tone-neutral:has(input:checked),
+body:not(.dark-screen) .choice-card.tone-neutral.active {
+  background: linear-gradient(180deg, #2DD4BF 0%, #14B8A6 45%, #0D9488 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 16px rgba(var(--glow),0.4), inset 0 1px 0 rgba(255,255,255,0.35);
+}
+/* Mic button: the same bright teal fade, with a mint glow breathing round it. */
+body:not(.dark-screen) .mic-fab:not(.recording):not(.open) {
+  background: linear-gradient(180deg, #5EEAD4 0%, #2DD4BF 30%, #14B8A6 65%, #0D9488 100%);
+  color: #FFFFFF;
+  animation-name: fabBreatheGlow;
+}
+body:not(.dark-screen) .mic-fab:not(.recording):not(.open) svg { filter: drop-shadow(0 1px 1px rgba(10,110,101,0.5)); }
+body:not(.dark-screen) .mic-fab:not(.recording):not(.open):hover { box-shadow: 0 10px 28px rgba(var(--glow),0.55), 0 0 0 8px rgba(var(--glow-hi),0.14); }
+@keyframes fabBreatheGlow {
+  0%, 100% { box-shadow: 0 8px 24px rgba(var(--glow),0.45), 0 0 18px rgba(var(--glow-hi),0.35), 0 0 0 0 rgba(var(--glow-hi),0.3); }
+  50%      { box-shadow: 0 8px 28px rgba(var(--glow),0.55), 0 0 26px rgba(var(--glow-hi),0.5), 0 0 0 8px rgba(var(--glow-hi),0); }
+}
+
+/* ── EDIT MODE IN VIOLET ──
+   While Edit Mode is on (body.report-editing, set in toggleEdit) the
+   banner, the Done Editing button, the field being changed and any plain
+   answer picked turn violet, so it's plain the report is open for changes.
+   Tapping Done Editing takes them back to teal. Red, amber and green
+   answers keep their meanings, and the dark screen keeps its plain look. */
+:root { --edit: 139,92,246; --edit-hi: 196,181,253; --edit-ink: 109,40,217; }
+body.report-editing:not(.dark-screen) .edit-banner {
+  background: linear-gradient(90deg, rgba(var(--edit),0.6) 0%, rgba(var(--edit),0.28) 55%, rgba(var(--edit),0.1) 100%);
+  border-bottom: 1px solid rgba(var(--edit),0.6);
+  border-image: linear-gradient(90deg, rgb(var(--edit-hi)), rgba(var(--edit),0.5) 50%, rgba(var(--edit),0)) 1;
+  color: #EDE9FE;
+  box-shadow: 0 6px 22px -8px rgba(var(--edit),0.6);
+}
+body.report-editing:not(.dark-screen) .edit-banner strong { color: #FFFFFF; }
+body.report-editing:not(.dark-screen) .report-header .edit-btn.active {
+  background: linear-gradient(180deg, rgba(var(--edit-hi),0.3) 0%, rgba(var(--edit),0.28) 100%);
+  border-color: rgba(var(--edit-hi),0.7);
+  color: #F5F3FF;
+  box-shadow: 0 0 16px rgba(var(--edit),0.45);
+}
+body.report-editing:not(.dark-screen) .edit-mode .field-val { border-color: rgba(var(--edit),0.3); }
+body.report-editing:not(.dark-screen) .edit-mode .field-val:hover {
+  border-color: rgba(var(--edit),0.6);
+  background: rgba(var(--edit),0.05);
+  box-shadow: 0 0 0 3px rgba(var(--edit),0.14), 0 0 16px rgba(var(--edit),0.2);
+}
+body.report-editing:not(.dark-screen) .field-val.editing,
+body.report-editing:not(.dark-screen) .field-edit-input {
+  border-color: rgb(var(--edit)) !important;
+  background: rgba(var(--edit),0.07) !important;
+  box-shadow: 0 0 0 3px rgba(var(--edit),0.16), 0 0 18px rgba(var(--edit),0.25);
+}
+body.report-editing:not(.dark-screen) .choice-panel { --tone-neutral: rgb(var(--edit)); }
+body.report-editing:not(.dark-screen) .choice-card.tone-neutral:has(input:checked),
+body.report-editing:not(.dark-screen) .choice-card.tone-neutral.active {
+  background: linear-gradient(180deg, #C4B5FD 0%, #8B5CF6 45%, #6D28D9 100%);
+  box-shadow: 0 4px 16px rgba(var(--edit),0.45), inset 0 1px 0 rgba(255,255,255,0.35);
+}
+body.report-editing:not(.dark-screen) .choice-card:has(input:focus-visible) { outline-color: rgb(var(--edit)); }
 #invasiveDetailsWrap[hidden] { display: none; }
 
 /* Areas (Section 4) */
