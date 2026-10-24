@@ -1398,8 +1398,9 @@
             </div>
           </div>
 
-          <!-- Section photo widget -->
-          <div class="section-photo-widget">
+          <!-- Findings take photos per finding now; this box only shows for
+               reports that already have photos in it. -->
+          <div class="section-photo-widget" data-legacy-photos hidden>
             <div class="section-photo-header">
               <div class="section-photo-header-left">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
@@ -1732,6 +1733,16 @@
       <span id="aiStatus">AI ready</span>
     </div>
   </div><!-- /voicePopover -->
+
+<!-- PHOTO VIEWER: any photo, full screen and zoomable (see PHOTO VIEWER in js/app.js) -->
+<div class="photo-viewer" id="photoViewer" role="dialog" aria-modal="true" aria-label="Photo" hidden>
+  <div class="photo-viewer-bar">
+    <span class="photo-viewer-info" id="photoViewerInfo"></span>
+    <button class="photo-viewer-close" onclick="closePhotoViewer()" aria-label="Close photo"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></button>
+  </div>
+  <div class="photo-viewer-stage" id="photoViewerStage"><img id="photoViewerImg" alt="Photo" draggable="false"></div>
+  <div class="photo-viewer-hint">Pinch or double-tap to zoom</div>
+</div>
 
 <!-- PRE-INSPECTION AGREEMENT SHEET -->
 <div class="page-sheet-overlay" id="agreementOverlay">
