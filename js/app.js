@@ -73,7 +73,6 @@ let recordingStartText = '';
 let serverTranscriptBefore = '';
 
 let reportData = {};
-let editOn = false;
 let activeEditEl = null;
 let appInitialised = false; // tracks whether Sayon's one-time setup has run
 // Tracks which signed-in account's data is currently live in reportData/the
@@ -991,27 +990,28 @@ function renderAccessSummary() {
 // an empty list can be printed as "None".
 function accessLimits() {
   const hindered = [], restricted = [];
+  const detail = isBlankValue(reportData.hinderedAreasDetail) || reportData.hinderedAreas === 'NO' ? '' : reportData.hinderedAreasDetail;
   const hZones = accessZones('hindered'), rZones = accessZones('restricted');
   const where = (kind, z, zones) => { const s = accessSpot(kind, z, zones); return s ? `. Where: ${s.charAt(0).toUpperCase()}${s.slice(1)}` : ''; };
   Object.entries(OBS_ZONES).forEach(([z, zone]) => {
     const st = areaStatusOf(z);
     if (!['PARTIAL', 'NOT'].includes(st)) return;
     const items = (reportData.areaReasons || {})[z] || [];
-    const status = st === 'NOT' ? 'Not inspected' : 'Inspected';
+    const status = st === 'NOT' ? 'Not inspected' : 'Partly inspected';
     const h = items.filter(i => !RESTRICTED_REASONS.has(i)), r = items.filter(i => RESTRICTED_REASONS.has(i));
     if (h.length) hindered.push([zone.label, `${status}, obstructed by ${h.join(', ').toLowerCase()}${where('hindered', z, hZones)}`]);
     if (r.length) restricted.push([zone.label, `${st === 'NOT' ? 'Not inspected:' : 'Inspected, restricted by'} ${r.join(', ').toLowerCase()}${where('restricted', z, rZones)}`]);
-    if (!items.length) hindered.push([zone.label, `${status}, reason not recorded${where('hindered', z, hZones)}`]);
+    if (!items.length) hindered.push([zone.label, `${status}${detail ? '' : ', reason not recorded'}${where('hindered', z, hZones)}`]);
   });
   // Spots tied to no listed area follow the area rows. With no area rows
   // at all (older reports), the inspector's words print as they were, with
   // 'What hindered it'.
   const areaRows = hindered.length;
   const hOther = accessSpot('hindered', '_other', hZones), rOther = accessSpot('restricted', '_other', rZones);
-  if (hOther) {
-    hindered.push([areaRows ? 'Other spots' : 'Where', hOther]);
-    if (!areaRows && !isBlankValue(reportData.hinderedAreasDetail)) hindered.push(['What obstructed it', reportData.hinderedAreasDetail]);
-  }
+  if (hOther) hindered.push([areaRows ? 'Other spots' : 'Where', hOther]);
+  // The inspector's own words about what was in the way always print, so a
+  // dictated reason isn't lost behind the per-area rows.
+  if (detail && !hinderedTextIsNil()) hindered.push(['What obstructed it', detail]);
   if (rOther) restricted.push([restricted.length ? 'Other spots' : 'Where and why', rOther]);
   const limited = areasNotFullyInspected();
   const highRisk = !isBlankValue(reportData.highRiskAreas) ? reportData.highRiskAreas
@@ -2005,7 +2005,7 @@ function enableKeyboardActivation() {
     el.setAttribute('role', 'button');
     el.addEventListener('keydown', (e) => {
       // Only act when the keydown originates on the div itself (keyboard-focused,
-      // not yet in edit mode). Once startEdit() inserts a child <input>/<select>,
+      // not yet being edited). Once startEdit() inserts a child <input>/<select>,
       // its keydown events bubble up to this same listener — without this guard,
       // every Enter/Space keystroke typed inside an open field would also
       // re-trigger startEdit() via el.click(), which silently ate every space
@@ -3449,7 +3449,10 @@ async function callExtraction(text) {
         // max_tokens at its own ceiling.
         max_tokens: 16000,
         output_config: { effort: 'medium' },
-        system: SYSTEM_PROMPT,
+        // The instructions are the same for every note, so they're cached
+        // for an hour: after the first note, reading them costs a tenth.
+        // The other prompts are too short for the model to cache.
+        system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } }],
         messages: [{ role: 'user', content: text }]
       }),
       signal: controller.signal,
@@ -4327,6 +4330,14 @@ function populateFields(data, transcript) {
     .filter(([key, val]) => !skip.has(key) && val !== null && val !== undefined && document.getElementById('f-' + key))
     .sort((a, b) => rank(a[0]) - rank(b[0]));
 
+  // What hindered access has no field on screen of its own; it's kept for
+  // the PDF, which prints it with the obstructed areas (accessLimits).
+  if (typeof values.hinderedAreasDetail === 'string' && values.hinderedAreasDetail.trim()) {
+    const prev = isBlankValue(reportData.hinderedAreasDetail) ? '' : String(reportData.hinderedAreasDetail);
+    const add = values.hinderedAreasDetail.trim();
+    reportData.hinderedAreasDetail = !prev || prev.toLowerCase().includes(add.toLowerCase()) ? (prev || add) : prev.replace(/[.;,\s]+$/, '') + '; ' + add;
+  }
+
   entries.forEach(([key, rawVal], i) => {
     const el = document.getElementById('f-' + key);
     setTimeout(() => {
@@ -4954,30 +4965,9 @@ function autoReveal(data) {
   }
 }
 
-// ── EDIT MODE ─────────────────────────────────────────────────────────────
-function toggleEdit() {
-  if (!editOn && isReportLocked()) { showToast('This job is complete and locked. Tap Amend to change it', 'info'); return; }
-  editOn = !editOn;
-  document.body.classList.toggle('report-editing', editOn);
-  const body = document.getElementById('reportBody');
-  const btn = document.getElementById('editBtn');
-  const banner = document.getElementById('editBanner');
-
-  if (editOn) {
-    body.classList.add('edit-mode');
-    btn.classList.add('active');
-    btn.innerHTML = '<svg class="icon " width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Done Editing';
-    banner.classList.add('show');
-    showToast('Edit mode on — tap any field', 'info');
-  } else {
-    commitActive();
-    body.classList.remove('edit-mode');
-    btn.classList.remove('active');
-    btn.innerHTML = '<svg class="icon " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit Mode';
-    banner.classList.remove('show');
-    showToast('Changes saved', 'success');
-  }
-}
+// ── EDITING ───────────────────────────────────────────────────────────────
+// There's no Edit Mode: any field opens for editing when tapped, unless the
+// job is complete and locked.
 
 // Global species list — used by both startEdit and startFindingEdit
 const SPECIES_LIST = [
@@ -5008,7 +4998,7 @@ function wireInlineTextEdit(input, onSave, onCancel, onBlur) {
 }
 
 function startEdit(el, key, type) {
-  if (!editOn) return;
+  if (isReportLocked()) { showToast('This job is complete and locked. Tap Amend to change it', 'info'); return; }
   if (el.classList.contains('editing')) return;
   commitActive();
   activeEditEl = el;
@@ -6804,8 +6794,8 @@ async function fillWeather({ quiet = false } = {}) {
     set('rainLast24h', num(w.rain24h) ? (w.rain24h > 0 ? Math.round(w.rain24h * 10) / 10 + ' mm' : 'None') : null, !quiet);
     updateProgress();
     saveDraft();
-    if (changed) say(kept ? "Weather filled in. Readings you'd already entered were kept" : 'Weather filled in. Tap a value in edit mode to change it', 'success');
-    else say(kept ? "Kept the readings you'd already entered. Clear one in edit mode to fill it from the weather" : 'Weather is already filled in', 'info');
+    if (changed) say(kept ? "Weather filled in. Readings you'd already entered were kept" : 'Weather filled in. Tap a value to change it', 'success');
+    else say(kept ? "Kept the readings you'd already entered. Clear one to fill it from the weather" : 'Weather is already filled in', 'info');
   } catch (e) {
     say("Couldn't get the weather, so enter it by hand", 'error');
   } finally {
@@ -8808,18 +8798,23 @@ function toggleDarkScreen(on) {
 }
 
 const COLOUR_VISION_ACCENTS = {
-  none:          { accent: '#0D9488', accent2: '#2DD4C0', accent3: '#0A6E65', rgb: '13,148,136' }, // teal (default)
   protanopia:    { accent: '#4d8aff', accent2: '#7aa8ff', accent3: '#2f5fd6', rgb: '77,138,255' }, // blue — stays distinct from lime/amber for red-green deficiency
   deuteranopia:  { accent: '#4d8aff', accent2: '#7aa8ff', accent3: '#2f5fd6', rgb: '77,138,255' }, // blue — same reasoning, most common type
   tritanopia:    { accent: '#ff4dc4', accent2: '#ff7dd6', accent3: '#d62fa0', rgb: '255,77,196' }, // magenta — stays distinct from red/green for blue-yellow deficiency
 };
 
 function setColourVisionMode(mode) {
-  const colours = COLOUR_VISION_ACCENTS[mode] || COLOUR_VISION_ACCENTS.none;
-  document.documentElement.style.setProperty('--accent', colours.accent);
-  document.documentElement.style.setProperty('--accent2', colours.accent2);
-  document.documentElement.style.setProperty('--accent3', colours.accent3);
-  document.documentElement.style.setProperty('--accent-rgb', colours.rgb);
+  const colours = COLOUR_VISION_ACCENTS[mode];
+  const root = document.documentElement.style;
+  // The default teal lives in the stylesheet (light and dark differ), so
+  // "none" clears the override rather than setting a colour of its own.
+  if (!colours) ['--accent', '--accent2', '--accent3', '--accent-rgb'].forEach(k => root.removeProperty(k));
+  else {
+    root.setProperty('--accent', colours.accent);
+    root.setProperty('--accent2', colours.accent2);
+    root.setProperty('--accent3', colours.accent3);
+    root.setProperty('--accent-rgb', colours.rgb);
+  }
   try { localStorage.setItem('korva_a11y_colorvision', mode); } catch (e) {}
 }
 
@@ -9377,8 +9372,8 @@ function reportSummary() {
         { YES: 'bad', NO: 'good' }[reportData.treatmentRecommended] || 'none', REPORT_PARTS.recommendations, reportData.treatmentType || ''],
       ['Risk of termite attack', reportData.riskLevel || NR, { HIGH: 'bad', MEDIUM: 'warn', LOW: 'good' }[reportData.riskLevel] || 'none', REPORT_PARTS.recommendations,
         reportData.riskLevel && basis.length ? `Based on ${basis.join(', ')}` : ''],
-      ['Next inspection', reportData.inspectionFrequency ? String(reportData.inspectionFrequency).split(/[,;]/)[0].trim().toUpperCase() : 'WITHIN 12 MONTHS', 'none', REPORT_PARTS.recommendations,
-        reportData.inspectionFrequency && /[,;]/.test(reportData.inspectionFrequency) ? reportData.inspectionFrequency : ''],
+      ['Next inspection', nextInspectionChip(reportData.inspectionFrequency), 'none', REPORT_PARTS.recommendations,
+        reportData.inspectionFrequency && nextInspectionChip(reportData.inspectionFrequency) !== String(reportData.inspectionFrequency).trim().toUpperCase() ? reportData.inspectionFrequency : ''],
     ] },
   ];
   // Areas the inspector couldn't fully see, and why.
@@ -9532,7 +9527,7 @@ function renderIssueState() {
   if (!banner) return;
   const locked = isReportLocked();
   document.body.classList.toggle('report-locked', locked);
-  if (locked && editOn) toggleEdit();
+  if (locked) commitActive();
   const issue = reportData.issue, amending = reportData.amending, sent = reportData.sent;
   let html = '';
   if (locked) {
@@ -9944,6 +9939,16 @@ function generateReport() {
   }, 50);
 }
 
+// The summary's Next inspection answer in a few words ("6 MONTHS"); the
+// inspector's full wording prints under the question.
+function nextInspectionChip(freq) {
+  const f = String(freq || '').trim();
+  if (!f) return 'WITHIN 12 MONTHS';
+  const m = f.match(/(\d+)\s*(month|week|year)s?/i);
+  if (m) return `${m[1]} ${m[2].toUpperCase()}${m[1] === '1' ? '' : 'S'}`;
+  return f.split(/[,;]/)[0].trim().toUpperCase();
+}
+
 // ── SHARED PDF PIECES ── used by the inspection report and the quote PDF
 // (js/quote.js) so both documents carry the same brand.
 const PDF_COLORS = {
@@ -9951,11 +9956,11 @@ const PDF_COLORS = {
   pageBg:      [250, 251, 252],
   // Text
   ink:         [12,  18,  28],
-  inkLight:    [55,  70,  88],
-  inkMuted:    [115, 130, 148],
-  // Accent — Prometho metallic teal
-  accent:      [13,  148, 136],
-  accentDark:  [8,   100,  92],
+  inkLight:    [36,  48,  64],
+  inkMuted:    [72,  86, 104],
+  // Accent — the logo teal
+  accent:      [20,  184, 166],
+  accentDark:  [15,  118, 110],
   accentLight: [200, 238, 234],
   // Structure
   rule:        [208, 218, 228],
@@ -9965,7 +9970,7 @@ const PDF_COLORS = {
   // Status
   danger:      [192,  48,  38],
   warn:        [175, 112,  16],
-  safe:        [40,  148,  72],
+  safe:        [15,  118, 110],
   // Cover
   coverDark:   [10,  15,  22],
   coverMid:    [20,  30,  46],
@@ -10187,7 +10192,7 @@ async function buildReportPdf() {
       doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
       doc.text(sub.length > 90 ? sub.slice(0, 89) + '…' : sub, M, 14);
     }
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.accent);
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.accentDark);
     doc.text(sectionLabel.toUpperCase(), W-M, 10, { align:'right' });
     drawPdfFadeRule(doc, M, 17, CW, 0.35);
     y = 26;
@@ -10252,7 +10257,7 @@ async function buildReportPdf() {
 
     // Value — colour-coded
     if (isEmpty) {
-      doc.setTextColor(...C.rule); doc.setFont('helvetica','italic');
+      doc.setTextColor(...C.inkMuted); doc.setFont('helvetica','italic');
     } else if (invert && (v === 'YES' || v === 'NO')) {
       doc.setTextColor(...(v === 'NO' ? C.danger : C.safe)); doc.setFont('helvetica','bold');
     } else if (['YES','HIGH','OBSTRUCTED','BRIDGED','ACTIVE'].includes(v)) {
@@ -10276,7 +10281,7 @@ async function buildReportPdf() {
     if (y > 268) newPage();
     gap(4);
     const col = level==='HIGH' ? C.danger : level==='MEDIUM' ? C.warn : C.safe;
-    const bgTint = level==='HIGH' ? [253,242,240] : level==='MEDIUM' ? [253,247,234] : [239,249,237];
+    const bgTint = level==='HIGH' ? [253,242,240] : level==='MEDIUM' ? [253,247,234] : [232,248,245];
 
     // Tinted background box
     doc.setFillColor(...bgTint); doc.roundedRect(M, y, CW, 18, 2, 2, 'F');
@@ -10301,9 +10306,9 @@ async function buildReportPdf() {
   function subhead(label) {
     if (y > 250) newPage();
     y += 3;
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-    doc.text(label, M, y); y += 2.5;
-    doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 5;
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.accentDark);
+    doc.text(label, M, y); y += 2.2;
+    doc.setFillColor(...C.accentLight); doc.rect(M, y, CW, 0.5, 'F'); y += 1.5;
     _rowShade = false;
   }
 
@@ -10320,12 +10325,12 @@ async function buildReportPdf() {
 
   // ── DISCLAIMER ────────────────────────────────────────────────────────────
   function disclaimer(text) {
-    doc.setFont('helvetica','italic'); doc.setFontSize(7.5); doc.setTextColor(...C.inkMuted);
+    doc.setFont('helvetica','italic'); doc.setFontSize(7.8); doc.setTextColor(...C.inkLight);
     const lines = doc.splitTextToSize(text, CW - 6);
     const blockH = lines.length * 4 + 3;
     if (y + blockH > 280) newPage();
     // Subtle left bar
-    doc.setFillColor(...C.ruleLight); doc.rect(M, y, 1.5, blockH, 'F');
+    doc.setFillColor(...C.accentLight); doc.rect(M, y, 1.5, blockH, 'F');
     doc.text(lines, M+4, y+3); y += blockH + 2;
     doc.setFont('helvetica','normal');
   }
@@ -10561,7 +10566,7 @@ async function buildReportPdf() {
   const riskLvl   = reportData.riskLevel || null;
   const riskBadgeY = gy + 10;
   const riskCol    = riskLvl==='HIGH' ? C.danger : riskLvl==='MEDIUM' ? C.warn : riskLvl==='LOW' ? C.safe : C.inkMuted;
-  const riskBgCol  = riskLvl==='HIGH' ? [253,242,240] : riskLvl==='MEDIUM' ? [253,247,234] : riskLvl==='LOW' ? [239,249,237] : [248,246,243];
+  const riskBgCol  = riskLvl==='HIGH' ? [253,242,240] : riskLvl==='MEDIUM' ? [253,247,234] : riskLvl==='LOW' ? [232,248,245] : [248,246,243];
 
   if (riskBadgeY < 262) {
     const rh = 22;
@@ -10660,11 +10665,11 @@ async function buildReportPdf() {
   sectionTitle('SUMMARY', REPORT_PARTS.summary);
   {
     const { groups, next } = reportSummary();
-    const TONE = { bad: [C.danger, [253,242,240]], warn: [C.warn, [253,247,234]], good: [C.safe, [239,249,237]], none: [C.inkMuted, C.rowAlt] };
+    const TONE = { bad: [C.danger, [253,242,240]], warn: [C.warn, [253,247,234]], good: [C.safe, [232,248,245]], none: [C.inkMuted, C.rowAlt] };
     const QW = CW - 72, chipW = 34, chipX = W - M - 26 - chipW;
     groups.forEach(g => {
       if (y + 22 > 276) newPage();
-      doc.setFillColor(...C.accent); doc.rect(M, y, CW, 7, 'F');
+      doc.setFillColor(...C.accentDark); doc.rect(M, y, CW, 7, 'F');
       doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...C.white);
       doc.text(g.title.toUpperCase(), M + 3, y + 4.8);
       y += 7;
@@ -10697,13 +10702,13 @@ async function buildReportPdf() {
 
     if (next.length) {
       if (y + 14 > 270) newPage();
-      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-      doc.text('WHAT TO DO NEXT', M, y); y += 2.5;
-      doc.setFillColor(...C.ruleLight); doc.rect(M, y, CW, 0.4, 'F'); y += 5;
+      doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(...C.accentDark);
+      doc.text('WHAT TO DO NEXT', M, y); y += 2.2;
+      doc.setFillColor(...C.accentLight); doc.rect(M, y, CW, 0.5, 'F'); y += 5;
       next.forEach((item, i) => {
         const lines = doc.splitTextToSize(item, CW - 8);
         if (y + lines.length * 4.3 > 276) newPage();
-        doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
+        doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accentDark);
         doc.text(`${i + 1}.`, M, y);
         doc.setFont('helvetica','normal'); doc.setTextColor(...C.ink);
         doc.text(lines, M + 6, y);
@@ -10789,8 +10794,10 @@ async function buildReportPdf() {
     // An area the property doesn't have isn't listed.
     if (!st || st === 'NA') return;
     const result = areaResultOf(zoneId);
-    const ev = result === 'FOUND' ? areaEvidence(zoneId) : [];
-    const resultText = !result ? 'Result not recorded'
+    // With no result marked, evidence recorded elsewhere that names the area
+    // still prints, rather than "not recorded" over a finding in it.
+    const ev = result === 'FOUND' || !result ? areaEvidence(zoneId) : [];
+    const resultText = !result && !ev.length ? 'Result not recorded'
       : ev.length ? `Timber pest evidence found, see ${ev.join('; ')}` : AREA_RESULT_TEXT[result];
     row(zone.label, AREA_STATUS_TEXT[st] + (areaWasEntered(zoneId) ? `. ${resultText}.` : ''));
   });

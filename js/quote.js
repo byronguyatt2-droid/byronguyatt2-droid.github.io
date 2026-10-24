@@ -1012,7 +1012,7 @@ function drawPdfRunningHeader(doc, company, docName, address, number) {
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
   const sub = [company.name ? docName : '', address || ''].filter(Boolean).join('   ·   ');
   if (sub) doc.text(sub.length > 90 ? sub.slice(0, 89) + '…' : sub, M, 14);
-  doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.accent);
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.accentDark);
   doc.text(number || '', W - M, 10, { align: 'right' });
   doc.setFillColor(...C.accent); doc.rect(M, 17, CW, 0.35, 'F');
   return 26;

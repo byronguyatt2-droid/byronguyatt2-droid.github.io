@@ -4,7 +4,12 @@
  * The API keys are stored as Cloudflare secrets and never exposed to the
  * browser or public repo. See worker/README.md for setup and deploy steps.
  *
- * CHANGES FROM v9.2 -> v9.3:
+ * CHANGES FROM v9.3 -> v9.4:
+ * - Keeps the prompt-caching marker on the system prompt, so the long
+ *   report instructions sent with every voice note are cached for an hour
+ *   and re-read at a tenth of the price.
+ *
+ * CHANGES FROM v9.2 -> v9.3 (also in this version):
  * - GET /weather?lat=..&lng=.. gives a signed-in user the weather at a
  *   property from Google's Weather API: conditions, temperature, humidity
  *   and the rain over the past 24 hours. Needs the GOOGLE_WEATHER_KEY
@@ -459,7 +464,11 @@ function cleanSystem(system) {
   const blocks = [];
   for (const b of system) {
     if (!b || b.type !== 'text' || typeof b.text !== 'string') return null;
-    blocks.push({ type: 'text', text: b.text });
+    const block = { type: 'text', text: b.text };
+    // Keeps the app's prompt-caching marker, and nothing else it might carry.
+    const cc = b.cache_control;
+    if (cc && cc.type === 'ephemeral') block.cache_control = cc.ttl === '1h' ? { type: 'ephemeral', ttl: '1h' } : { type: 'ephemeral' };
+    blocks.push(block);
   }
   return blocks;
 }
