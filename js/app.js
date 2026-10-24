@@ -952,18 +952,7 @@ function renderAccessSummary() {
     return `<button type="button" class="access-spot${spot ? '' : ' empty'}" data-kind="${kind}" data-key="${key}" onclick="editAccessSpot('${kind}','${key}')">${spot ? escapeHtml(spot) : '+ Add exact spot'}</button>`;
   };
   // Photos of the spot, each with its own details box.
-  const spotPhotos = (kind, key) => {
-    const section = spotPhotoSection(kind, key);
-    const photos = (reportData.photosBySection || {})[section] || [];
-    const cards = photos.map(p => `<div class="spot-photo">
-        <img data-photo-id="${p.id}" alt="Photo">
-        <input class="photo-caption-input spot-photo-caption" type="text" placeholder="Add details…" value="${escapeHtml(p.caption || '')}"
-          oninput="updateSectionPhotoCaption('${p.id}','${section}',this.value)">
-        <button type="button" class="photo-remove-btn" onclick="removeSpotPhoto('${p.id}','${section}')">Remove</button>
-      </div>`).join('');
-    return `<div class="spot-photos" data-section="${section}">${cards}
-      <button type="button" class="link-btn spot-photo-add" onclick="addSpotPhoto('${section}')">+ Add photo</button></div>`;
-  };
+  const spotPhotos = (kind, key) => spotPhotosHTML(spotPhotoSection(kind, key));
   // Voice text that names no listed area, under its own row.
   const other = kind => accessSpot(kind, '_other', accessZones(kind)) ? `<div class="access-item access-item-other">
       <span class="access-item-name">Other spots</span>${spotLine(kind, '_other')}${spotPhotos(kind, '_other')}</div>` : '';
@@ -983,8 +972,7 @@ function renderAccessSummary() {
     rows(false), allMarked || hinderedTextIsNil());
   rBox.innerHTML = group('restricted', 'Restricted access', 'Locked or permanent: no key, no hatch, no roof void',
     rows(true), allMarked);
-  [hBox, rBox].forEach(box => box.querySelectorAll('.spot-photos').forEach(el =>
-    hydratePhotoImages(el, (reportData.photosBySection || {})[el.dataset.section] || [])));
+  [hBox, rBox].forEach(hydrateSpotPhotos);
   const intro = document.getElementById('accessIntro');
   if (intro) intro.innerHTML = allMarked || limited.length ? 'Filled in from your ticks in Areas. Tap a status to change it there, or add where exactly.'
     : `Mark every area in Section ${REPORT_PARTS.areas} and these fill themselves in. <button type="button" class="link-btn" onclick="showSection('obstructions')">Go to Areas</button>`;
@@ -1037,6 +1025,30 @@ function accessLimits() {
 // section photos under photosBySection['spot-<kind>-<zone>'] so backup and
 // sync pick them up. They print with the access rows.
 function spotPhotoSection(kind, key) { return `spot-${kind}-${key}`; }
+// Each termite finding takes its own photos the same way, under
+// photosBySection['finding-<finding id>']; they print inside its card.
+function findingPhotoSection(id) { return `finding-${id}`; }
+
+// A strip of photos, each with its own details box, and an add button.
+function spotPhotosHTML(section) {
+  const photos = (reportData.photosBySection || {})[section] || [];
+  const cards = photos.map(p => `<div class="spot-photo">
+      <img data-photo-id="${p.id}" alt="Photo">
+      <input class="photo-caption-input spot-photo-caption" type="text" placeholder="Add details…" value="${escapeHtml(p.caption || '')}"
+        oninput="updateSectionPhotoCaption('${p.id}','${section}',this.value)">
+      <button type="button" class="photo-remove-btn" onclick="removeSpotPhoto('${p.id}','${section}')">Remove</button>
+    </div>`).join('');
+  return `<div class="spot-photos" data-section="${section}">${cards}
+    <button type="button" class="link-btn spot-photo-add" onclick="addSpotPhoto('${section}')">+ Add photo</button></div>`;
+}
+function hydrateSpotPhotos(container) {
+  container.querySelectorAll('.spot-photos').forEach(el =>
+    hydratePhotoImages(el, (reportData.photosBySection || {})[el.dataset.section] || []));
+}
+// Redraws whichever part of the report the strip belongs to.
+function refreshSpotPhotos(section) {
+  if (section.startsWith('finding-')) renderFindingsUI(); else renderAccessSummary();
+}
 
 function addSpotPhoto(section) {
   const input = document.getElementById('spotPhotoInput');
@@ -1048,12 +1060,12 @@ async function handleSpotPhotoFiles(input) {
   const files = Array.from(input.files || []);
   input.value = '';
   await handleSectionPhotoFiles(files, input.dataset.section);
-  renderAccessSummary();
+  refreshSpotPhotos(input.dataset.section);
 }
 
 function removeSpotPhoto(id, section) {
   removeSectionPhoto(id, section);
-  renderAccessSummary();
+  refreshSpotPhotos(section);
 }
 
 // The photos of every spot the report prints, in the order of the rows,
@@ -2827,6 +2839,15 @@ function stopRecording() {
 // environment instead of speaking.
 function clearTranscriptPlaceholderIfNeeded(el) {
   if (!el.classList.contains('active')) el.textContent = '';
+}
+
+// Paste as plain text: a copy from a web page or document would otherwise
+// bring its font and highlight into the box.
+function onTranscriptPaste(e) {
+  const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+  if (!text) return;
+  e.preventDefault();
+  document.execCommand('insertText', false, text);
 }
 
 function onTranscriptEdited(el) {
@@ -4605,6 +4626,7 @@ function findingCardHTML(finding, index, total) {
             <div class="field"><div class="field-label">Species / Genus</div>${fv('species','specieslist')}</div>
             <div class="field choice-field"><div class="field-label">Workings / Nest Located</div>${fv('nestLocated','yesno')}</div>
             <div class="field choice-field"><div class="field-label">Refer to a Builder or Engineer?</div>${fv('structuralConcern','yesno')}</div>
+            <div class="field field-wide finding-photos"><div class="field-label">Photos of this finding</div>${spotPhotosHTML(findingPhotoSection(id))}</div>
           </div>
           ${act === 'INACTIVE' ? `<div class="inactive-reminder" style="display:flex"><svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><span>Inactive workings can mean termites have temporarily abandoned the area, not that the risk is gone. Continued, regular inspections remain essential.</span></div>` : ''}
           ${finding.structuralConcern === 'YES' ? `<div class="warn-note note-info" style="margin:0 0 10px"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Referral recorded. The PDF recommends a licensed builder or engineer assess this damage.</div>` : ''}
@@ -4622,6 +4644,7 @@ function renderFindingsUI() {
 
   const findings = getFindings();
   list.innerHTML = findings.map((f, i) => findingCardHTML(f, i, findings.length)).join('');
+  hydrateSpotPhotos(list);
   renderAreaFindingPrompts();
 
   if (addBtn) {
@@ -6134,6 +6157,112 @@ async function hydratePhotoImages(container, photos) {
     }
   }
 }
+
+// ── PHOTO VIEWER ──────────────────────────────────────────────────────────
+// Tap any photo to see it full screen and zoom in (pinch, double-tap, or the
+// mouse wheel), to check it is sharp enough before it goes in the report.
+const photoView = { scale: 1, x: 0, y: 0, pointers: new Map(), pinch: null, lastTap: 0 };
+
+async function openPhotoViewer(id) {
+  const p = allReportPhotos(reportData).find(ph => ph.id === id);
+  if (!p) return;
+  const blob = await getPhotoImage(p);
+  if (!blob) { showToast('This photo is not on this device yet', 'info'); return; }
+  const img = document.getElementById('photoViewerImg');
+  if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+  img.dataset.url = URL.createObjectURL(blob);
+  img.src = img.dataset.url;
+  document.getElementById('photoViewerInfo').textContent =
+    [(p.caption || '').trim(), p.width && p.height ? `${p.width} × ${p.height}` : ''].filter(Boolean).join('  ·  ');
+  setPhotoZoom(1, 0, 0);
+  document.getElementById('photoViewer').hidden = false;
+}
+
+function closePhotoViewer() {
+  const viewer = document.getElementById('photoViewer');
+  if (!viewer || viewer.hidden) return;
+  viewer.hidden = true;
+  const img = document.getElementById('photoViewerImg');
+  if (img.dataset.url) { URL.revokeObjectURL(img.dataset.url); delete img.dataset.url; }
+  img.removeAttribute('src');
+  photoView.pointers.clear(); photoView.pinch = null;
+}
+
+// Zooms to scale with the photo offset by (x, y) from the centre, kept so
+// the photo never slides off the screen.
+function setPhotoZoom(scale, x, y) {
+  const img = document.getElementById('photoViewerImg');
+  const stage = document.getElementById('photoViewerStage');
+  scale = Math.min(5, Math.max(1, scale));
+  const maxX = Math.max(0, (img.clientWidth * scale - stage.clientWidth) / 2);
+  const maxY = Math.max(0, (img.clientHeight * scale - stage.clientHeight) / 2);
+  photoView.scale = scale;
+  photoView.x = Math.min(maxX, Math.max(-maxX, x));
+  photoView.y = Math.min(maxY, Math.max(-maxY, y));
+  img.style.transform = `translate(${photoView.x}px, ${photoView.y}px) scale(${scale})`;
+  document.getElementById('photoViewer').classList.toggle('zoomed', scale > 1);
+}
+
+// Zooms about a point on screen, so what is under the finger stays there.
+function zoomPhotoAt(scale, clientX, clientY) {
+  const r = document.getElementById('photoViewerStage').getBoundingClientRect();
+  const px = clientX - (r.left + r.width / 2), py = clientY - (r.top + r.height / 2);
+  const k = Math.min(5, Math.max(1, scale)) / photoView.scale;
+  setPhotoZoom(scale, px - (px - photoView.x) * k, py - (py - photoView.y) * k);
+}
+
+function initPhotoViewer() {
+  const stage = document.getElementById('photoViewerStage');
+  if (!stage) return;
+  const pts = photoView.pointers;
+  stage.addEventListener('pointerdown', e => {
+    stage.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      photoView.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), scale: photoView.scale };
+    }
+  });
+  stage.addEventListener('pointermove', e => {
+    const pt = pts.get(e.pointerId);
+    if (!pt) return;
+    const dx = e.clientX - pt.x, dy = e.clientY - pt.y;
+    pt.x = e.clientX; pt.y = e.clientY;
+    if (pts.size === 2 && photoView.pinch) {
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      zoomPhotoAt(photoView.pinch.scale * d / photoView.pinch.d, (a.x + b.x) / 2, (a.y + b.y) / 2);
+    } else if (pts.size === 1 && photoView.scale > 1) {
+      setPhotoZoom(photoView.scale, photoView.x + dx, photoView.y + dy);
+    }
+  });
+  const up = e => {
+    const pt = pts.get(e.pointerId);
+    pts.delete(e.pointerId);
+    if (pts.size < 2) photoView.pinch = null;
+    if (!pt || e.type === 'pointercancel' || pts.size) return;
+    // A quick second tap in the same place zooms in, or back out.
+    if (Math.hypot(e.clientX - pt.sx, e.clientY - pt.sy) > 10) return;
+    const now = Date.now();
+    if (now - photoView.lastTap < 300) {
+      photoView.lastTap = 0;
+      if (photoView.scale > 1) setPhotoZoom(1, 0, 0); else zoomPhotoAt(2.5, e.clientX, e.clientY);
+    } else photoView.lastTap = now;
+  };
+  stage.addEventListener('pointerup', up);
+  stage.addEventListener('pointercancel', up);
+  stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoomPhotoAt(photoView.scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY);
+  }, { passive: false });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePhotoViewer(); });
+  // Any photo in the app opens here.
+  document.addEventListener('click', e => {
+    const img = e.target.closest && e.target.closest('img[data-photo-id]');
+    if (img && img.getAttribute('src')) openPhotoViewer(img.dataset.photoId);
+  });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initPhotoViewer); else initPhotoViewer();
 
 // After new photos are added: try to back them up now, and record their
 // cloud paths in the draft if that worked.
@@ -10053,9 +10182,11 @@ async function buildReportPdf() {
   // whose page the contents list records. A title never sits at the foot of
   // a page.
   const partPages = {};
-  function sectionTitle(title, no) {
+  // keep: room needed below the title for its first content, so a title is
+  // never left at the foot of a page with its content overleaf.
+  function sectionTitle(title, no, keep = 30) {
     const num = no || '';
-    if (y > 240) newPage();
+    if (y + 19 + keep > 277) newPage();
     gap(4);
     // As on the app's section headers: a teal line above, a soft teal wash
     // and a fine line below, all fading out to the right.
@@ -10207,59 +10338,86 @@ async function buildReportPdf() {
     callout('Builder or engineer referral', 'The inspector recommends that the damage described above be assessed by a licensed builder or structural engineer. A timber pest inspection does not assess structural soundness or load-bearing capacity, and no opinion on either is given in this report.', 'bad');
   }
 
-  // ── PHOTO GALLERY ─────────────────────────────────────────────────────────
-  // ── PDF SECTION PHOTO RENDERER ─────────────────────────────────────────
+  // ── PHOTOS ─────────────────────────────────────────────────────────────
+  // Every photo is numbered in report order, so the text can point to one.
+  // 'cover' fills its box and trims the overflow (used for the front of the
+  // house); 'contain' shows the whole photo on a light panel, so evidence is
+  // never cropped or stretched.
+  let photoNo = 0;
+  function drawPhoto(src, x, top, w, h, mode = 'contain') {
+    const fmt = src.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+    const props = doc.getImageProperties(src);
+    const ratio = props.width / props.height;
+    doc.saveGraphicsState();
+    doc.roundedRect(x, top, w, h, 1.6, 1.6, null); doc.clip(); doc.discardPath();
+    if (mode === 'cover') {
+      let iw = w, ih = w / ratio;
+      if (ih < h) { ih = h; iw = h * ratio; }
+      doc.addImage(src, fmt, x + (w - iw) / 2, top + (h - ih) / 2, iw, ih, undefined, 'FAST');
+    } else {
+      doc.setFillColor(...C.rowAlt); doc.rect(x, top, w, h, 'F');
+      let iw = w, ih = w / ratio;
+      if (ih > h) { ih = h; iw = h * ratio; }
+      doc.addImage(src, fmt, x + (w - iw) / 2, top + (h - ih) / 2, iw, ih, undefined, 'FAST');
+    }
+    doc.restoreGraphicsState();
+    doc.setDrawColor(...C.rule); doc.setLineWidth(0.3);
+    doc.roundedRect(x, top, w, h, 1.6, 1.6, 'D');
+  }
+  function photoUnavailable(x, top, w, h) {
+    doc.setFillColor(...C.rowAlt); doc.roundedRect(x, top, w, h, 1.6, 1.6, 'F');
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+    doc.text('Photo not available', x + w / 2, top + h / 2, { align:'center' });
+  }
+
+  // Photos two to a row, each with its number and caption under it.
+  function photoGrid(photos, x = M, w = CW) {
+    const gutter = 5, boxW = (w - gutter) / 2, boxH = boxW * 0.72;
+    for (let i = 0; i < photos.length; i += 2) {
+      const pair = photos.slice(i, i + 2);
+      doc.setFontSize(7);
+      const caps = pair.map(p => doc.splitTextToSize((p.caption || '').trim(), boxW - 16).slice(0, 2));
+      const rowH = boxH + 5 + Math.max(...caps.map(c => Math.max(1, c.length))) * 3.3 + 4;
+      if (y + rowH > 280) newPage();
+      pair.forEach((p, k) => {
+        const px = x + k * (boxW + gutter);
+        const no = ++photoNo;
+        try {
+          if (!photoSrc[p.id]) throw new Error('no image');
+          drawPhoto(photoSrc[p.id], px, y, boxW, boxH);
+        } catch (e) { photoUnavailable(px, y, boxW, boxH); }
+        doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.accentDark);
+        doc.text(`Photo ${no}`, px, y + boxH + 4.5);
+        if (caps[k].length) {
+          doc.setFont('helvetica','normal'); doc.setTextColor(...C.inkLight);
+          doc.text(caps[k], px + 14, y + boxH + 4.5, { lineHeightFactor: 1.35 });
+        }
+      });
+      y += rowH;
+    }
+  }
+
   function renderSectionPhotosInPDF(sectionKey, label, list) {
     const photos = list || (reportData.photosBySection || {})[sectionKey] || [];
     if (photos.length === 0) return;
-
-    const photoW = (CW - 4) / 2;
-    const photoH = photoW * 0.65;
     gap(2);
-    if (y + photoH + 24 > 278) newPage(); // keep the label with the first photos
-    subhead('PHOTOGRAPHIC EVIDENCE — ' + label.toUpperCase());
-
-    let col = 0;
-    let rowStartY = y;
-
-    photos.forEach((p, idx) => {
-      const x = M + col * (photoW + 4);
-      if (y + photoH + 18 > 278) { newPage(); rowStartY = y; col = 0; }
-
-      try {
-        const src = photoSrc[p.id];
-        if (!src) throw new Error('Photo not available');
-        const fmt = src.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-        doc.addImage(src, fmt, x, y, photoW, photoH, undefined, 'FAST');
-        doc.setDrawColor(...C.rule); doc.setLineWidth(0.3);
-        doc.rect(x, y, photoW, photoH, 'D');
-        if (p.caption && p.caption.trim()) {
-          doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(...C.inkLight);
-          const capLines = doc.splitTextToSize(p.caption.trim(), photoW - 2);
-          doc.text(capLines.slice(0, 2), x, y + photoH + 4);
-        }
-      } catch(e) {
-        // If image fails, draw placeholder
-        doc.setFillColor(...C.rowAlt); doc.rect(x, y, photoW, photoH, 'F');
-        doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
-        doc.text('[Photo unavailable]', x + photoW/2, y + photoH/2, { align:'center' });
-      }
-
-      col++;
-      if (col >= 2) {
-        col = 0;
-        y += photoH + 14;
-        rowStartY = y;
-      }
-    });
-
-    if (col > 0) y += photoH + 14;
-    gap(4);
+    if (y + 70 > 278) newPage(); // keep the label with the first photos
+    subhead('PHOTOS — ' + label.toUpperCase());
+    photoGrid(photos);
+    gap(3);
   }
 
-  function photoPlaceholder(label) {
-    // No longer used for placeholder — real photos are rendered by renderSectionPhotosInPDF
-    return;
+  // The front of the house across the page, under its section's title.
+  function heroPhoto(p, h, caption) {
+    if (!p || !photoSrc[p.id]) return;
+    if (y + h + 8 > 278) newPage();
+    try { drawPhoto(photoSrc[p.id], M, y, CW, h, 'cover'); } catch (e) { return; }
+    y += h + 2;
+    if (caption) {
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(...C.inkMuted);
+      doc.text(caption, M, y + 3); y += 6;
+    }
+    y += 3;
   }
 
   function photoGallery() {
@@ -10272,31 +10430,7 @@ async function buildReportPdf() {
       y += 8;
       return;
     }
-    const gutter = 6, colW = (CW - gutter) / 2, maxImgH = 58, captionGap = 4;
-    function computeBox(p) {
-      let w = colW, h = w * (p.height / p.width);
-      if (h > maxImgH) { h = maxImgH; w = h * (p.width / p.height); }
-      return { w, h };
-    }
-    for (let i = 0; i < photos.length; i += 2) {
-      const rowPhotos = [photos[i], photos[i+1]].filter(Boolean);
-      const boxes = rowPhotos.map(computeBox);
-      const capLines = rowPhotos.map((p, idx) => doc.splitTextToSize(p.caption || `Photo ${i+idx+1}`, colW));
-      const capHeights = capLines.map(lines => lines.length * 3.6);
-      const rowHeight = Math.max(...boxes.map((b,idx) => b.h + captionGap + capHeights[idx]));
-      if (y + rowHeight > 280) newPage();
-      rowPhotos.forEach((p, idx) => {
-        const colX = M + idx * (colW + gutter);
-        const box = boxes[idx];
-        const imgX = colX + (colW - box.w) / 2;
-        try { doc.addImage(photoSrc[p.id], 'JPEG', imgX, y, box.w, box.h); } catch(e) {}
-        doc.setDrawColor(...C.rule); doc.setLineWidth(0.3);
-        doc.rect(imgX, y, box.w, box.h, 'D');
-        doc.setFont('helvetica','italic'); doc.setFontSize(7.5); doc.setTextColor(...C.inkMuted);
-        doc.text(capLines[idx], colX, y + box.h + captionGap);
-      });
-      y += rowHeight + 8;
-    }
+    photoGrid(photos);
     gap(4);
   }
 
@@ -10363,30 +10497,24 @@ async function buildReportPdf() {
   doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(...C.ink);
   doc.text(doc.splitTextToSize(standardLabel, 100)[0], M, 85);
 
-  // ── PROPERTY PHOTO ── the first property photo, beside the title.
-  const coverPhoto = [...((reportData.photosBySection || {}).general || []), ...(reportData.photos || [])].find(p => photoSrc[p.id]);
+  // ── PROPERTY PHOTO ── the front of the house across the page, under the
+  // title. Without one, the property block moves up into its place.
+  const frontPhoto = ((reportData.photosBySection || {}).general || []).find(p => photoSrc[p.id]);
+  const coverPhoto = frontPhoto || (reportData.photos || []).find(p => photoSrc[p.id]);
+  let coverShift = 0;
   if (coverPhoto) {
-    try {
-      const src = photoSrc[coverPhoto.id];
-      const props = doc.getImageProperties(src);
-      const boxW = 64, boxH = 46, boxX = W - M - boxW, boxY = 42;
-      let w = boxW, h = w * props.height / props.width;
-      if (h > boxH) { h = boxH; w = h * props.width / props.height; }
-      const x = boxX + boxW - w;
-      doc.addImage(src, src.startsWith('data:image/png') ? 'PNG' : 'JPEG', x, boxY, w, h, undefined, 'FAST');
-      doc.setDrawColor(...C.rule); doc.setLineWidth(0.3); doc.rect(x, boxY, w, h, 'D');
-    } catch (e) {}
+    try { drawPhoto(photoSrc[coverPhoto.id], M, 93, CW, 62, 'cover'); coverShift = 68; } catch (e) {}
   }
 
   // ── THE PROPERTY ──────────────────────────────────────────────────────────
   // The client's property, large, then the job details in a two-column grid.
-  doc.setFillColor(...C.accent); doc.rect(M, 96, CW, 0.5, 'F');
+  doc.setFillColor(...C.accent); doc.rect(M, 96 + coverShift, CW, 0.5, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
-  pdfTracked(doc, 'PROPERTY INSPECTED', M, 104, { cs: 0.4 });
+  pdfTracked(doc, 'PROPERTY INSPECTED', M, 104 + coverShift, { cs: 0.4 });
   doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.setTextColor(...C.ink);
   const addrLines = doc.splitTextToSize(address, CW).slice(0, 2);
-  doc.text(addrLines, M, 112, { lineHeightFactor: 1.2 });
-  let gy = 112 + (addrLines.length - 1) * 7.2 + 9;
+  doc.text(addrLines, M, 112 + coverShift, { lineHeightFactor: 1.2 });
+  let gy = 112 + coverShift + (addrLines.length - 1) * 7.2 + 9;
 
   const coverRows = [
     ['CLIENT',            client],
@@ -10576,6 +10704,7 @@ async function buildReportPdf() {
   // ─────────────────────────────────────────────────────────────────────
   startPart('About the Property', true);
   sectionTitle('ABOUT THE PROPERTY', REPORT_PARTS.property);
+  heroPhoto(frontPhoto, 70, 'Front of the property');
   row('Structure Type', reportData.structureType);
   row('Height', RENAMED_CHOICES.height[reportData.height] || reportData.height);
   row('Wall Construction', reportData.wallConstruction);
@@ -10625,8 +10754,8 @@ async function buildReportPdf() {
   }
   renderSectionPhotosInPDF('durable', 'Durable Notice');
   notesBlock('property');
-  gap(4);
-  renderSectionPhotosInPDF('general', 'Property');
+  // Older reports could hold more than one front photo: the rest print here.
+  renderSectionPhotosInPDF(null, 'Property', ((reportData.photosBySection || {}).general || []).filter(p => p !== frontPhoto));
 
   // ─────────────────────────────────────────────────────────────────────
   // 4. AREAS INSPECTED: every area, how much of it was inspected, and
@@ -10699,7 +10828,7 @@ async function buildReportPdf() {
   // 6. FINDINGS
   // ─────────────────────────────────────────────────────────────────────
   startPart('Findings');
-  sectionTitle('FINDINGS', REPORT_PARTS.findings);
+  sectionTitle('FINDINGS', REPORT_PARTS.findings, 85);
 
   const findings = (reportData.findings && reportData.findings.length > 0)
     ? reportData.findings
@@ -10782,6 +10911,15 @@ async function buildReportPdf() {
     if (f.structuralConcern === 'YES') {
       y += 2;
       callout('Builder or engineer referral', 'The inspector recommends a licensed builder or structural engineer assess this damage, and any effect on the structure, before work proceeds.', 'bad', bodyX, bodyW);
+    }
+
+    // This finding's own photos, inside its card.
+    const fPhotos = f.id ? ((reportData.photosBySection || {})[findingPhotoSection(f.id)] || []) : [];
+    if (fPhotos.length) {
+      if (y + 12 > 270) newPage();
+      doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...C.inkMuted);
+      doc.text('PHOTOS', bodyX, y); y += 3;
+      photoGrid(fPhotos, bodyX, bodyW);
     }
 
     y += 3;
