@@ -3449,7 +3449,10 @@ async function callExtraction(text) {
         // max_tokens at its own ceiling.
         max_tokens: 16000,
         output_config: { effort: 'medium' },
-        system: SYSTEM_PROMPT,
+        // The instructions are the same for every note, so they're cached
+        // for an hour: after the first note, reading them costs a tenth.
+        // The other prompts are too short for the model to cache.
+        system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } }],
         messages: [{ role: 'user', content: text }]
       }),
       signal: controller.signal,
