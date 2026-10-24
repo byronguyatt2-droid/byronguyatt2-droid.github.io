@@ -9763,6 +9763,22 @@ function pdfTracked(doc, text, x, y, { cs = 0.35, align } = {}) {
   return w;
 }
 
+// A rule that runs from teal through mint and fades into the page, like the
+// lines on the app's section headers. jsPDF has no gradients, so it is drawn
+// as thin steps. wash: a pale teal band that fades straight into the page.
+function drawPdfFadeRule(doc, x, y, w, h, { wash = false } = {}) {
+  const white = [255, 255, 255];
+  const from = wash ? [228, 245, 242] : PDF_COLORS.accent;
+  const mid = wash ? [240, 250, 248] : [94, 234, 212];
+  const steps = Math.max(12, Math.round(w / 1.5)), sw = w / steps;
+  const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  for (let i = 0; i < steps; i++) {
+    const t = i / (steps - 1);
+    doc.setFillColor(...(t < 0.45 ? mix(from, mid, t / 0.45) : mix(mid, white, (t - 0.45) / 0.55)));
+    doc.rect(x + i * sw, y, sw + 0.05, h, 'F');
+  }
+}
+
 // The business's mark: the uploaded logo, else its initials (or S for
 // SAYON) in a teal tile. size is the square it fits in, in mm.
 function drawPdfCompanyMark(doc, company, x = 15, y = 12, size = 17) {
@@ -9792,7 +9808,7 @@ function drawPdfCompanyMark(doc, company, x = 15, y = 12, size = 17) {
 function drawPdfLetterhead(doc, company, { docLabel, date }) {
   const C = PDF_COLORS;
   const W = 210, M = 15;
-  doc.setFillColor(...C.accent); doc.rect(0, 0, W, 1.6, 'F');
+  drawPdfFadeRule(doc, 0, 0, W, 1.6);
   const markW = drawPdfCompanyMark(doc, company, M, 11, 17);
   const tx = M + markW + 5;
   doc.setFont('helvetica','bold'); doc.setFontSize(13.5); doc.setTextColor(...C.ink);
@@ -9809,7 +9825,7 @@ function drawPdfLetterhead(doc, company, { docLabel, date }) {
   pdfTracked(doc, (docLabel || '').toUpperCase(), W - M, 17.5, { align: 'right' });
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.inkLight);
   if (date) doc.text(date, W - M, 22.6, { align: 'right' });
-  doc.setFillColor(...C.accent); doc.rect(M, 33, W - M * 2, 0.5, 'F');
+  drawPdfFadeRule(doc, M, 33, W - M * 2, 0.5);
   return 33.5;
 }
 
@@ -9957,7 +9973,7 @@ async function buildReportPdf() {
     }
     doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...C.accent);
     doc.text(sectionLabel.toUpperCase(), W-M, 10, { align:'right' });
-    doc.setFillColor(...C.accent); doc.rect(M, 17, CW, 0.35, 'F');
+    drawPdfFadeRule(doc, M, 17, CW, 0.35);
     y = 26;
   }
 
@@ -9970,6 +9986,10 @@ async function buildReportPdf() {
     const num = no || '';
     if (y > 240) newPage();
     gap(4);
+    // As on the app's section headers: a teal line above, a soft teal wash
+    // and a fine line below, all fading out to the right.
+    drawPdfFadeRule(doc, M, y - 2.5, CW, 0.7);
+    drawPdfFadeRule(doc, M, y - 1.8, CW, 10.6, { wash: true });
     // Number badge
     if (num) {
       doc.setFillColor(...C.accent); doc.roundedRect(M, y, 7, 7, 1, 1, 'F');
@@ -9981,8 +10001,7 @@ async function buildReportPdf() {
     const titleX = num ? M+10 : M;
     doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(...C.ink);
     doc.text(title, titleX, y+5.5);
-    // Full-width orange rule
-    doc.setFillColor(...C.rule); doc.rect(M, y+9, CW, 0.3, 'F');
+    drawPdfFadeRule(doc, M, y+8.8, CW, 0.3);
     y += 15;
   }
 
