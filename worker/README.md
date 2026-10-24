@@ -13,6 +13,7 @@ calls:
 | `POST /stripe/webhook` | Stripe | Updates the `subscriptions` row when someone pays, changes plan or cancels |
 | `POST /send-email` | Send, Email to client, Email certificate | Emails the PDFs to the client from the business through Resend, with a copy to the business; answers 501 until Resend is set up, and the app then uses the phone's mail app |
 | `GET /maps-key` | Street Address box | Returns the Google Maps browser key from the `GOOGLE_MAPS_KEY` secret, so address suggestions work; answers 501 until it's set, and the box stays plain text |
+| `GET /weather` | Picking the address, or Fill from the weather | Returns the conditions, temperature, humidity and past 24 hours of rain at a location from Google's Weather API, using the `GOOGLE_WEATHER_KEY` secret; answers 501 until it's set |
 | `POST /transcribe` | Experimental AI audio transcription | Runs the recording through Whisper on Workers AI and returns `{ transcript }`; counts as one AI call |
 
 Only the business owner can start checkout or open the portal. The AI proxy
@@ -60,6 +61,19 @@ text. Google gives a free allowance each month; set a budget alert anyway.
 
 The key ends up in the browser, which is normal for a Maps key: the website
 restriction in step 3 is what stops anyone else using it.
+
+## Weather on the day (Google Weather API)
+
+Fills the report's weather, temperature, humidity and rain in the last 24
+hours. Same Google project as the Maps key above.
+
+1. APIs & Services › Library › enable **Weather API**.
+2. Credentials › Create credentials › API key. Open the key: API restrictions ›
+   **Restrict key** › tick only Weather API. Leave Application restrictions
+   at None: the Worker calls it from Cloudflare, so a website restriction
+   would block it. The key stays secret in the Worker.
+3. Cloudflare › `korva` › Settings › Variables and Secrets › Add, type
+   **Secret**, name `GOOGLE_WEATHER_KEY`. Deploy.
 
 ## One-time Stripe setup
 

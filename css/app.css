@@ -4384,6 +4384,7 @@ body:not(.dark-screen) .edit-mode .field-val:hover { box-shadow: 0 0 0 3px rgba(
 /* The same teal glow on the home screen, top bar, menu and dashboard. */
 /* Logo boxes fade like the intro's: near-white at the top into teal. */
 body:not(.dark-screen) .app-logo-icon,
+body:not(.dark-screen) .auth-logo-icon,
 body:not(.dark-screen) .menu-logo-icon {
   background: linear-gradient(180deg, #F4F7FA 0%, #CCFBF1 40%, #2DD4BF 78%, #14B8A6 100%);
   color: #0B3B36;
@@ -4395,6 +4396,7 @@ body:not(.dark-screen) .menu-logo-icon {
 }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   body:not(.dark-screen) .app-logo-name,
+  body:not(.dark-screen) .auth-logo-name,
   body:not(.dark-screen) .menu-logo-text {
     background: linear-gradient(180deg, #F4F7FA 0%, #CCFBF1 45%, #2DD4BF 100%);
     -webkit-background-clip: text;
@@ -4494,3 +4496,8 @@ body:not(.dark-screen) .dashboard-stat-value { color: rgb(var(--glow-ink)); }
 .addr-suggest-street { font-size: 14px; font-weight: 600; color: var(--text); }
 .addr-suggest-area { font-size: 12px; color: var(--text2); }
 .addr-suggest-credit { padding: 5px 12px 6px; font-size: 10.5px; color: var(--text3, var(--text2)); text-align: right; border-top: 1px solid var(--border); }
+
+/* "Fill from today's weather", under the weather readings */
+.field.weather-fill { grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-start; margin-top: -6px; }
+.field.weather-fill .link-btn { padding: 0; min-height: 44px; font-size: 14px; text-align: left; }
+.field.weather-fill .link-btn:disabled { opacity: 0.6; }
