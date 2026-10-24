@@ -4318,7 +4318,9 @@ body:not(.dark-screen) .report-body { background: transparent; }
 body:not(.dark-screen) .report-section,
 body:not(.dark-screen) #jobPanel:not(.menu-page-active) { border-color: transparent; box-shadow: 0 14px 36px rgba(0,0,0,0.35); }
 /* Banners on the backdrop need a solid face to stay readable. */
-body:not(.dark-screen) .agreement-banner { background: #FFF6E0; border-color: #F0C25A; color: #7A4F00; }
+/* Unsigned agreement: light red, as no job should start without it. */
+body:not(.dark-screen) .agreement-banner { background: linear-gradient(135deg, #FFE4E4 0%, #FFF1F1 60%, #FFF7F7 100%); border-color: #F2A3A3; color: #9B1C1C; box-shadow: 0 0 0 1px rgba(215,38,30,0.08), 0 6px 22px -6px rgba(215,38,30,0.45); }
+body:not(.dark-screen) .agreement-banner:not(.signed) .agreement-banner-btn { background: #D7261E; border-color: #D7261E; color: #FFFFFF; box-shadow: 0 3px 10px rgba(215,38,30,0.35); }
 body:not(.dark-screen) .agreement-banner.signed { background: #E6F6EC; border-color: #9AD3AE; color: #1E7A45; }
 body:not(.dark-screen) .issue-banner { background: #FFFFFF; border-color: transparent; box-shadow: 0 14px 36px rgba(0,0,0,0.35); }
 body:not(.dark-screen) .issue-banner.locked { background: #FFFFFF; border-color: #9AD3AE; }
