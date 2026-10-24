@@ -657,7 +657,7 @@ function buildTreatmentCertificatePDF(q) {
   section('KEEPING THE PROPERTY PROTECTED');
   stepLines.forEach((lines, i) => {
     ensure(lines.length * 3.9 + 2);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accent);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...C.accentDark);
     doc.text(`${i + 1}.`, M, y);
     doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.ink);
     doc.text(lines, M + 6, y);
