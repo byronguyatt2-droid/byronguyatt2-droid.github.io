@@ -1037,13 +1037,6 @@
           <h2>Inspection Report</h2>
           <p id="reportSubtitle">Enter job details and speak to populate fields</p>
         </div>
-        <div class="header-actions">
-          <button class="edit-btn" id="editBtn" onclick="toggleEdit()"><svg class="icon " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit Mode</button>
-        </div>
-      </div>
-
-      <div class="edit-banner" id="editBanner">
-        <svg class="icon " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg><strong>Edit Mode</strong> — Click any field to edit. Changes save automatically.
       </div>
 
       <div class="progress-wrap">
@@ -1086,7 +1079,7 @@
         </button>
       </div><!-- /sectionTabs -->
 
-      <div class="report-body" id="reportBody">
+      <div class="report-body edit-mode" id="reportBody">
 
         <!-- Job completion: sent, complete, locked, amending (see COMPLETED
              JOBS in js/app.js) -->
