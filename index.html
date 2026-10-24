@@ -239,8 +239,10 @@
         <div class="menu-tile-icon">
           <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z"/><path d="m21 21-4.3-4.3"/></svg>
         </div>
-        <div class="menu-tile-name">SAYON</div>
-        <div class="menu-tile-desc">Timber pest inspection reports</div>
+        <div class="menu-tile-text">
+          <div class="menu-tile-name">SAYON</div>
+          <div class="menu-tile-desc">Timber pest inspection reports</div>
+        </div>
         <div class="menu-tile-arrow">
           <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </div>
@@ -249,8 +251,10 @@
         <div class="menu-tile-icon">
           <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg>
         </div>
-        <div class="menu-tile-name">Quote</div>
-        <div class="menu-tile-desc">Treatment quotes from inspection reports</div>
+        <div class="menu-tile-text">
+          <div class="menu-tile-name">Quote</div>
+          <div class="menu-tile-desc">Treatment quotes from inspection reports</div>
+        </div>
         <div class="menu-tile-arrow">
           <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </div>
@@ -683,7 +687,11 @@
           <!-- Property address -->
           <div class="job-field">
             <div class="job-field-label">Street Address</div>
-            <input class="job-input" id="jobAddress" placeholder="e.g. 12 Smith Street" oninput="updateJob()">
+            <div class="addr-wrap">
+              <input class="job-input" id="jobAddress" placeholder="Start typing the address" autocomplete="off"
+                oninput="updateJob(); onAddressTyped(this.value)" onblur="setTimeout(hideAddressSuggestions, 200)">
+              <div class="addr-suggest" id="addrSuggest" role="listbox"></div>
+            </div>
           </div>
           <div class="job-row job-row-suburb">
             <div class="job-field">
@@ -1108,6 +1116,10 @@
             <div class="field"><div class="field-label">Year / Period of Construction</div><div class="field-val" id="f-constructionEra" onclick="startEdit(this,'constructionEra','era')">—</div></div>
             <div class="field"><div class="field-label">Occupancy Status</div><div class="field-val" id="f-occupancyStatus" onclick="startEdit(this,'occupancyStatus','occupancystatus')">—</div></div>
             <div class="field"><div class="field-label">Weather Conditions</div><div class="field-val" id="f-weatherConditions" onclick="startEdit(this,'weatherConditions','weatherconditions')">—</div></div>
+            <div class="field"><div class="field-label">Temperature</div><div class="field-val" id="f-temperature" onclick="startEdit(this,'temperature','text')">—</div></div>
+            <div class="field"><div class="field-label">Humidity</div><div class="field-val" id="f-humidity" onclick="startEdit(this,'humidity','text')">—</div></div>
+            <div class="field"><div class="field-label">Rain in the Last 24 Hours</div><div class="field-val" id="f-rainLast24h" onclick="startEdit(this,'rainLast24h','text')">—</div></div>
+            <div class="field weather-fill"><button type="button" class="link-btn" id="weatherFillBtn" onclick="fillWeather()">Fill from today's weather</button></div>
             <div class="field"><div class="field-label">Applicable Standard</div><div class="field-val" id="f-standard" onclick="startEdit(this,'standard','standard')">—</div></div>
             <div class="field field-wide">
               <div class="field-label">Termite Management System</div>

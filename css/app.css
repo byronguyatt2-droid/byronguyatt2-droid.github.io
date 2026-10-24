@@ -612,7 +612,7 @@ body.large-touch .saved-item-delete { width: 44px; height: 44px; }
 
 .menu-tile-icon, .menu-tile-name, .menu-tile-desc { pointer-events: none; }
 
-.menu-tile > div:not(.menu-tile-icon) {
+.menu-tile-text {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -4381,6 +4381,86 @@ body:not(.dark-screen) .finding-card-header { background: linear-gradient(135deg
 }
 /* In edit mode a field lights up teal under the finger or pointer. */
 body:not(.dark-screen) .edit-mode .field-val:hover { box-shadow: 0 0 0 3px rgba(var(--glow),0.14), 0 0 16px rgba(var(--glow),0.18); }
+/* The same teal glow on the home screen, top bar, menu and dashboard. */
+/* Logo boxes fade like the intro's: near-white at the top into teal. */
+body:not(.dark-screen) .app-logo-icon,
+body:not(.dark-screen) .auth-logo-icon,
+body:not(.dark-screen) .menu-logo-icon {
+  background: linear-gradient(180deg, #F4F7FA 0%, #CCFBF1 40%, #2DD4BF 78%, #14B8A6 100%);
+  color: #0B3B36;
+  box-shadow: 0 0 14px rgba(var(--glow-hi),0.4), inset 0 1px 1px rgba(255,255,255,0.6), inset 0 -2px 3px rgba(10,110,101,0.35);
+}
+body:not(.dark-screen) .menu-logo-icon {
+  width: 46px; height: 46px; border-radius: 13px; justify-content: center; filter: none;
+  box-shadow: 0 0 34px rgba(var(--glow-hi),0.35), 0 8px 22px rgba(var(--glow),0.25), inset 0 1px 1px rgba(255,255,255,0.6), inset 0 -2px 4px rgba(10,110,101,0.35);
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  body:not(.dark-screen) .app-logo-name,
+  body:not(.dark-screen) .auth-logo-name,
+  body:not(.dark-screen) .menu-logo-text {
+    background: linear-gradient(180deg, #F4F7FA 0%, #CCFBF1 45%, #2DD4BF 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 10px rgba(var(--glow),0.35));
+  }
+  body:not(.dark-screen) .menu-logo-text { font-size: 34px; }
+}
+/* A fine teal line under the top bars, fading out to the right. */
+body:not(.dark-screen) header,
+body:not(.dark-screen) .quote-topbar {
+  border-bottom: 1px solid rgba(var(--glow),0.5);
+  border-image: linear-gradient(90deg, rgba(var(--glow-hi),0.8), rgba(var(--glow),0.4) 45%, rgba(var(--glow),0)) 1;
+}
+/* Home screen: brighter tagline between two fading lines, glowing tiles. */
+body:not(.dark-screen) .menu-tagline { color: #CFEFEB; font-size: 11px; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 10px; }
+body:not(.dark-screen) .menu-tagline::before,
+body:not(.dark-screen) .menu-tagline::after { content: ''; flex: 0 1 40px; min-width: 10px; height: 1px; background: linear-gradient(90deg, rgba(var(--glow-hi),0), rgba(var(--glow-hi),0.8)); }
+body:not(.dark-screen) .menu-tagline::after { transform: scaleX(-1); }
+@media (max-width: 360px) {
+  body:not(.dark-screen) .menu-tagline { white-space: normal; }
+  body:not(.dark-screen) .menu-tagline::before, body:not(.dark-screen) .menu-tagline::after { display: none; }
+}
+body:not(.dark-screen) .menu-tile.live {
+  border-style: solid; border-width: 3px 0 0;
+  border-image: linear-gradient(90deg, rgb(var(--glow)), rgb(var(--glow-hi)) 45%, rgba(var(--glow-hi),0)) 1;
+  clip-path: inset(0 round 14px);
+  background: linear-gradient(135deg, rgba(var(--glow),0.12) 0%, rgba(var(--glow-hi),0.04) 45%, rgba(var(--glow),0) 75%), var(--surface);
+}
+body:not(.dark-screen) .menu-grid { filter: drop-shadow(0 -8px 22px rgba(var(--glow),0.35)); }
+body:not(.dark-screen) .menu-tile.live .menu-tile-icon,
+body:not(.dark-screen) .panel-label .panel-icon {
+  background: linear-gradient(180deg, rgba(var(--glow-hi),0.28), rgba(var(--glow),0.14));
+  border-color: rgba(var(--glow),0.3);
+  color: rgb(var(--glow-ink));
+  box-shadow: 0 2px 10px rgba(var(--glow),0.22), inset 0 1px 0 rgba(255,255,255,0.6);
+}
+/* Menu and dashboard: titles run from ink into teal, group labels trail a
+   fading line, and the dashboard's numbers sit under a teal line. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  body:not(.dark-screen) .drawer-title,
+  body:not(.dark-screen) .dashboard-panel-title {
+    background: linear-gradient(90deg, var(--text) 0%, var(--text) 40%, rgb(var(--glow-ink)) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+body:not(.dark-screen) .drawer-group-label,
+body:not(.dark-screen) .dashboard-section-label { display: flex; align-items: center; gap: 10px; color: rgb(var(--glow-ink)); }
+body:not(.dark-screen) .drawer-group-label::after,
+body:not(.dark-screen) .dashboard-section-label::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, rgba(var(--glow),0.6), rgba(var(--glow-hi),0.25) 50%, rgba(var(--glow-hi),0));
+}
+body:not(.dark-screen) .dashboard-panel { box-shadow: 0 -12px 40px -10px rgba(var(--glow),0.55); }
+body:not(.dark-screen) .dashboard-stat-card {
+  border: 0; border-top: 3px solid rgb(var(--glow));
+  border-image: linear-gradient(90deg, rgb(var(--glow)), rgb(var(--glow-hi)) 45%, rgba(var(--glow-hi),0)) 1;
+  background: linear-gradient(160deg, rgba(var(--glow),0.12) 0%, rgba(var(--glow),0) 70%), var(--surface2);
+  clip-path: inset(0 round 10px);
+}
+body:not(.dark-screen) .dashboard-stat-value { color: rgb(var(--glow-ink)); }
 #invasiveDetailsWrap[hidden] { display: none; }
 
 /* Areas (Section 4) */
@@ -4401,3 +4481,23 @@ body:not(.dark-screen) .edit-mode .field-val:hover { box-shadow: 0 0 0 3px rgba(
 .area-where { padding: 0 12px 12px; font-size: 12.5px; color: var(--text3); }
 .area-where .link-btn { display: inline; min-height: 0; margin: 0; padding: 0; font-size: inherit; }
 .area-status-btn { font-size: 12px; line-height: 1.2; }
+
+/* Address suggestions under the street address box */
+.addr-wrap { position: relative; }
+.addr-suggest { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 50;
+  background: var(--surface); border: 1px solid var(--border2); border-radius: 10px; overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
+.addr-suggest.open { display: block; }
+.addr-suggest-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
+  min-height: 44px; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--border); background: none;
+  text-align: left; font-family: inherit; cursor: pointer; }
+.addr-suggest-item:last-child { border-bottom: 0; }
+.addr-suggest-item:active, .addr-suggest-item:hover { background: var(--surface2); }
+.addr-suggest-street { font-size: 14px; font-weight: 600; color: var(--text); }
+.addr-suggest-area { font-size: 12px; color: var(--text2); }
+.addr-suggest-credit { padding: 5px 12px 6px; font-size: 10.5px; color: var(--text3, var(--text2)); text-align: right; border-top: 1px solid var(--border); }
+
+/* "Fill from today's weather", under the weather readings */
+.field.weather-fill { grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-start; margin-top: -6px; }
+.field.weather-fill .link-btn { padding: 0; min-height: 44px; font-size: 14px; text-align: left; }
+.field.weather-fill .link-btn:disabled { opacity: 0.6; }

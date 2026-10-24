@@ -287,3 +287,17 @@ body:not(.dark-screen) .quote-save-state { color: var(--on-ink2); }
 body:not(.dark-screen) .quote-card { border-color: transparent; box-shadow: 0 14px 36px rgba(0,0,0,0.35); }
 body:not(.dark-screen) .quote-company-gaps { background: #FFF6E0; border-color: #F0C25A; color: #5C3D00; }
 body:not(.dark-screen) .quote-empty { color: var(--on-ink2); }
+/* Teal glow details, as on the report: cards glow off their top edge and
+   each card's heading trails a fading teal line. */
+body:not(.dark-screen) .quote-card {
+  box-shadow: 0 14px 36px rgba(0,0,0,0.35), 0 0 0 1px rgba(var(--glow),0.18), 0 -10px 40px -14px rgba(var(--glow),0.7);
+}
+body:not(.dark-screen) .quote-card-title,
+body:not(.dark-screen) .quote-label { color: rgb(var(--glow-ink)); }
+body:not(.dark-screen) .quote-card > .quote-card-title:first-child,
+body:not(.dark-screen) .quote-card > .quote-label:first-child,
+body:not(.dark-screen) .quote-card-head {
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(var(--glow),0.5);
+  border-image: linear-gradient(90deg, rgba(var(--glow),0.75), rgba(var(--glow-hi),0.35) 50%, rgba(var(--glow-hi),0)) 1;
+}
