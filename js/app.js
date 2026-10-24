@@ -6480,19 +6480,30 @@ function auStateCode(name) {
   return AU_STATES[n.toLowerCase()] || (Object.values(AU_STATES).includes(n.toUpperCase()) ? n.toUpperCase() : '');
 }
 
-// Google Places, through the Maps JavaScript API. The key is public by
-// design: it only works from the SAYON site addresses set on it in Google
-// Cloud (HTTP referrer restriction), and only for Maps JavaScript and Places.
-// Empty key: no suggestions, the address boxes work as plain text.
-const GOOGLE_MAPS_KEY = '';
+// Google Places, through the Maps JavaScript API. The key comes from the
+// Worker's GOOGLE_MAPS_KEY secret, which keeps it out of this public repo; it
+// only works from the SAYON site addresses set on it in Google Cloud (HTTP
+// referrer restriction), and only for Maps JavaScript and Places. Until the
+// secret is set there are no suggestions and the boxes work as plain text.
+let googleMapsKey = null; // a promise of the key, '' when there is none
+function getGoogleMapsKey() {
+  if (!googleMapsKey) {
+    googleMapsKey = workerFetch('/maps-key', { method: 'GET' }).then(async res => {
+      if (res.ok) return (await res.json()).key || '';
+      if (![404, 405, 501].includes(res.status)) googleMapsKey = null; // ask again later
+      return '';
+    }).catch(() => { googleMapsKey = null; return ''; });
+  }
+  return googleMapsKey;
+}
 let googlePlacesLib = null;
 let addressSessionToken = null;
-function loadGooglePlaces() {
+function loadGooglePlaces(key) {
   if (googlePlacesLib) return googlePlacesLib;
   googlePlacesLib = new Promise((resolve, reject) => {
     window.__sayonMapsReady = () => resolve();
     const sc = document.createElement('script');
-    sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(GOOGLE_MAPS_KEY)
+    sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key)
       + '&loading=async&callback=__sayonMapsReady';
     sc.async = true;
     sc.onerror = () => { googlePlacesLib = null; reject(new Error('Maps did not load')); };
@@ -6503,8 +6514,9 @@ function loadGooglePlaces() {
 
 // Resolves [{ label, area, prediction }] for the typed text.
 async function lookupAddresses(query) {
-  if (!GOOGLE_MAPS_KEY) return [];
-  const places = await loadGooglePlaces();
+  const key = await getGoogleMapsKey();
+  if (!key) return [];
+  const places = await loadGooglePlaces(key);
   if (!addressSessionToken) addressSessionToken = new places.AutocompleteSessionToken();
   const { suggestions } = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
     input: query, includedRegionCodes: ['au'], sessionToken: addressSessionToken,

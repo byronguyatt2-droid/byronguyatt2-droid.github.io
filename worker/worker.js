@@ -21,6 +21,9 @@
  *       add column if not exists emails_sent_today int not null default 0,
  *       add column if not exists emails_day date;
  *   Until they exist, sending works as before with no limit.
+ * - GET /maps-key hands a signed-in user the Google Maps browser key for
+ *   address suggestions, from the GOOGLE_MAPS_KEY secret. Until that secret
+ *   is set it answers 501 and the address boxes stay plain text.
  *
  * CHANGES FROM v9 -> v9.1 (also in this version):
  * Lets Netlify preview copies of the app (https://*--sayon-preview.netlify.app)
@@ -235,7 +238,8 @@ export default {
     }
 
     const isStripeRoute = url.pathname.startsWith('/stripe/');
-    if (request.method !== 'POST' && !(isStripeRoute && request.method === 'GET')) {
+    const isGetRoute = isStripeRoute || url.pathname === '/maps-key';
+    if (request.method !== 'POST' && !(isGetRoute && request.method === 'GET')) {
       return new Response('Method not allowed', { status: 405 });
     }
 
@@ -253,6 +257,15 @@ export default {
     const verifiedUser = await verifySupabaseToken(tokenMatch[1]);
     if (!verifiedUser) {
       return new Response('Unauthorized: invalid or expired session', { status: 401, headers: corsHeaders(origin) });
+    }
+
+    // The Google Maps key for address suggestions. It is a browser key,
+    // locked in Google Cloud to the SAYON site addresses, so a signed-in
+    // user may have it; it lives here only to keep it out of the public
+    // repo. With no key set the app keeps plain address boxes.
+    if (url.pathname === '/maps-key') {
+      if (!env.GOOGLE_MAPS_KEY) return jsonResponse(501, { message: 'Address suggestions are not set up' }, origin);
+      return jsonResponse(200, { key: env.GOOGLE_MAPS_KEY }, origin);
     }
 
     if (isStripeRoute) {
