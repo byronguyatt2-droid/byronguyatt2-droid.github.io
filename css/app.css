@@ -4524,6 +4524,26 @@ body.report-editing:not(.dark-screen) .choice-card.tone-neutral.active {
   box-shadow: 0 4px 16px rgba(var(--edit),0.45), inset 0 1px 0 rgba(255,255,255,0.35);
 }
 body.report-editing:not(.dark-screen) .choice-card:has(input:focus-visible) { outline-color: rgb(var(--edit)); }
+/* The whole report shifts too: every teal glow, line and wash takes the
+   violet (they all read --glow and --accent), as do the backdrop, the open
+   tab and the mic. The app's logo keeps its own colour. */
+body.report-editing:not(.dark-screen) {
+  --glow: var(--edit); --glow-hi: var(--edit-hi); --glow-ink: var(--edit-ink);
+  --accent: #8B5CF6; --accent2: #7C3AED; --accent3: #6D28D9; --accent-rgb: 139,92,246;
+  --backdrop:
+    radial-gradient(120% 40% at 50% -8%, rgba(139,92,246,0.38), rgba(139,92,246,0) 62%),
+    linear-gradient(180deg, #110D1C 0%, #08070F 100%);
+}
+body.report-editing:not(.dark-screen) .section-tab.active {
+  background: linear-gradient(180deg, #A78BFA 0%, #8B5CF6 45%, #6D28D9 100%);
+}
+body.report-editing:not(.dark-screen) .mic-fab:not(.recording):not(.open) {
+  background: linear-gradient(180deg, #DDD6FE 0%, #A78BFA 30%, #8B5CF6 65%, #6D28D9 100%);
+}
+body:not(.dark-screen) .report-section,
+body:not(.dark-screen) .report-section .section-header,
+body:not(.dark-screen) .edit-banner { transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s, color 0.3s; }
+body:not(.dark-screen) .choice-card { transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s, color 0.3s, transform 0.08s; }
 #invasiveDetailsWrap[hidden] { display: none; }
 
 /* Areas (Section 4) */
