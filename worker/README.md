@@ -12,6 +12,7 @@ calls:
 | `POST /stripe/create-portal-session` | Manage button | Returns a Stripe Billing Portal link (change plan, card, cancel) |
 | `POST /stripe/webhook` | Stripe | Updates the `subscriptions` row when someone pays, changes plan or cancels |
 | `POST /send-email` | Send, Email to client, Email certificate | Emails the PDFs to the client from the business through Resend, with a copy to the business; answers 501 until Resend is set up, and the app then uses the phone's mail app |
+| `GET /maps-key` | Street Address box | Returns the Google Maps browser key from the `GOOGLE_MAPS_KEY` secret, so address suggestions work; answers 501 until it's set, and the box stays plain text |
 | `POST /transcribe` | Experimental AI audio transcription | Runs the recording through Whisper on Workers AI and returns `{ transcript }`; counts as one AI call |
 
 Only the business owner can start checkout or open the portal. The AI proxy
@@ -40,6 +41,25 @@ app. Emails need to come from your own domain, or they land in spam.
 Clients see the business's name (Your business) as the sender, and replies
 go to the business email in Your business, which also gets a copy of every
 email sent.
+
+## Address suggestions (Google Maps)
+
+Until the `GOOGLE_MAPS_KEY` secret is set, the Street Address box is plain
+text. Google gives a free allowance each month; set a budget alert anyway.
+
+1. console.cloud.google.com › pick or create a project › Billing › link a card.
+2. APIs & Services › Library › enable **Maps JavaScript API** and
+   **Places API (New)**.
+3. APIs & Services › Credentials › Create credentials › API key. Open the key:
+   - Application restrictions › **Websites**, add
+     `https://sayon-app.github.io/*` and `https://*--sayon-preview.netlify.app/*`
+   - API restrictions › **Restrict key** › tick Maps JavaScript API and
+     Places API (New). Save.
+4. Cloudflare › Workers & Pages › `korva` › Settings › Variables and Secrets ›
+   Add, type **Secret**, name `GOOGLE_MAPS_KEY`, value the key. Deploy.
+
+The key ends up in the browser, which is normal for a Maps key: the website
+restriction in step 3 is what stops anyone else using it.
 
 ## One-time Stripe setup
 
